@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LogOut, Menu, X, CalendarDays, User, LayoutDashboard, Shield } from 'lucide-react'
+import { LogOut, Menu, X, CalendarDays, User, LayoutDashboard, Shield, ClipboardList } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import Button from '../ui/Button'
@@ -17,7 +17,8 @@ export default function Navbar() {
 
   const navLinks = [
     ...(user && !isTeacher && !isAdmin ? [
-      { to: '/dashboard', label: 'Meus Horários', icon: <User size={16} /> },
+      { to: '/schedule',  label: 'Agendar',        icon: <ClipboardList size={16} /> },
+      { to: '/dashboard', label: 'Meus Horários',  icon: <User size={16} /> },
     ] : []),
     ...(isTeacher ? [
       { to: '/teacher',  label: 'Minha Agenda',  icon: <LayoutDashboard size={16} /> },

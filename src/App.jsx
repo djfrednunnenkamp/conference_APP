@@ -9,6 +9,7 @@ import BookingPage       from './pages/BookingPage'
 import DashboardPage     from './pages/DashboardPage'
 import TeacherPage       from './pages/TeacherPage'
 import AdminPage         from './pages/AdminPage'
+import SchedulePage      from './pages/SchedulePage'
 
 // Redireciona para a página correta conforme o papel do usuário
 function RoleRedirect() {
@@ -80,6 +81,12 @@ export default function App() {
           <Route path="/dashboard" element={
             <ProtectedRoute roles={['parent']}>
               <DashboardPage />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/schedule" element={
+            <ProtectedRoute roles={['parent']}>
+              <SchedulePage />
             </ProtectedRoute>
           } />
 
