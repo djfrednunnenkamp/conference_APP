@@ -18,9 +18,7 @@ async function fetchJSON(url: string, options: RequestInit): Promise<{ ok: boole
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -54,7 +52,7 @@ Deno.serve(async (req) => {
       room?: string; bio?: string; grade_levels?: string[]
       subject_ids?: string[]; grade_ids?: string[]
     }
-    const email = rawEmail?.trim()
+    const email = rawEmail?.trim().toLowerCase()
     if (!email || !full_name) throw new Error('email e full_name são obrigatórios')
 
     // ── 3. Verificar admin ───────────────────────────────────────
@@ -81,7 +79,6 @@ Deno.serve(async (req) => {
         { headers: baseHeaders }
       )
       if ((existingTeachers as Array<unknown>)?.length > 0) {
-        // Atualiza nome e retorna
         await fetchJSON(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${existingProfileId}`, {
           method: 'PATCH',
           headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
@@ -97,51 +94,31 @@ Deno.serve(async (req) => {
     const origin     = req.headers.get('origin') || 'http://localhost:5173'
     const redirectTo = `${origin}/reset-password`
 
-    // ── 5. Gerar link de convite via admin/generate_link ─────────
-    // Cria o auth user se não existir, ou gera novo link se já existir.
-    // Feito ANTES de salvar o invite na tabela, para que o trigger
-    // on_auth_user_created dispare sem encontrar o invite e não
-    // crie o professor prematuramente.
-    step = 'generate_link'
-    const { ok: glOk, data: glData } = await fetchJSON(
-      `${SUPABASE_URL}/auth/v1/admin/generate_link`,
-      {
-        method: 'POST',
-        headers: baseHeaders,
-        body: JSON.stringify({
-          type: 'invite',
-          email,
-          data: { full_name, role: 'teacher' },
-          redirect_to: redirectTo,
-        }),
-      }
-    )
+    // ── 5. Criar usuário com email já confirmado ─────────────────
+    // Garantimos email_confirm: true na criação para que o login
+    // funcione imediatamente após o professor definir a senha.
+    step = 'create_user'
+    let invitedUserId: string | null = existingProfileId ?? null
 
-    let inviteLink: string | null = null
-    let invitedUserId: string | null = null
-    if (glOk) {
-      const glResult = glData as Record<string, unknown>
-      inviteLink = glResult?.action_link as string ?? null
-      invitedUserId = (glResult?.user as Record<string, string>)?.id ?? null
-    } else {
-      // generate_link falhou — tenta magiclink como fallback
-      const { ok: mlOk, data: mlData } = await fetchJSON(
-        `${SUPABASE_URL}/auth/v1/admin/generate_link`,
+    if (!invitedUserId) {
+      const { ok: cuOk, data: cuData } = await fetchJSON(
+        `${SUPABASE_URL}/auth/v1/admin/users`,
         {
           method: 'POST',
           headers: baseHeaders,
-          body: JSON.stringify({ type: 'magiclink', email, redirect_to: redirectTo }),
+          body: JSON.stringify({
+            email,
+            email_confirm: true,
+            user_metadata: { full_name, role: 'teacher' },
+          }),
         }
       )
-      if (mlOk) {
-        const mlResult = mlData as Record<string, unknown>
-        inviteLink = mlResult?.action_link as string ?? null
-        invitedUserId = (mlResult?.user as Record<string, string>)?.id ?? null
+      if (cuOk) {
+        invitedUserId = (cuData as Record<string, string>)?.id ?? null
       }
     }
 
-    // ── 5b. Confirmar e-mail do usuário imediatamente ─────────────
-    // Necessário para que o login funcione após definir a senha.
+    // Se o usuário já existia, garantir que o e-mail está confirmado
     if (invitedUserId) {
       step = 'confirm_email'
       await fetchJSON(`${SUPABASE_URL}/auth/v1/admin/users/${invitedUserId}`, {
@@ -151,9 +128,22 @@ Deno.serve(async (req) => {
       })
     }
 
-    // ── 6. Salvar convite APÓS gerar link ────────────────────────
-    // Agora o trigger já disparou; salvamos o invite para o
-    // finalize-teacher usar quando o professor definir a senha.
+    // ── 6. Gerar magic link para definição de senha ──────────────
+    step = 'generate_link'
+    const { ok: glOk, data: glData } = await fetchJSON(
+      `${SUPABASE_URL}/auth/v1/admin/generate_link`,
+      {
+        method: 'POST',
+        headers: baseHeaders,
+        body: JSON.stringify({ type: 'magiclink', email, redirect_to: redirectTo }),
+      }
+    )
+
+    const inviteLink = glOk
+      ? ((glData as Record<string, unknown>)?.action_link as string ?? null)
+      : null
+
+    // ── 7. Salvar convite ────────────────────────────────────────
     step = 'save_invite'
     await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_invites`, {
       method: 'POST',

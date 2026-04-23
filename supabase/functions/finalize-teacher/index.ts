@@ -11,9 +11,7 @@ async function fetchJSON(url: string, options: RequestInit): Promise<{ ok: boole
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
   const SERVICE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -39,16 +37,25 @@ Deno.serve(async (req) => {
     const user = uData as { id: string; email: string }
     if (!user?.id || !user?.email) throw new Error('Usuário não encontrado')
 
+    const email = user.email.trim().toLowerCase()
+
     // ── 2. Verificar se há convite pendente para este e-mail ─────
     step = 'check_invite'
     const { data: invites } = await fetchJSON(
-      `${SUPABASE_URL}/rest/v1/teacher_invites?email=eq.${encodeURIComponent(user.email)}&select=*`,
+      `${SUPABASE_URL}/rest/v1/teacher_invites?email=eq.${encodeURIComponent(email)}&select=*`,
       { headers: baseHeaders }
     )
     const invite = (invites as Array<Record<string, unknown>>)?.[0]
+
     if (!invite) {
+      // Sem convite — verifica se já é professor (finalize já rodou antes)
+      const { data: teacherCheck } = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/teachers?profile_id=eq.${user.id}&select=id`,
+        { headers: baseHeaders }
+      )
+      const alreadyTeacher = (teacherCheck as Array<unknown>)?.length > 0
       return new Response(
-        JSON.stringify({ success: true, no_invite: true }),
+        JSON.stringify({ success: true, no_invite: true, already_teacher: alreadyTeacher }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -61,59 +68,86 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
         body: JSON.stringify({
-          id: user.id,
-          email: user.email,
+          id:        user.id,
+          email:     email,
           full_name: invite.full_name,
-          role: 'teacher',
+          role:      'teacher',
         }),
       }
     )
-
-    // ── 4. Criar registro de professor ───────────────────────────
-    step = 'create_teacher'
-    const { ok: tOk, data: tData } = await fetchJSON(
-      `${SUPABASE_URL}/rest/v1/teachers`,
+    // Garante role=teacher mesmo se profile já existia
+    await fetchJSON(
+      `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`,
       {
-        method: 'POST',
-        headers: { ...baseHeaders, 'Prefer': 'return=representation' },
-        body: JSON.stringify({
-          profile_id:   user.id,
-          discipline:   invite.discipline   || null,
-          room:         invite.room         || null,
-          bio:          invite.bio          || null,
-          grade_levels: invite.grade_levels || null,
-          is_active:    true,
-        }),
+        method: 'PATCH',
+        headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ role: 'teacher', full_name: invite.full_name }),
       }
     )
 
-    if (tOk) {
-      const newTeacher = (tData as Array<{ id: string }>)?.[0]
-      if (newTeacher?.id) {
-        const subjectIds = invite.subject_ids as string[] | null
-        const gradeIds   = invite.grade_ids   as string[] | null
+    // ── 4. Verificar se teacher já existe (idempotente) ──────────
+    step = 'check_teacher'
+    const { data: existingTeacher } = await fetchJSON(
+      `${SUPABASE_URL}/rest/v1/teachers?profile_id=eq.${user.id}&select=id`,
+      { headers: baseHeaders }
+    )
+    let teacherId = (existingTeacher as Array<{ id: string }>)?.[0]?.id ?? null
 
-        if (subjectIds?.length) {
-          await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_subjects`, {
-            method: 'POST',
-            headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-            body: JSON.stringify(subjectIds.map(sid => ({ teacher_id: newTeacher.id, subject_id: sid }))),
-          })
+    // ── 5. Criar registro de professor se não existir ─────────────
+    if (!teacherId) {
+      step = 'create_teacher'
+      const { ok: tOk, data: tData } = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/teachers`,
+        {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=representation' },
+          body: JSON.stringify({
+            profile_id:   user.id,
+            discipline:   invite.discipline   || null,
+            room:         invite.room         || null,
+            bio:          invite.bio          || null,
+            grade_levels: invite.grade_levels || null,
+            is_active:    true,
+          }),
         }
-        if (gradeIds?.length) {
-          await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_grades`, {
-            method: 'POST',
-            headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-            body: JSON.stringify(gradeIds.map(gid => ({ teacher_id: newTeacher.id, grade_id: gid }))),
-          })
-        }
+      )
+      if (tOk) {
+        teacherId = (tData as Array<{ id: string }>)?.[0]?.id ?? null
       }
     }
 
-    // ── 5. Deletar convite consumido ─────────────────────────────
+    // ── 6. Associar matérias e turmas ────────────────────────────
+    if (teacherId) {
+      const subjectIds = invite.subject_ids as string[] | null
+      const gradeIds   = invite.grade_ids   as string[] | null
+
+      if (subjectIds?.length) {
+        // Apaga vínculos antigos e recria (idempotente)
+        await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_subjects?teacher_id=eq.${teacherId}`, {
+          method: 'DELETE', headers: baseHeaders,
+        })
+        await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_subjects`, {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify(subjectIds.map(sid => ({ teacher_id: teacherId, subject_id: sid }))),
+        })
+      }
+      if (gradeIds?.length) {
+        await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_grades?teacher_id=eq.${teacherId}`, {
+          method: 'DELETE', headers: baseHeaders,
+        })
+        await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_grades`, {
+          method: 'POST',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify(gradeIds.map(gid => ({ teacher_id: teacherId, grade_id: gid }))),
+        })
+      }
+    }
+
+    // ── 7. Deletar convite consumido ─────────────────────────────
     step = 'delete_invite'
     await fetchJSON(
-      `${SUPABASE_URL}/rest/v1/teacher_invites?email=eq.${encodeURIComponent(user.email)}`,
+      `${SUPABASE_URL}/rest/v1/teacher_invites?email=eq.${encodeURIComponent(email)}`,
       { method: 'DELETE', headers: baseHeaders }
     )
 
