@@ -51,45 +51,31 @@ export default function SchedulePage() {
   async function fetchGrid(dayId) {
     setGridLoading(true)
 
-    const { data: teacherData, error: tErr } = await supabase
-      .from('teachers')
-      .select('id, discipline, room, profile:profiles(full_name)')
-      .eq('is_active', true)
-      .order('discipline')
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) { setGridLoading(false); return }
 
-    if (tErr) console.error('teachers error:', tErr)
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-schedule`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ event_day_id: dayId, user_id: user.id }),
+      }
+    )
 
-    const allTeachers = teacherData ?? []
+    const payload = await res.json()
+    if (!res.ok) { console.error('get-schedule error:', payload); setGridLoading(false); return }
+
+    const allTeachers = payload.teachers ?? []
+    const allSlots    = payload.slots    ?? []
+    const allBookings = payload.bookings ?? []
+
     setTeachers(allTeachers)
-
-    const teacherIds = allTeachers.map(t => t.id)
-    if (teacherIds.length === 0) {
-      setSlotsByTeacher({})
-      setBookingSet(new Set())
-      setMyBookingSet(new Set())
-      setGridLoading(false)
-      return
-    }
-
-    // Fetch slots sem bookings aninhados (evita problemas de RLS)
-    const { data: slotData, error: sErr } = await supabase
-      .from('time_slots')
-      .select('id, teacher_id, start_time, end_time')
-      .eq('event_day_id', dayId)
-      .in('teacher_id', teacherIds)
-      .order('start_time')
-
-    if (sErr) console.error('time_slots error:', sErr)
-
-    const allSlots = slotData ?? []
-    const slotIds  = allSlots.map(s => s.id)
-
-    // Busca bookings separadamente
-    const { data: allBookings, error: bErr } = slotIds.length > 0
-      ? await supabase.from('bookings').select('id, time_slot_id, parent_id').in('time_slot_id', slotIds)
-      : { data: [], error: null }
-
-    if (bErr) console.error('bookings error:', bErr)
 
     const byTeacher = {}
     const booked    = new Set()
@@ -98,9 +84,9 @@ export default function SchedulePage() {
     allSlots.forEach(slot => {
       if (!byTeacher[slot.teacher_id]) byTeacher[slot.teacher_id] = []
       byTeacher[slot.teacher_id].push(slot)
-    });
+    })
 
-    (allBookings ?? []).forEach(b => {
+    allBookings.forEach(b => {
       booked.add(b.time_slot_id)
       if (b.parent_id === user.id) mine.add(b.time_slot_id)
     })
