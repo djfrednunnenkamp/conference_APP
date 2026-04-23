@@ -51,23 +51,45 @@ export default function SchedulePage() {
   async function fetchGrid(dayId) {
     setGridLoading(true)
 
-    const [{ data: teacherData }, { data: slotData }] = await Promise.all([
-      supabase
-        .from('teachers')
-        .select('id, discipline, room, profile:profiles(full_name)')
-        .eq('is_active', true)
-        .order('discipline'),
-      supabase
-        .from('time_slots')
-        .select('id, teacher_id, start_time, end_time, bookings(id, parent_id)')
-        .eq('event_day_id', dayId)
-        .order('start_time'),
-    ])
+    const { data: teacherData, error: tErr } = await supabase
+      .from('teachers')
+      .select('id, discipline, room, profile:profiles(full_name)')
+      .eq('is_active', true)
+      .order('discipline')
+
+    if (tErr) console.error('teachers error:', tErr)
 
     const allTeachers = teacherData ?? []
-    const allSlots    = slotData    ?? []
-
     setTeachers(allTeachers)
+
+    const teacherIds = allTeachers.map(t => t.id)
+    if (teacherIds.length === 0) {
+      setSlotsByTeacher({})
+      setBookingSet(new Set())
+      setMyBookingSet(new Set())
+      setGridLoading(false)
+      return
+    }
+
+    // Fetch slots sem bookings aninhados (evita problemas de RLS)
+    const { data: slotData, error: sErr } = await supabase
+      .from('time_slots')
+      .select('id, teacher_id, start_time, end_time')
+      .eq('event_day_id', dayId)
+      .in('teacher_id', teacherIds)
+      .order('start_time')
+
+    if (sErr) console.error('time_slots error:', sErr)
+
+    const allSlots = slotData ?? []
+    const slotIds  = allSlots.map(s => s.id)
+
+    // Busca bookings separadamente
+    const { data: allBookings, error: bErr } = slotIds.length > 0
+      ? await supabase.from('bookings').select('id, time_slot_id, parent_id').in('time_slot_id', slotIds)
+      : { data: [], error: null }
+
+    if (bErr) console.error('bookings error:', bErr)
 
     const byTeacher = {}
     const booked    = new Set()
@@ -76,10 +98,11 @@ export default function SchedulePage() {
     allSlots.forEach(slot => {
       if (!byTeacher[slot.teacher_id]) byTeacher[slot.teacher_id] = []
       byTeacher[slot.teacher_id].push(slot)
-      if (slot.bookings?.length > 0) {
-        booked.add(slot.id)
-        if (slot.bookings.some(b => b.parent_id === user.id)) mine.add(slot.id)
-      }
+    });
+
+    (allBookings ?? []).forEach(b => {
+      booked.add(b.time_slot_id)
+      if (b.parent_id === user.id) mine.add(b.time_slot_id)
     })
 
     setSlotsByTeacher(byTeacher)
