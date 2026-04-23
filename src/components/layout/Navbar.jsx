@@ -16,8 +16,7 @@ export default function Navbar() {
   }
 
   const navLinks = [
-    { to: '/',           label: 'Professores',  icon: <CalendarDays size={16} /> },
-    ...(user ? [
+    ...(user && !isTeacher && !isAdmin ? [
       { to: '/dashboard', label: 'Meus Horários', icon: <User size={16} /> },
     ] : []),
     ...(isTeacher ? [
