@@ -835,6 +835,9 @@ function StudentsTab() {
           const responsibles = s.student_record_responsibles ?? []
           const pending    = pendingByStudent[s.id] ?? []
 
+          const resp1 = responsibles.find(r => r.order_num === 1)
+          const resp2 = responsibles.find(r => r.order_num === 2)
+
           return (
             <div key={s.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-start gap-4">
@@ -852,46 +855,46 @@ function StudentsTab() {
                     </div>
                   )}
 
-                  {/* Responsáveis */}
-                  <div className="mt-3 space-y-2">
-                    {responsibles.map(resp => {
-                      const isPending = pending.some(p => p.email === resp.email)
-                      return (
-                        <div key={resp.id} className="flex items-center gap-3 text-sm">
-                          <span className="text-gray-400 text-xs w-20 shrink-0">
-                            Responsável {resp.order_num}
-                          </span>
-                          <span className="font-medium text-gray-700 truncate">{resp.full_name}</span>
-                          <span className="text-gray-400 text-xs truncate">{resp.email}</span>
-                          {isPending && (
-                            <span className="text-xs bg-amber-100 text-amber-600 px-2 py-0.5 rounded-lg shrink-0">Pendente</span>
-                          )}
-                          {resp.invite_sent_at && !isPending && (
-                            <span className="text-xs bg-brand-green-100 text-brand-green-600 px-2 py-0.5 rounded-lg shrink-0">Enviado</span>
-                          )}
-                          <button
-                            onClick={() => copyLink(resp.email, resp.full_name)}
-                            className="p-1 rounded-lg text-gray-300 hover:text-brand-blue-600 hover:bg-brand-blue-50 transition shrink-0"
-                            title="Copiar link de cadastro"
-                          >
-                            <Link size={13} />
-                          </button>
-                        </div>
-                      )
-                    })}
-                    {s.send_student_invite && s.student_email && (
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="text-gray-400 text-xs w-20 shrink-0">Aluno</span>
-                        <span className="font-medium text-gray-700 truncate">{s.full_name}</span>
-                        <span className="text-gray-400 text-xs truncate">{s.student_email}</span>
-                        <button
-                          onClick={() => copyLink(s.student_email, s.full_name)}
-                          className="p-1 rounded-lg text-gray-300 hover:text-brand-blue-600 hover:bg-brand-blue-50 transition shrink-0"
-                          title="Copiar link do aluno"
-                        >
-                          <Link size={13} />
-                        </button>
+                  {/* Responsáveis — info */}
+                  <div className="mt-3 space-y-1">
+                    {responsibles.map(resp => (
+                      <div key={resp.id} className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className="text-gray-400 w-20 shrink-0">Responsável {resp.order_num}</span>
+                        <span className="font-medium text-gray-700 truncate">{resp.full_name}</span>
+                        <span className="truncate">{resp.email}</span>
                       </div>
+                    ))}
+                    {s.student_email && (
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        <span className="text-gray-400 w-20 shrink-0">Aluno</span>
+                        <span className="truncate">{s.student_email}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Botões de link */}
+                  <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={() => copyLink(s.student_email, s.full_name)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:border-brand-blue-400 hover:text-brand-blue-600 hover:bg-brand-blue-50 transition"
+                    >
+                      <Link size={12} /> Link do aluno
+                    </button>
+                    {resp1 && (
+                      <button
+                        onClick={() => copyLink(resp1.email, resp1.full_name)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:border-brand-blue-400 hover:text-brand-blue-600 hover:bg-brand-blue-50 transition"
+                      >
+                        <Link size={12} /> Link Responsável 1
+                      </button>
+                    )}
+                    {resp2 && (
+                      <button
+                        onClick={() => copyLink(resp2.email, resp2.full_name)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-medium text-gray-600 hover:border-brand-blue-400 hover:text-brand-blue-600 hover:bg-brand-blue-50 transition"
+                      >
+                        <Link size={12} /> Link Responsável 2
+                      </button>
                     )}
                   </div>
                 </div>
