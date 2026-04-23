@@ -17,9 +17,37 @@ export default function ResetPasswordPage() {
     if (password !== confirm) { toast.error('Senhas não coincidem'); return }
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
+    if (error) { setLoading(false); toast.error(error.message); return }
+
+    // Finaliza setup de professor se houver convite pendente
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: { session } } = await supabase.auth.getSession()
+        const token = session?.access_token
+        if (token) {
+          const res = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/finalize-teacher`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+              },
+            }
+          )
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}))
+            console.error('finalize-teacher:', err)
+          }
+        }
+      }
+    } catch (err) {
+      console.error('finalize-teacher error:', err)
+    }
+
     setLoading(false)
-    if (error) { toast.error(error.message); return }
-    toast.success('Senha atualizada com sucesso!')
+    toast.success('Senha definida com sucesso!')
     navigate('/login')
   }
 

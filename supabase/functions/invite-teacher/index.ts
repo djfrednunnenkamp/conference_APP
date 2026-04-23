@@ -13,7 +13,7 @@ async function fetchJSON(url: string, options: RequestInit): Promise<{ ok: boole
   if (!text) return { ok: res.ok, status: res.status, data: null }
   let data: unknown
   try { data = JSON.parse(text) }
-  catch { throw new Error(`Resposta inválida de ${url} (${res.status}): "${text.slice(0, 120)}"`) }
+  catch { throw new Error(`Resposta inválida (${res.status}): "${text.slice(0, 120)}"`) }
   return { ok: res.ok, status: res.status, data }
 }
 
@@ -36,10 +36,9 @@ Deno.serve(async (req) => {
     // ── 1. Autenticação ──────────────────────────────────────────
     step = 'auth'
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Header Authorization ausente')
-    const jwt = authHeader.replace('Bearer ', '')
-    const payload = decodeJWT(jwt)
-    if (!payload?.sub) throw new Error('JWT inválido ou expirado')
+    if (!authHeader) throw new Error('Authorization ausente')
+    const payload = decodeJWT(authHeader.replace('Bearer ', ''))
+    if (!payload?.sub) throw new Error('JWT inválido')
     const userId = payload.sub as string
 
     // ── 2. Ler body ──────────────────────────────────────────────
@@ -48,182 +47,134 @@ Deno.serve(async (req) => {
     if (!rawBody?.trim()) throw new Error('Body vazio')
     let body: Record<string, unknown>
     try { body = JSON.parse(rawBody) }
-    catch { throw new Error(`Body inválido: "${rawBody.slice(0, 80)}"`) }
+    catch { throw new Error('Body inválido') }
 
-    const { email, full_name, discipline, room, bio, grade_levels, subject_ids, grade_ids } = body as {
+    const { email: rawEmail, full_name, discipline, room, bio, grade_levels, subject_ids, grade_ids } = body as {
       email: string; full_name: string; discipline?: string
       room?: string; bio?: string; grade_levels?: string[]
       subject_ids?: string[]; grade_ids?: string[]
     }
+    const email = rawEmail?.trim()
     if (!email || !full_name) throw new Error('email e full_name são obrigatórios')
 
     // ── 3. Verificar admin ───────────────────────────────────────
     step = 'check_admin'
-    const { ok: pOk, status: pStatus, data: pData } = await fetchJSON(
+    const { ok: pOk, data: pData } = await fetchJSON(
       `${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}&select=role`,
       { headers: baseHeaders }
     )
-    if (!pOk) throw new Error(`REST profiles erro ${pStatus}: ${JSON.stringify(pData).slice(0, 100)}`)
-    const adminProfiles = pData as Array<{ role: string }>
-    if (!Array.isArray(adminProfiles) || adminProfiles[0]?.role !== 'admin') {
-      throw new Error(`Acesso negado (role="${adminProfiles[0]?.role ?? 'nenhum'}")`)
+    if (!pOk || (pData as Array<{ role: string }>)?.[0]?.role !== 'admin') {
+      throw new Error('Acesso negado')
     }
 
-    // ── 4. Salvar convite ────────────────────────────────────────
-    step = 'save_invite'
-    const { ok: sOk, status: sStatus, data: sData } = await fetchJSON(
-      `${SUPABASE_URL}/rest/v1/teacher_invites`,
-      {
-        method: 'POST',
-        headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({
-          email, full_name,
-          discipline:   discipline   || null,
-          room:         room         || null,
-          bio:          bio          || null,
-          grade_levels: grade_levels || null,
-          subject_ids:  subject_ids  || [],
-          grade_ids:    grade_ids    || [],
-        }),
-      }
+    // ── 4. Verificar se já existe professor ativo ────────────────
+    step = 'check_existing'
+    const { data: existingProfiles } = await fetchJSON(
+      `${SUPABASE_URL}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id`,
+      { headers: baseHeaders }
     )
-    // 409 = convite já existe para este e-mail (ok, continua)
-    if (!sOk && sStatus !== 409) {
-      throw new Error(`Erro ao salvar convite (${sStatus}): ${JSON.stringify(sData).slice(0, 100)}`)
+    const existingProfileId = (existingProfiles as Array<{ id: string }>)?.[0]?.id
+
+    if (existingProfileId) {
+      const { data: existingTeachers } = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/teachers?profile_id=eq.${existingProfileId}&select=id`,
+        { headers: baseHeaders }
+      )
+      if ((existingTeachers as Array<unknown>)?.length > 0) {
+        // Atualiza nome e retorna
+        await fetchJSON(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${existingProfileId}`, {
+          method: 'PATCH',
+          headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ full_name }),
+        })
+        return new Response(
+          JSON.stringify({ success: true, already_active: true, warning: `${full_name} já está cadastrado e ativo.` }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
-    // ── 5. Enviar e-mail de convite ──────────────────────────────
-    step = 'send_invite'
     const origin     = req.headers.get('origin') || 'http://localhost:5173'
     const redirectTo = `${origin}/reset-password`
 
-    const { ok: iOk, status: iStatus, data: iData } = await fetchJSON(
-      `${SUPABASE_URL}/auth/v1/invite`,
+    // ── 5. Gerar link de convite via admin/generate_link ─────────
+    // Cria o auth user se não existir, ou gera novo link se já existir.
+    // Feito ANTES de salvar o invite na tabela, para que o trigger
+    // on_auth_user_created dispare sem encontrar o invite e não
+    // crie o professor prematuramente.
+    step = 'generate_link'
+    const { ok: glOk, data: glData } = await fetchJSON(
+      `${SUPABASE_URL}/auth/v1/admin/generate_link`,
       {
         method: 'POST',
         headers: baseHeaders,
-        body: JSON.stringify({ email, data: { full_name, role: 'teacher' }, redirect_to: redirectTo }),
+        body: JSON.stringify({
+          type: 'invite',
+          email,
+          data: { full_name, role: 'teacher' },
+          redirect_to: redirectTo,
+        }),
       }
     )
 
-    if (!iOk) {
-      const errMsg = (
-        (iData as Record<string, string>)?.msg ??
-        (iData as Record<string, string>)?.message ??
-        (iData as Record<string, string>)?.error ?? ''
-      ).toLowerCase()
-
-      // ── Usuário já existe no auth ──────────────────────────────
-      if (errMsg.includes('already') || errMsg.includes('registered') || errMsg.includes('exists')) {
-        step = 'restore_teacher'
-
-        // Busca o profile pelo e-mail
-        const { data: existingProfiles } = await fetchJSON(
-          `${SUPABASE_URL}/rest/v1/profiles?email=eq.${encodeURIComponent(email)}&select=id,role`,
-          { headers: baseHeaders }
-        )
-        const existingProfile = (existingProfiles as Array<{ id: string; role: string }>)?.[0]
-
-        if (existingProfile) {
-          // Verifica se já tem registro na tabela teachers
-          const { data: existingTeachers } = await fetchJSON(
-            `${SUPABASE_URL}/rest/v1/teachers?profile_id=eq.${existingProfile.id}&select=id`,
-            { headers: baseHeaders }
-          )
-          const teacherExists = (existingTeachers as Array<unknown>)?.length > 0
-
-          if (!teacherExists) {
-            // Recria o registro de professor (conta existe, teachers foi apagado)
-            const { ok: tOk, data: tData } = await fetchJSON(
-              `${SUPABASE_URL}/rest/v1/teachers`,
-              {
-                method: 'POST',
-                headers: { ...baseHeaders, 'Prefer': 'return=representation' },
-                body: JSON.stringify({
-                  profile_id:   existingProfile.id,
-                  discipline:   discipline   || null,
-                  room:         room         || null,
-                  bio:          bio          || null,
-                  grade_levels: grade_levels || null,
-                  is_active:    true,
-                }),
-              }
-            )
-
-            if (tOk) {
-              // Vincula matérias e turmas se fornecidas
-              const newTeacher = (tData as Array<{ id: string }>)?.[0]
-              if (newTeacher?.id) {
-                if (subject_ids?.length) {
-                  await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_subjects`, {
-                    method: 'POST',
-                    headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-                    body: JSON.stringify(subject_ids.map(sid => ({ teacher_id: newTeacher.id, subject_id: sid }))),
-                  })
-                }
-                if (grade_ids?.length) {
-                  await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_grades`, {
-                    method: 'POST',
-                    headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-                    body: JSON.stringify(grade_ids.map(gid => ({ teacher_id: newTeacher.id, grade_id: gid }))),
-                  })
-                }
-              }
-              // Atualiza role do profile para teacher (garantia)
-              await fetchJSON(
-                `${SUPABASE_URL}/rest/v1/profiles?id=eq.${existingProfile.id}`,
-                {
-                  method: 'PATCH',
-                  headers: { ...baseHeaders, 'Prefer': 'return=minimal' },
-                  body: JSON.stringify({ role: 'teacher', full_name }),
-                }
-              )
-              // Remove o convite pendente (não é mais necessário)
-              await fetchJSON(
-                `${SUPABASE_URL}/rest/v1/teacher_invites?email=eq.${encodeURIComponent(email)}`,
-                { method: 'DELETE', headers: baseHeaders }
-              )
-              return new Response(
-                JSON.stringify({ success: true, restored: true, message: `Professor ${full_name} reativado com sucesso.` }),
-                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-              )
-            }
-          } else {
-            // Já tem registro ativo — remove o convite duplicado e retorna aviso
-            await fetchJSON(
-              `${SUPABASE_URL}/rest/v1/teacher_invites?email=eq.${encodeURIComponent(email)}`,
-              { method: 'DELETE', headers: baseHeaders }
-            )
-            return new Response(
-              JSON.stringify({ success: true, already_active: true, warning: `${full_name} já está cadastrado e ativo no sistema.` }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
-          }
+    let inviteLink: string | null = null
+    let invitedUserId: string | null = null
+    if (glOk) {
+      const glResult = glData as Record<string, unknown>
+      inviteLink = glResult?.action_link as string ?? null
+      invitedUserId = (glResult?.user as Record<string, string>)?.id ?? null
+    } else {
+      // generate_link falhou — tenta magiclink como fallback
+      const { ok: mlOk, data: mlData } = await fetchJSON(
+        `${SUPABASE_URL}/auth/v1/admin/generate_link`,
+        {
+          method: 'POST',
+          headers: baseHeaders,
+          body: JSON.stringify({ type: 'magiclink', email, redirect_to: redirectTo }),
         }
-
-        return new Response(
-          JSON.stringify({ success: true, warning: 'Usuário já cadastrado. O convite foi salvo.' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+      )
+      if (mlOk) {
+        const mlResult = mlData as Record<string, unknown>
+        inviteLink = mlResult?.action_link as string ?? null
+        invitedUserId = (mlResult?.user as Record<string, string>)?.id ?? null
       }
-
-      // ── Rate limit ─────────────────────────────────────────────
-      if (iStatus === 429 || errMsg.includes('rate limit') || errMsg.includes('over_email')) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            rate_limited: true,
-            warning: `Limite de e-mails atingido. Convite salvo! Use o link de cadastro para ${email}`,
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      throw new Error(`Erro ao enviar e-mail (${iStatus}): ${JSON.stringify(iData).slice(0, 150)}`)
     }
 
+    // ── 5b. Confirmar e-mail do usuário imediatamente ─────────────
+    // Necessário para que o login funcione após definir a senha.
+    if (invitedUserId) {
+      step = 'confirm_email'
+      await fetchJSON(`${SUPABASE_URL}/auth/v1/admin/users/${invitedUserId}`, {
+        method: 'PUT',
+        headers: baseHeaders,
+        body: JSON.stringify({ email_confirm: true }),
+      })
+    }
+
+    // ── 6. Salvar convite APÓS gerar link ────────────────────────
+    // Agora o trigger já disparou; salvamos o invite para o
+    // finalize-teacher usar quando o professor definir a senha.
+    step = 'save_invite'
+    await fetchJSON(`${SUPABASE_URL}/rest/v1/teacher_invites`, {
+      method: 'POST',
+      headers: { ...baseHeaders, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({
+        email, full_name,
+        discipline:   discipline   || null,
+        room:         room         || null,
+        bio:          bio          || null,
+        grade_levels: grade_levels || null,
+        subject_ids:  subject_ids  || [],
+        grade_ids:    grade_ids    || [],
+      }),
+    })
+
     return new Response(
-      JSON.stringify({ success: true, message: `Convite enviado para ${email}` }),
+      JSON.stringify({
+        success: true,
+        invite_link: inviteLink,
+        message: `Professor adicionado. ${inviteLink ? 'Copie o link e envie para ' + email + '.' : 'Use o botão de copiar link no painel.'}`,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

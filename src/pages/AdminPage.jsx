@@ -5,7 +5,7 @@ import {
   Users, CalendarDays, LayoutGrid, Plus, Trash2,
   Edit2, ChevronDown, ChevronUp, RefreshCw,
   ToggleLeft, ToggleRight, Clock, Mail, Link,
-  GraduationCap, BookOpen, Tag, X, Check
+  GraduationCap, BookOpen, Tag, X, Check, Search
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -156,8 +156,9 @@ function TeachersTab() {
   const [modal, setModal]             = useState(false)
   const [form, setForm]               = useState({ name: '', email: '', room: '', bio: '', subjectIds: [], gradeIds: [] })
   const [loading, setLoading]         = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(null) // teacher id being confirmed
+  const [confirmDelete, setConfirmDelete] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [search, setSearch]           = useState('')
 
   useEffect(() => {
     fetchTeachers(); fetchInvites()
@@ -238,7 +239,10 @@ function TeachersTab() {
     }
 
     setLoading(false)
-    if (resData?.rate_limited) {
+    if (resData?.invite_link) {
+      navigator.clipboard.writeText(resData.invite_link).catch(() => {})
+      toast.success(resData.message + ' — link copiado!', { duration: 10000 })
+    } else if (resData?.rate_limited) {
       toast(resData.warning, { icon: '⚠️', duration: 8000 })
     } else if (resData?.already_active) {
       toast(resData.warning, { icon: 'ℹ️', duration: 6000 })
@@ -254,9 +258,23 @@ function TeachersTab() {
     fetchInvites(); fetchTeachers()
   }
 
-  async function deleteInvite(id) {
-    const { error } = await supabase.from('teacher_invites').delete().eq('id', id)
-    if (error) { toast.error(error.message); return }
+  async function deleteInvite(invite) {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) { toast.error('Sessão expirada.'); return }
+    try {
+      await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-teacher`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify({ email: invite.email }),
+        }
+      )
+    } catch (_) { /* ignora erro de rede, continua */ }
     fetchInvites()
     toast.success('Convite removido')
   }
@@ -311,13 +329,23 @@ function TeachersTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">
           {teachers.length} professor{teachers.length !== 1 ? 'es' : ''} · {invites.length} convite{invites.length !== 1 ? 's' : ''} pendente{invites.length !== 1 ? 's' : ''}
         </p>
         <Button variant="primary" size="sm" onClick={() => setModal(true)}>
           <Plus size={16} /> Adicionar professor
         </Button>
+      </div>
+      <div className="relative mb-6">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Buscar professor…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue-400 bg-white"
+        />
       </div>
 
       {/* Convites pendentes */}
@@ -345,7 +373,7 @@ function TeachersTab() {
                 >
                   <Link size={14} />
                 </button>
-                <button onClick={() => deleteInvite(inv.id)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition shrink-0">
+                <button onClick={() => deleteInvite(inv)} className="p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition shrink-0">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -356,7 +384,10 @@ function TeachersTab() {
 
       {/* Professores ativos */}
       <div className="space-y-3">
-        {teachers.map(t => {
+        {teachers.filter(t => {
+          const q = search.toLowerCase()
+          return !q || t.profile?.full_name?.toLowerCase().includes(q) || t.profile?.email?.toLowerCase().includes(q) || t.discipline?.toLowerCase().includes(q)
+        }).map(t => {
           const tSubjects = t.teacher_subjects?.map(ts => ts.subject?.name).filter(Boolean) ?? []
           const tGrades   = t.teacher_grades?.map(tg => tg.grade?.name).filter(Boolean) ?? []
           return (
@@ -487,6 +518,7 @@ function StudentsTab() {
   const [subjects, setSubjects]   = useState([])
   const [modal, setModal]         = useState(false)
   const [loading, setLoading]     = useState(false)
+  const [search, setSearch]       = useState('')
   const emptyForm = {
     fullName: '', gradeId: '', subjectIds: [],
     resp1Name: '', resp1Email: '',
@@ -522,16 +554,16 @@ function StudentsTab() {
   function setF(field) { return e => setForm(f => ({ ...f, [field]: e.target.value })) }
 
   async function addStudent() {
-    if (!form.fullName || !form.resp1Name || !form.resp1Email) {
-      toast.error('Nome do aluno, responsável 1 e e-mail são obrigatórios')
+    if (!form.fullName || !form.studentEmail) {
+      toast.error('Nome e e-mail do aluno são obrigatórios')
+      return
+    }
+    if (!form.resp1Name || !form.resp1Email) {
+      toast.error('Nome e e-mail do responsável 1 são obrigatórios')
       return
     }
     if (form.subjectIds.length === 0) {
       toast.error('Selecione ao menos uma matéria')
-      return
-    }
-    if (form.sendStudentInvite && !form.studentEmail) {
-      toast.error('Informe o e-mail do aluno')
       return
     }
     setLoading(true)
@@ -543,7 +575,7 @@ function StudentsTab() {
         .insert({
           full_name:           form.fullName,
           grade_id:            form.gradeId || null,
-          student_email:       form.sendStudentInvite ? form.studentEmail : null,
+          student_email:       form.studentEmail,
           send_student_invite: form.sendStudentInvite,
         })
         .select().single()
@@ -556,7 +588,7 @@ function StudentsTab() {
         )
       }
 
-      // 3. Responsáveis
+      // 3. Responsáveis (opcionais)
       const respInserts = [
         { student_record_id: sr.id, full_name: form.resp1Name, email: form.resp1Email, order_num: 1 },
       ]
@@ -628,7 +660,7 @@ function StudentsTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-gray-500">
           {students.length} aluno{students.length !== 1 ? 's' : ''} cadastrado{students.length !== 1 ? 's' : ''}
         </p>
@@ -636,9 +668,22 @@ function StudentsTab() {
           <Plus size={16} /> Adicionar aluno
         </Button>
       </div>
+      <div className="relative mb-6">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Buscar aluno…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue-400 bg-white"
+        />
+      </div>
 
       <div className="space-y-4">
-        {students.map(s => {
+        {students.filter(s => {
+          const q = search.toLowerCase()
+          return !q || s.full_name?.toLowerCase().includes(q) || s.student_email?.toLowerCase().includes(q)
+        }).map(s => {
           const sSubjects  = s.student_record_subjects?.map(sr => sr.subject?.name).filter(Boolean) ?? []
           const responsibles = s.student_record_responsibles ?? []
           const pending    = pendingByStudent[s.id] ?? []
@@ -728,17 +773,18 @@ function StudentsTab() {
           {/* Dados do aluno */}
           <div className="grid grid-cols-2 gap-4">
             <Input label="Nome do aluno *" placeholder="Maria Souza" value={form.fullName} onChange={setF('fullName')} />
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1.5 block">Turma</label>
-              <select
-                value={form.gradeId}
-                onChange={setF('gradeId')}
-                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue-400 bg-white"
-              >
-                <option value="">Selecionar turma…</option>
-                {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-              </select>
-            </div>
+            <Input label="E-mail do aluno *" type="email" placeholder="maria@email.com" value={form.studentEmail} onChange={setF('studentEmail')} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Turma</label>
+            <select
+              value={form.gradeId}
+              onChange={setF('gradeId')}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue-400 bg-white"
+            >
+              <option value="">Selecionar turma…</option>
+              {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
           </div>
 
           <CheckboxGroup
@@ -766,7 +812,7 @@ function StudentsTab() {
             </div>
           </div>
 
-          {/* Toggle convite para aluno */}
+          {/* Toggle envio de e-mail */}
           <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
             <button
               type="button"
@@ -779,19 +825,10 @@ function StudentsTab() {
               }
             </button>
             <div>
-              <p className="text-sm font-medium text-gray-700">Enviar convite para o aluno</p>
-              <p className="text-xs text-gray-400">O aluno também poderá agendar conferências</p>
+              <p className="text-sm font-medium text-gray-700">Enviar e-mail para marcar conferências</p>
+              <p className="text-xs text-gray-400">O aluno receberá um e-mail para agendar conferências</p>
             </div>
           </div>
-          {form.sendStudentInvite && (
-            <Input
-              label="E-mail do aluno *"
-              type="email"
-              placeholder="maria@email.com"
-              value={form.studentEmail}
-              onChange={setF('studentEmail')}
-            />
-          )}
 
           <div className="bg-brand-green-50 border border-brand-green-200 rounded-xl p-3 text-xs text-brand-green-700">
             <Mail size={12} className="inline mr-1" />

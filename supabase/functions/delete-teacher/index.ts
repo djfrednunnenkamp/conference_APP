@@ -59,8 +59,33 @@ Deno.serve(async (req) => {
     try { body = JSON.parse(rawBody) }
     catch { throw new Error('Body inválido') }
 
-    const { teacher_id } = body as { teacher_id: string }
-    if (!teacher_id) throw new Error('teacher_id é obrigatório')
+    const { teacher_id, email: inviteEmail } = body as { teacher_id?: string; email?: string }
+
+    // ── Modo convite: limpar auth user de convite pendente ───────
+    if (!teacher_id && inviteEmail) {
+      step = 'delete_invite_user'
+      const { data: profileData } = await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/profiles?email=eq.${encodeURIComponent(inviteEmail)}&select=id`,
+        { headers: baseHeaders }
+      )
+      const profileId = (profileData as Array<{ id: string }>)?.[0]?.id
+      if (profileId) {
+        await fetchJSON(
+          `${SUPABASE_URL}/auth/v1/admin/users/${profileId}`,
+          { method: 'DELETE', headers: baseHeaders }
+        )
+      }
+      await fetchJSON(
+        `${SUPABASE_URL}/rest/v1/teacher_invites?email=eq.${encodeURIComponent(inviteEmail)}`,
+        { method: 'DELETE', headers: baseHeaders }
+      )
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!teacher_id) throw new Error('teacher_id ou email é obrigatório')
 
     // ── 4. Buscar profile_id do professor ────────────────────────
     step = 'fetch_teacher'
@@ -74,8 +99,6 @@ Deno.serve(async (req) => {
     const profileId = teachers[0].profile_id
 
     // ── 5. Apagar da tabela auth.users ───────────────────────────
-    // Isso cascata para: profiles → teachers → teacher_subjects → teacher_grades
-    // → time_slots → bookings
     step = 'delete_auth_user'
     const { ok: dOk, status: dStatus } = await fetchJSON(
       `${SUPABASE_URL}/auth/v1/admin/users/${profileId}`,
