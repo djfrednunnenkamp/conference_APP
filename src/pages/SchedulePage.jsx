@@ -209,84 +209,100 @@ export default function SchedulePage() {
             </div>
           </div>
 
-          {/* Grid: columns = teachers */}
+          {/* Grid: columns = teachers, rows = header + slots (headers sincronizados) */}
           <div className="overflow-x-auto pb-4">
-            <div className="flex gap-3 min-w-max">
+            <div
+              className="min-w-max"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${teachers.length}, 176px)`,
+                gridTemplateRows: 'auto 1fr',
+                columnGap: '12px',
+                rowGap: 0,
+              }}
+            >
+              {/* Linha 1: todos os cabeçalhos (mesma altura automaticamente) */}
               {teachers.map(teacher => {
-                const name   = teacher.profile?.full_name ?? 'Professor'
-                const slots  = slotsByTeacher[teacher.id] ?? []
+                const name     = teacher.profile?.full_name ?? 'Professor'
                 const initials = name.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
-
                 return (
-                  <div key={teacher.id} className="w-44 flex flex-col rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                    {/* Teacher header */}
-                    <div className="bg-gradient-to-b from-brand-blue-600 to-brand-blue-700 text-white p-4">
-                      <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold text-sm mb-3">
-                        {initials}
-                      </div>
-                      <p className="font-semibold text-sm leading-tight">{name}</p>
-                      {teacher.discipline && (
-                        <p className="text-xs text-brand-blue-200 mt-1 flex items-center gap-1">
-                          <BookOpen size={10} />
-                          {teacher.discipline}
-                        </p>
-                      )}
-                      {teacher.room && (
-                        <p className="text-xs text-brand-blue-300 mt-0.5 flex items-center gap-1">
-                          <MapPin size={10} />
-                          Sala {teacher.room}
-                        </p>
-                      )}
+                  <div
+                    key={`h-${teacher.id}`}
+                    className="bg-gradient-to-b from-brand-blue-600 to-brand-blue-700 text-white p-4 rounded-t-2xl"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold text-sm mb-3">
+                      {initials}
                     </div>
+                    <p className="font-semibold text-sm leading-tight">{name}</p>
+                    {teacher.discipline && (
+                      <p className="text-xs text-brand-blue-200 mt-1 flex items-center gap-1">
+                        <BookOpen size={10} />
+                        {teacher.discipline}
+                      </p>
+                    )}
+                    {teacher.room && (
+                      <p className="text-xs text-brand-blue-300 mt-0.5 flex items-center gap-1">
+                        <MapPin size={10} />
+                        Sala {teacher.room}
+                      </p>
+                    )}
+                  </div>
+                )
+              })}
 
-                    {/* Time slots */}
-                    <div className="flex flex-col gap-1.5 p-2 bg-gray-50 flex-1">
-                      {slots.length === 0 && (
-                        <p className="text-xs text-gray-400 text-center py-4">Sem horários</p>
-                      )}
-                      {slots.map(slot => {
-                        const isMine   = myBookingSet.has(slot.id)
-                        const isBooked = bookingSet.has(slot.id)
-                        const isLoading = bookingSlot === slot.id
+              {/* Linha 2: slots de cada professor */}
+              {teachers.map(teacher => {
+                const slots = slotsByTeacher[teacher.id] ?? []
+                return (
+                  <div
+                    key={`s-${teacher.id}`}
+                    className="flex flex-col gap-1.5 p-2 bg-gray-50 rounded-b-2xl border border-t-0 border-gray-100 shadow-sm"
+                  >
+                    {slots.length === 0 && (
+                      <p className="text-xs text-gray-400 text-center py-4">Sem horários</p>
+                    )}
+                    {slots.map(slot => {
+                      const isMine    = myBookingSet.has(slot.id)
+                      const isBooked  = bookingSet.has(slot.id)
+                      const isLoading = bookingSlot === slot.id
 
-                        if (isMine) return (
-                          <button
-                            key={slot.id}
-                            onClick={() => cancelSlot(slot)}
-                            title="Clique para cancelar"
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-brand-green-50 border-2 border-brand-green-400 text-brand-green-700 text-xs font-semibold hover:bg-brand-green-100 transition"
-                          >
-                            <span>{slot.start_time?.slice(0, 5)}</span>
-                            <Check size={13} strokeWidth={2.5} />
-                          </button>
-                        )
+                      if (isMine) return (
+                        <button
+                          key={slot.id}
+                          onClick={() => cancelSlot(slot)}
+                          title="Clique para cancelar"
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-brand-green-50 border-2 border-brand-green-400 text-brand-green-700 text-xs font-semibold hover:bg-brand-green-100 transition"
+                        >
+                          <span>{slot.start_time?.slice(0, 5)}</span>
+                          <Check size={13} strokeWidth={2.5} />
+                        </button>
+                      )
 
-                        if (isBooked) return (
-                          <div
-                            key={slot.id}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gray-200 text-gray-400 text-xs font-medium cursor-not-allowed"
-                          >
-                            <span className="line-through">{slot.start_time?.slice(0, 5)}</span>
-                            <X size={12} />
-                          </div>
-                        )
+                      if (isBooked) return (
+                        <div
+                          key={slot.id}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-gray-200 text-gray-400 text-xs font-medium cursor-not-allowed"
+                        >
+                          <span className="line-through">{slot.start_time?.slice(0, 5)}</span>
+                          <X size={12} />
+                        </div>
+                      )
 
-                        return (
-                          <button
-                            key={slot.id}
-                            onClick={() => bookSlot(slot)}
-                            disabled={!!bookingSlot}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white border-2 border-brand-blue-100 text-gray-700 text-xs font-semibold hover:bg-brand-blue-50 hover:border-brand-blue-400 hover:text-brand-blue-700 transition disabled:opacity-50"
-                          >
-                            <span>{slot.start_time?.slice(0, 5)}</span>
-                            {isLoading
-                              ? <div className="w-3 h-3 border-2 border-brand-blue-400 border-t-transparent rounded-full animate-spin" />
-                              : <Clock size={11} className="text-gray-400" />
-                            }
-                          </button>
-                        )
-                      })}
-                    </div>
+                      return (
+                        <button
+                          key={slot.id}
+                          onClick={() => bookSlot(slot)}
+                          disabled={!!bookingSlot}
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white border-2 border-brand-blue-100 text-gray-700 text-xs font-semibold hover:bg-brand-blue-50 hover:border-brand-blue-400 hover:text-brand-blue-700 transition disabled:opacity-50"
+                        >
+                          <span>{slot.start_time?.slice(0, 5)}</span>
+                          {isLoading
+                            ? <div className="w-3 h-3 border-2 border-brand-blue-400 border-t-transparent rounded-full animate-spin" />
+                            : <Clock size={11} className="text-gray-400" />
+                          }
+                        </button>
+                      )
+                    })}
                   </div>
                 )
               })}
