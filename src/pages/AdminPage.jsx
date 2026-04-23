@@ -159,6 +159,9 @@ function TeachersTab() {
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [search, setSearch]           = useState('')
+  const [editModal, setEditModal]     = useState(null)
+  const [editForm, setEditForm]       = useState({ name: '', room: '', bio: '', subjectIds: [], gradeIds: [] })
+  const [editLoading, setEditLoading] = useState(false)
 
   useEffect(() => {
     fetchTeachers(); fetchInvites()
@@ -321,6 +324,45 @@ function TeachersTab() {
     }
   }
 
+  function openEdit(t) {
+    setEditForm({
+      name:       t.profile?.full_name ?? '',
+      room:       t.room  ?? '',
+      bio:        t.bio   ?? '',
+      subjectIds: t.teacher_subjects?.map(ts => ts.subject?.id).filter(Boolean) ?? [],
+      gradeIds:   t.teacher_grades?.map(tg => tg.grade?.id).filter(Boolean) ?? [],
+    })
+    setEditModal(t)
+  }
+
+  async function saveEdit() {
+    if (!editForm.name) { toast.error('Nome é obrigatório'); return }
+    setEditLoading(true)
+    const t = editModal
+    const selectedSubjectNames = subjects.filter(s => editForm.subjectIds.includes(s.id)).map(s => s.name)
+    const discipline = selectedSubjectNames.join(', ')
+
+    await Promise.all([
+      supabase.from('profiles').update({ full_name: editForm.name }).eq('id', t.profile_id),
+      supabase.from('teachers').update({ room: editForm.room || null, bio: editForm.bio || null, discipline }).eq('id', t.id),
+    ])
+
+    await supabase.from('teacher_subjects').delete().eq('teacher_id', t.id)
+    if (editForm.subjectIds.length > 0) {
+      await supabase.from('teacher_subjects').insert(editForm.subjectIds.map(sid => ({ teacher_id: t.id, subject_id: sid })))
+    }
+
+    await supabase.from('teacher_grades').delete().eq('teacher_id', t.id)
+    if (editForm.gradeIds.length > 0) {
+      await supabase.from('teacher_grades').insert(editForm.gradeIds.map(gid => ({ teacher_id: t.id, grade_id: gid })))
+    }
+
+    setEditLoading(false)
+    setEditModal(null)
+    toast.success('Professor atualizado!')
+    fetchTeachers()
+  }
+
   function copyInviteLink(email, name) {
     const link = `${window.location.origin}/register?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`
     navigator.clipboard.writeText(link)
@@ -425,6 +467,13 @@ function TeachersTab() {
                 >
                   {t.is_active ? <ToggleRight size={20} className="text-brand-green-600" /> : <ToggleLeft size={20} />}
                 </button>
+                <button
+                  onClick={() => openEdit(t)}
+                  className="p-2 rounded-lg text-gray-400 hover:text-brand-blue-600 hover:bg-brand-blue-50 transition"
+                  title="Editar professor"
+                >
+                  <Edit2 size={16} />
+                </button>
 
                 {confirmDelete === t.id ? (
                   <div className="flex items-center gap-1">
@@ -463,6 +512,39 @@ function TeachersTab() {
           </div>
         )}
       </div>
+
+      {/* Modal editar professor */}
+      <Modal open={!!editModal} onClose={() => setEditModal(null)} title="Editar professor" size="md">
+        <div className="space-y-4">
+          <Input label="Nome completo *" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+          <Input label="Sala" placeholder="101-A" value={editForm.room} onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))} />
+          <CheckboxGroup
+            label="Matérias"
+            options={subjects}
+            selected={editForm.subjectIds}
+            onChange={ids => setEditForm(f => ({ ...f, subjectIds: ids }))}
+          />
+          <CheckboxGroup
+            label="Turmas"
+            options={grades}
+            selected={editForm.gradeIds}
+            onChange={ids => setEditForm(f => ({ ...f, gradeIds: ids }))}
+          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Bio (opcional)</label>
+            <textarea
+              rows={2}
+              value={editForm.bio}
+              onChange={e => setEditForm(f => ({ ...f, bio: e.target.value }))}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue-400 resize-none"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditModal(null)}>Cancelar</Button>
+            <Button variant="primary" className="flex-1" loading={editLoading} onClick={saveEdit}>Salvar</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal adicionar professor */}
       <Modal open={modal} onClose={() => setModal(false)} title="Adicionar professor" size="md">
@@ -519,6 +601,9 @@ function StudentsTab() {
   const [modal, setModal]         = useState(false)
   const [loading, setLoading]     = useState(false)
   const [search, setSearch]       = useState('')
+  const [editStudentModal, setEditStudentModal] = useState(null)
+  const [editStudentForm, setEditStudentForm]   = useState({})
+  const [editStudentLoading, setEditStudentLoading] = useState(false)
   const emptyForm = {
     fullName: '', gradeId: '', subjectIds: [],
     resp1Name: '', resp1Email: '',
@@ -644,6 +729,68 @@ function StudentsTab() {
     fetchStudents(); fetchInvites()
   }
 
+  function openEditStudent(s) {
+    const resps = s.student_record_responsibles ?? []
+    const r1 = resps.find(r => r.order_num === 1) ?? {}
+    const r2 = resps.find(r => r.order_num === 2) ?? {}
+    setEditStudentForm({
+      fullName:          s.full_name ?? '',
+      gradeId:           s.grade_id  ?? '',
+      studentEmail:      s.student_email ?? '',
+      sendStudentInvite: s.send_student_invite ?? false,
+      subjectIds:        s.student_record_subjects?.map(sr => sr.subject?.id).filter(Boolean) ?? [],
+      resp1Name:  r1.full_name ?? '',
+      resp1Email: r1.email     ?? '',
+      resp1Id:    r1.id        ?? null,
+      resp2Name:  r2.full_name ?? '',
+      resp2Email: r2.email     ?? '',
+      resp2Id:    r2.id        ?? null,
+    })
+    setEditStudentModal(s)
+  }
+
+  async function saveEditStudent() {
+    const f = editStudentForm
+    if (!f.fullName || !f.studentEmail) { toast.error('Nome e e-mail do aluno são obrigatórios'); return }
+    if (!f.resp1Name || !f.resp1Email)  { toast.error('Responsável 1 é obrigatório'); return }
+    const s = editStudentModal
+    setEditStudentLoading(true)
+
+    await supabase.from('student_records').update({
+      full_name:           f.fullName,
+      grade_id:            f.gradeId || null,
+      student_email:       f.studentEmail,
+      send_student_invite: f.sendStudentInvite,
+    }).eq('id', s.id)
+
+    await supabase.from('student_record_subjects').delete().eq('student_record_id', s.id)
+    if (f.subjectIds.length > 0) {
+      await supabase.from('student_record_subjects').insert(f.subjectIds.map(sid => ({ student_record_id: s.id, subject_id: sid })))
+    }
+
+    // Responsável 1
+    if (f.resp1Id) {
+      await supabase.from('student_record_responsibles').update({ full_name: f.resp1Name, email: f.resp1Email }).eq('id', f.resp1Id)
+    } else {
+      await supabase.from('student_record_responsibles').insert({ student_record_id: s.id, full_name: f.resp1Name, email: f.resp1Email, order_num: 1 })
+    }
+    // Responsável 2
+    if (f.resp2Name && f.resp2Email) {
+      if (f.resp2Id) {
+        await supabase.from('student_record_responsibles').update({ full_name: f.resp2Name, email: f.resp2Email }).eq('id', f.resp2Id)
+      } else {
+        await supabase.from('student_record_responsibles').insert({ student_record_id: s.id, full_name: f.resp2Name, email: f.resp2Email, order_num: 2 })
+      }
+    } else if (f.resp2Id) {
+      await supabase.from('student_record_responsibles').delete().eq('id', f.resp2Id)
+    }
+
+    setEditStudentLoading(false)
+    setEditStudentModal(null)
+    toast.success('Aluno atualizado!')
+    fetchStudents()
+  }
+
   function copyLink(email, name) {
     const link = `${window.location.origin}/register?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`
     navigator.clipboard.writeText(link)
@@ -748,12 +895,21 @@ function StudentsTab() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => deleteStudent(s.id, s.full_name)}
-                  className="p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition shrink-0"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick={() => openEditStudent(s)}
+                    className="p-2 rounded-lg text-gray-400 hover:text-brand-blue-600 hover:bg-brand-blue-50 transition"
+                    title="Editar aluno"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button
+                    onClick={() => deleteStudent(s.id, s.full_name)}
+                    className="p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
             </div>
           )
@@ -766,6 +922,63 @@ function StudentsTab() {
           </div>
         )}
       </div>
+
+      {/* Modal editar aluno */}
+      <Modal open={!!editStudentModal} onClose={() => setEditStudentModal(null)} title="Editar aluno" size="md">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Nome do aluno *" value={editStudentForm.fullName ?? ''} onChange={e => setEditStudentForm(f => ({ ...f, fullName: e.target.value }))} />
+            <Input label="E-mail do aluno *" type="email" value={editStudentForm.studentEmail ?? ''} onChange={e => setEditStudentForm(f => ({ ...f, studentEmail: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1.5 block">Turma</label>
+            <select
+              value={editStudentForm.gradeId ?? ''}
+              onChange={e => setEditStudentForm(f => ({ ...f, gradeId: e.target.value }))}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-blue-400 bg-white"
+            >
+              <option value="">Selecionar turma…</option>
+              {grades.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+            </select>
+          </div>
+          <CheckboxGroup
+            label="Matérias"
+            options={subjects}
+            selected={editStudentForm.subjectIds ?? []}
+            onChange={ids => setEditStudentForm(f => ({ ...f, subjectIds: ids }))}
+          />
+          <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Responsável 1 *</p>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Nome" value={editStudentForm.resp1Name ?? ''} onChange={e => setEditStudentForm(f => ({ ...f, resp1Name: e.target.value }))} />
+              <Input label="E-mail" type="email" value={editStudentForm.resp1Email ?? ''} onChange={e => setEditStudentForm(f => ({ ...f, resp1Email: e.target.value }))} />
+            </div>
+          </div>
+          <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Responsável 2 <span className="text-gray-400 font-normal">(opcional)</span></p>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Nome" value={editStudentForm.resp2Name ?? ''} onChange={e => setEditStudentForm(f => ({ ...f, resp2Name: e.target.value }))} />
+              <Input label="E-mail" type="email" value={editStudentForm.resp2Email ?? ''} onChange={e => setEditStudentForm(f => ({ ...f, resp2Email: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+            <button type="button" onClick={() => setEditStudentForm(f => ({ ...f, sendStudentInvite: !f.sendStudentInvite }))} className="shrink-0">
+              {editStudentForm.sendStudentInvite
+                ? <ToggleRight size={26} className="text-brand-blue-600" />
+                : <ToggleLeft  size={26} className="text-gray-400" />
+              }
+            </button>
+            <div>
+              <p className="text-sm font-medium text-gray-700">Enviar e-mail para marcar conferências</p>
+              <p className="text-xs text-gray-400">O aluno receberá um e-mail para agendar conferências</p>
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditStudentModal(null)}>Cancelar</Button>
+            <Button variant="primary" className="flex-1" loading={editStudentLoading} onClick={saveEditStudent}>Salvar</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Modal adicionar aluno */}
       <Modal open={modal} onClose={() => { setModal(false); setForm(emptyForm) }} title="Adicionar aluno" size="md">
