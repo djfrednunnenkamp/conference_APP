@@ -1,0 +1,48 @@
+# 🔐 Environment variables
+.env
+.env.*
+!.env.example
+
+# 🐍 Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 📦 Virtual environments
+venv/
+env/
+.venv/
+
+# 🧪 Testing / coverage
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
+# ⚙️ Flask
+instance/
+*.db
+*.sqlite3
+
+# 🗃️ Migrations (opcional - ver nota abaixo)
+# migrations/
+
+# 📦 Build / dist
+build/
+dist/
+*.egg-info/
+
+# 🧠 IDEs / Editors
+.vscode/
+.idea/
+
+# 🍎 macOS
+.DS_Store
+
+# 🐳 Docker (se usar depois)
+*.log
+*.pid
+
+# 🔒 Misc
+*.swp
+*.swo
