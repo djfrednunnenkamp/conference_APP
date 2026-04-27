@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}500 – {{ _('Erro interno') }}{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-1 text-secondary fw-bold">500</div>
+  <h4>{{ _('Erro interno do servidor') }}</h4>
+  <p class="text-muted">{{ _('Algo deu errado. Tente novamente mais tarde.') }}</p>
+  <a href="/" class="btn btn-primary">{{ _('Início') }}</a>
+</div>
+{% endblock %}

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Conferências') }} – Conferensia{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="fw-bold mb-0">{{ _('Conferências') }}</h4>
+  <a href="{{ url_for('admin.new_event') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>{{ _('Nova Conferência') }}
+  </a>
+</div>
+
+{# ── Search + filter bar ── #}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:260px">
+    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+    <input type="text" id="searchInput" class="form-control border-start-0"
+           placeholder="{{ _('Buscar por nome...') }}" autocomplete="off">
+  </div>
+
+  <select id="statusFilter" class="form-select form-select-sm w-auto">
+    <option value="">{{ _('Todos os status') }}</option>
+    <option value="draft">{{ _('Rascunho') }}</option>
+    <option value="published">{{ _('Publicado') }}</option>
+    <option value="closed">{{ _('Encerrado') }}</option>
+  </select>
+
+  <select id="daysFilter" class="form-select form-select-sm w-auto">
+    <option value="">{{ _('Todos os dias') }}</option>
+    <option value="1">1 {{ _('dia') }}</option>
+    <option value="2">2 {{ _('dias') }}</option>
+    <option value="3">3 {{ _('dias') }}</option>
+    <option value="4">4+ {{ _('dias') }}</option>
+  </select>
+
+  <small class="text-muted ms-1" id="countLabel"></small>
+</div>
+
+{# ── Table ── #}
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0 align-middle" id="eventsTable">
+      <thead>
+        <tr>
+          <th>{{ _('Nome') }}</th>
+          <th>{{ _('Status') }}</th>
+          <th>{{ _('Dias') }}</th>
+          <th>{{ _('Período') }}</th>
+          <th>{{ _('Agend. Alunos') }}</th>
+          <th class="text-end" style="min-width:220px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in events %}
+        {% set day_count = event.days | length %}
+        {% set first_day = event.days[0].date if event.days else none %}
+        {% set last_day  = event.days[-1].date if event.days else none %}
+        <tr class="data-row"
+            data-name="{{ event.name | lower }}"
+            data-status="{{ event.status }}"
+            data-days="{{ day_count }}">
+          <td class="fw-semibold">{{ event.name }}</td>
+          <td>
+            {% if event.status == 'published' %}
+              <span class="badge-grade" style="background:var(--pan-green-light);color:var(--pan-green)">
+                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:middle"></i>{{ _('Publicado') }}
+              </span>
+            {% elif event.status == 'closed' %}
+              <span class="badge-grade" style="background:#f3f4f6;color:#6b7280">
+                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:middle"></i>{{ _('Encerrado') }}
+              </span>
+            {% else %}
+              <span class="badge-grade" style="background:#fffbeb;color:#d97706">
+                <i class="bi bi-circle-fill me-1" style="font-size:.45rem;vertical-align:middle"></i>{{ _('Rascunho') }}
+              </span>
+            {% endif %}
+          </td>
+          <td class="text-muted">
+            {{ day_count }} {{ _('dia') if day_count == 1 else _('dias') }}
+          </td>
+          <td class="text-muted small">
+            {% if first_day and last_day %}
+              {% if first_day == last_day %}
+                {{ first_day.strftime('%d/%m/%Y') }}
+              {% else %}
+                {{ first_day.strftime('%d/%m') }} – {{ last_day.strftime('%d/%m/%Y') }}
+              {% endif %}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if event.student_booking_allowed %}
+              <span class="badge-subject"><i class="bi bi-check-lg me-1"></i>{{ _('Sim') }}</span>
+            {% else %}
+              <span class="badge-grade" style="background:#f3f4f6;color:#9ca3af">{{ _('Não') }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <div class="d-flex justify-content-end gap-1">
+              <a href="{{ url_for('admin.edit_event', id=event.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <a href="{{ url_for('admin.event_bookings', id=event.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Agendamentos') }}">
+                <i class="bi bi-list-check"></i>
+              </a>
+              <a href="{{ url_for('admin.notify', event_id=event.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Notificar') }}">
+                <i class="bi bi-envelope"></i>
+              </a>
+              {% if event.status == 'draft' %}
+              <form method="POST" action="{{ url_for('admin.publish_event', id=event.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-success btn-sm" title="{{ _('Publicar') }}">
+                  <i class="bi bi-send"></i>
+                </button>
+              </form>
+              {% elif event.status == 'published' %}
+              <form method="POST" action="{{ url_for('admin.close_event', id=event.id) }}" class="d-inline"
+                    data-pan-confirm="{{ _('O evento será encerrado e não aceitará novos agendamentos.') }}"
+                    data-pan-title="{{ _('Encerrar evento') }}"
+                    data-pan-warning="1" data-pan-confirm-text="{{ _('Encerrar') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-warning btn-sm" title="{{ _('Encerrar') }}">
+                  <i class="bi bi-stop-circle"></i>
+                </button>
+              </form>
+              {% endif %}
+              <form method="POST" action="{{ url_for('admin.delete_event', id=event.id) }}" class="d-inline"
+                    data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+                    data-pan-title="{{ _('Excluir evento permanentemente') }}"
+                    data-pan-danger="1" data-pan-confirm-text="{{ _('Excluir') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" title="{{ _('Excluir') }}">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="emptyRow">
+          <td colspan="6" class="text-center py-4 text-muted">
+            <i class="bi bi-calendar-x me-2"></i>{{ _('Nenhuma conferência encontrada.') }}
+            <a href="{{ url_for('admin.new_event') }}" class="ms-1">{{ _('Criar uma') }}</a>.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="text-muted small mt-2 d-none" id="noResults">
+  <i class="bi bi-search me-1"></i>{{ _('Nenhum resultado para os filtros aplicados.') }}
+</p>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const searchInput  = document.getElementById('searchInput');
+const statusFilter = document.getElementById('statusFilter');
+const daysFilter   = document.getElementById('daysFilter');
+const countLabel   = document.getElementById('countLabel');
+const noResults    = document.getElementById('noResults');
+
+function applyFilters() {
+  const q      = searchInput.value.toLowerCase().trim();
+  const status = statusFilter.value;
+  const days   = daysFilter.value;
+
+  const rows = document.querySelectorAll('#eventsTable .data-row');
+  let visible = 0;
+
+  rows.forEach(row => {
+    const name      = row.dataset.name || '';
+    const rowStatus = row.dataset.status || '';
+    const rowDays   = parseInt(row.dataset.days) || 0;
+
+    const matchName   = !q      || name.includes(q);
+    const matchStatus = !status || rowStatus === status;
+    const matchDays   = !days   || (days === '4' ? rowDays >= 4 : rowDays === parseInt(days));
+
+    const show = matchName && matchStatus && matchDays;
+    row.style.display = show ? '' : 'none';
+    if (show) visible++;
+  });
+
+  const total = rows.length;
+  countLabel.textContent = total ? `${visible} / ${total}` : '';
+  noResults.classList.toggle('d-none', visible > 0 || total === 0);
+}
+
+searchInput.addEventListener('input', applyFilters);
+statusFilter.addEventListener('change', applyFilters);
+daysFilter.addEventListener('change', applyFilters);
+applyFilters();
+</script>
+{% endblock %}

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="{{ session.get('lang', 'pt') }}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Pan American{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+{# ── Sidebar (authenticated only) ── #}
+{% if current_user.is_authenticated %}
+<div class="pan-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+<aside class="pan-sidebar" id="sidebar">
+
+  <div class="pan-sidebar-logo">
+    <a href="/">
+      <img src="{{ url_for('static', filename='img/logo.png') }}" width="36" height="36" alt="Pan American" style="flex-shrink:0;border-radius:50%">
+      <div>
+        <div class="logo-name">Pan American</div>
+        <div class="logo-sub">Conferências</div>
+      </div>
+    </a>
+  </div>
+
+  <nav class="pan-sidebar-nav">
+    {% set ep = request.endpoint or '' %}
+
+    {% if current_user.role == 'admin' %}
+    <a href="{{ url_for('admin.dashboard') }}"
+       class="pan-nav-item {% if ep == 'admin.dashboard' %}active{% endif %}">
+      <i class="bi bi-grid-1x2"></i>{{ _('Visão Geral') }}
+    </a>
+    <div class="pan-nav-section">{{ _('Pessoas') }}</div>
+    <a href="{{ url_for('admin.teachers') }}"
+       class="pan-nav-item {% if 'teacher' in ep and current_user.role == 'admin' %}active{% endif %}">
+      <i class="bi bi-person-workspace"></i>{{ _('Professores') }}
+    </a>
+    <a href="{{ url_for('admin.students') }}"
+       class="pan-nav-item {% if 'student' in ep %}active{% endif %}">
+      <i class="bi bi-people"></i>{{ _('Alunos') }}
+    </a>
+    <a href="{{ url_for('admin.guardians') }}"
+       class="pan-nav-item {% if ep in ('admin.guardians','admin.edit_guardian','admin.new_guardian') %}active{% endif %}">
+      <i class="bi bi-person-heart"></i>{{ _('Responsáveis') }}
+    </a>
+    <div class="pan-nav-section">{{ _('Acadêmico') }}</div>
+    <a href="{{ url_for('admin.grades') }}"
+       class="pan-nav-item {% if 'grade' in ep or 'subject' in ep %}active{% endif %}">
+      <i class="bi bi-journal-bookmark"></i>{{ _('Turmas e Matérias') }}
+    </a>
+    <a href="{{ url_for('admin.events') }}"
+       class="pan-nav-item {% if 'event' in ep %}active{% endif %}">
+      <i class="bi bi-calendar-event"></i>{{ _('Conferências') }}
+    </a>
+
+    {% elif current_user.role == 'teacher' %}
+    <a href="{{ url_for('teacher.dashboard') }}"
+       class="pan-nav-item {% if ep == 'teacher.dashboard' %}active{% endif %}">
+      <i class="bi bi-grid-1x2"></i>{{ _('Painel') }}
+    </a>
+    <a href="{{ url_for('teacher.schedule') }}"
+       class="pan-nav-item {% if 'schedule' in ep %}active{% endif %}">
+      <i class="bi bi-calendar-week"></i>{{ _('Minha Agenda') }}
+    </a>
+
+    {% elif current_user.role == 'guardian' %}
+    <a href="{{ url_for('guardian.dashboard') }}"
+       class="pan-nav-item {% if ep == 'guardian.dashboard' %}active{% endif %}">
+      <i class="bi bi-grid-1x2"></i>{{ _('Painel') }}
+    </a>
+    <a href="{{ url_for('guardian.bookings') }}"
+       class="pan-nav-item {% if 'bookings' in ep %}active{% endif %}">
+      <i class="bi bi-calendar-check"></i>{{ _('Minhas Reuniões') }}
+    </a>
+
+    {% elif current_user.role == 'student' %}
+    <a href="{{ url_for('student.dashboard') }}"
+       class="pan-nav-item {% if ep == 'student.dashboard' %}active{% endif %}">
+      <i class="bi bi-grid-1x2"></i>{{ _('Painel') }}
+    </a>
+    <a href="{{ url_for('student.bookings') }}"
+       class="pan-nav-item {% if 'bookings' in ep %}active{% endif %}">
+      <i class="bi bi-calendar-check"></i>{{ _('Minhas Reuniões') }}
+    </a>
+    {% endif %}
+  </nav>
+
+  {% if current_user.role == 'admin' %}
+  <div style="border-top:1px solid rgba(255,255,255,.1);padding:.5rem 0;flex-shrink:0">
+    <a href="{{ url_for('admin.admins') }}"
+       class="pan-nav-item {% if ep in ('admin.admins','admin.new_admin','admin.edit_admin') %}active{% endif %}">
+      <i class="bi bi-person-gear"></i>{{ _('Administradores') }}
+    </a>
+  </div>
+  {% endif %}
+
+  <div class="pan-sidebar-footer">
+    <div class="d-flex align-items-center gap-2 mb-2" style="min-width:0">
+      <div class="pan-avatar pan-avatar-sm" style="background:var(--pan-green)">
+        {{ current_user.first_name[0] }}{{ current_user.last_name[0] }}
+      </div>
+      <div style="min-width:0;flex:1">
+        <div class="user-name">{{ current_user.full_name }}</div>
+        <div class="user-role">
+          {% if current_user.role == 'admin' %}Admin
+          {% elif current_user.role == 'teacher' %}{{ _('Professor') }}
+          {% elif current_user.role == 'guardian' %}{{ _('Responsável') }}
+          {% else %}{{ _('Aluno') }}{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="pan-sidebar-actions">
+      <button class="pan-sidebar-action" data-bs-toggle="modal"
+              data-bs-target="#preferencesModal" title="{{ _('Preferências') }}">
+        <i class="bi bi-gear"></i>
+      </button>
+      <a href="{{ url_for('auth.change_password') }}"
+         class="pan-sidebar-action" title="{{ _('Alterar Senha') }}">
+        <i class="bi bi-key"></i>
+      </a>
+      <div class="dropdown">
+        <button class="pan-sidebar-action" data-bs-toggle="dropdown" title="{{ _('Idioma') }}">
+          <i class="bi bi-translate"></i>
+        </button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="{{ url_for('auth.set_language', lang='pt') }}">🇧🇷 Português</a></li>
+          <li><a class="dropdown-item" href="{{ url_for('auth.set_language', lang='en') }}">🇬🇧 English</a></li>
+        </ul>
+      </div>
+      <a href="{{ url_for('auth.logout') }}"
+         class="pan-sidebar-action text-danger" title="{{ _('Sair') }}">
+        <i class="bi bi-box-arrow-right"></i>
+      </a>
+    </div>
+  </div>
+
+</aside>
+{% endif %}{# /authenticated #}
+
+{# ── Main wrapper (changes class based on auth state) ── #}
+<div class="{{ 'pan-main' if current_user.is_authenticated else 'pan-public' }}">
+
+  {# Topbar — authenticated only #}
+  {% if current_user.is_authenticated %}
+  <header class="pan-topbar">
+    <button class="pan-menu-btn" onclick="toggleSidebar()" aria-label="Menu">
+      <i class="bi bi-list fs-5"></i>
+    </button>
+    <div class="pan-topbar-brand">Pan American</div>
+    <div class="pan-topbar-spacer"></div>
+    <span class="pan-role-badge">
+      {% if current_user.role == 'admin' %}Admin
+      {% elif current_user.role == 'teacher' %}{{ _('Professor') }}
+      {% elif current_user.role == 'guardian' %}{{ _('Responsável') }}
+      {% else %}{{ _('Aluno') }}{% endif %}
+    </span>
+    <div class="pan-avatar" title="{{ current_user.full_name }}">
+      {{ current_user.first_name[0] }}{{ current_user.last_name[0] }}
+    </div>
+  </header>
+  {% endif %}
+
+  {# Flash messages — pode ser sobrescrito por páginas públicas (ex: login) #}
+  {% block flash %}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="{{ 'px-4 pt-3' if current_user.is_authenticated else '' }}">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+  {% endblock flash %}
+
+  {# Page content — single block location #}
+  <main class="{{ 'pan-content' if current_user.is_authenticated else '' }}">
+    {% block content %}{% endblock %}
+  </main>
+
+</div>{# /pan-main or pan-public #}
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+}
+</script>
+{% block scripts %}{% endblock %}
+
+{# ── Global confirm modal ── #}
+<div class="modal fade" id="panConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span id="panConfirmIcon"
+                style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+          <h6 class="modal-title fw-semibold mb-0" id="panConfirmTitle" style="color:var(--pan-blue)"></h6>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2 pb-1">
+        <p class="mb-0" id="panConfirmBody" style="font-size:.875rem;color:var(--pan-text-muted)"></p>
+      </div>
+      <div class="modal-footer border-0 pt-2 gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                id="panConfirmCancel" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-sm" id="panConfirmOk">Confirmar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Global alert modal ── #}
+<div class="modal fade" id="panAlertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span id="panAlertIcon"
+                style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0"></span>
+          <h6 class="modal-title fw-semibold mb-0" id="panAlertTitle" style="color:var(--pan-blue)"></h6>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2 pb-1">
+        <p class="mb-0" id="panAlertBody" style="font-size:.875rem;color:var(--pan-text-muted)"></p>
+      </div>
+      <div class="modal-footer border-0 pt-2">
+        <button type="button" class="btn btn-primary btn-sm"
+                data-bs-dismiss="modal" id="panAlertClose">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─────────────────────────────────────────────────────────────
+   panConfirm({ title, body, confirmText, cancelText, danger })
+   → Promise<boolean>
+───────────────────────────────────────────────────────────── */
+function panConfirm({ title = 'Confirmar', body = '', confirmText = 'Confirmar',
+                      cancelText = 'Cancelar', danger = false, warning = false } = {}) {
+  return new Promise(resolve => {
+    const el = document.getElementById('panConfirmModal');
+    document.getElementById('panConfirmTitle').textContent  = title;
+    document.getElementById('panConfirmBody').textContent   = body;
+    document.getElementById('panConfirmOk').textContent     = confirmText;
+    document.getElementById('panConfirmCancel').textContent = cancelText;
+
+    const okBtn = document.getElementById('panConfirmOk');
+    okBtn.className = 'btn btn-sm ' + (danger ? 'btn-danger' : 'btn-primary');
+
+    const icon = document.getElementById('panConfirmIcon');
+    if (danger) {
+      icon.style.background = '#fef2f2';
+      icon.innerHTML = '<i class="bi bi-trash3-fill" style="color:#dc2626;font-size:.9rem"></i>';
+    } else if (warning) {
+      icon.style.background = '#fff3cd';
+      icon.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning" style="font-size:.9rem"></i>';
+    } else {
+      icon.style.background = 'var(--pan-blue-light)';
+      icon.innerHTML = '<i class="bi bi-question-circle-fill" style="color:var(--pan-blue);font-size:.9rem"></i>';
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(el);
+
+    const onOk = () => { resolve(true);  modal.hide(); };
+    okBtn.addEventListener('click', onOk, { once: true });
+    el.addEventListener('hidden.bs.modal', () => resolve(false), { once: true });
+
+    modal.show();
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────
+   panAlert({ title, body, type })  type: 'danger'|'warning'|'success'|'info'
+   → Promise (resolves when closed)
+───────────────────────────────────────────────────────────── */
+function panAlert({ title, body = '', type = 'danger' } = {}) {
+  return new Promise(resolve => {
+    const defaults = {
+      danger:  { bg: '#fef2f2',               icon: 'bi-x-circle-fill',            color: '#dc2626',           label: 'Erro' },
+      warning: { bg: '#fff3cd',               icon: 'bi-exclamation-triangle-fill', color: '#d97706',           label: 'Atenção' },
+      success: { bg: 'var(--pan-green-light)', icon: 'bi-check-circle-fill',        color: 'var(--pan-green)',  label: 'Sucesso' },
+      info:    { bg: 'var(--pan-blue-light)',  icon: 'bi-info-circle-fill',         color: 'var(--pan-blue)',   label: 'Aviso' },
+    };
+    const cfg = defaults[type] || defaults.info;
+
+    document.getElementById('panAlertTitle').textContent = title || cfg.label;
+    document.getElementById('panAlertBody').textContent  = body;
+
+    const icon = document.getElementById('panAlertIcon');
+    icon.style.background = cfg.bg;
+    icon.innerHTML = `<i class="bi ${cfg.icon}" style="color:${cfg.color};font-size:.9rem"></i>`;
+
+    const el = document.getElementById('panAlertModal');
+    el.addEventListener('hidden.bs.modal', () => resolve(), { once: true });
+    bootstrap.Modal.getOrCreateInstance(el).show();
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Intercept forms with data-pan-confirm="message"
+   e.g. <form data-pan-confirm="Excluir este item?" data-pan-title="Excluir" data-pan-danger="1">
+───────────────────────────────────────────────────────────── */
+document.addEventListener('submit', async function(e) {
+  const form = e.target;
+  const msg  = form.dataset.panConfirm;
+  if (!msg) return;
+  e.preventDefault();
+  const ok = await panConfirm({
+    title:       form.dataset.panTitle       || 'Confirmar',
+    body:        msg,
+    confirmText: form.dataset.panConfirmText || 'Confirmar',
+    cancelText:  form.dataset.panCancelText  || 'Cancelar',
+    danger:      form.dataset.panDanger      === '1',
+    warning:     form.dataset.panWarning     === '1',
+  });
+  if (ok) { form.removeAttribute('data-pan-confirm'); form.submit(); }
+});
+</script>
+
+{# Preferences modal — authenticated only #}
+{% if current_user.is_authenticated %}
+<div class="modal fade" id="preferencesModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-sliders me-2"></i>{{ _('Preferências') }}</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST" action="{{ url_for('auth.update_preferences') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.url }}">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">{{ _('Nome') }}</label>
+              <input type="text" name="first_name" class="form-control form-control-sm"
+                     value="{{ current_user.first_name }}" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Sobrenome') }}</label>
+              <input type="text" name="last_name" class="form-control form-control-sm"
+                     value="{{ current_user.last_name }}" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('E-mail') }}</label>
+              <input type="email" name="email" class="form-control form-control-sm"
+                     value="{{ current_user.email }}" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label d-block mb-2">{{ _('Idioma preferido') }}</label>
+              <div class="d-flex gap-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="language"
+                         id="prefLangPt" value="pt"
+                         {% if current_user.preferred_language == 'pt' %}checked{% endif %}>
+                  <label class="form-check-label" for="prefLangPt">🇧🇷 Português</label>
+                </div>
+                <div class="form-check">
+                  <input class="form-check-input" type="radio" name="language"
+                         id="prefLangEn" value="en"
+                         {% if current_user.preferred_language == 'en' %}checked{% endif %}>
+                  <label class="form-check-label" for="prefLangEn">🇬🇧 English</label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+</body>
+</html>

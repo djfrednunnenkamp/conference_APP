@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Administradores') }} – Conferensia{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="fw-bold mb-0">{{ _('Administradores') }}</h4>
+  <a href="{{ url_for('admin.new_admin') }}" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar Administrador') }}
+  </a>
+</div>
+
+{# ── Search bar ── #}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:260px">
+    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+    <input type="text" id="searchInput" class="form-control border-start-0"
+           placeholder="{{ _('Buscar por nome...') }}" autocomplete="off">
+  </div>
+  <small class="text-muted ms-1" id="countLabel"></small>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0 align-middle" id="adminsTable">
+      <thead class="table-light">
+        <tr>
+          <th>{{ _('Nome') }}</th>
+          <th>{{ _('E-mail') }}</th>
+          <th>{{ _('Status') }}</th>
+          <th class="text-end" style="min-width:120px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in admins %}
+        <tr class="data-row" data-name="{{ a.full_name|lower }}">
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span class="pan-avatar pan-avatar-sm" style="background:var(--pan-blue);width:32px;height:32px;font-size:.7rem;flex-shrink:0">
+                {{ a.first_name[0] }}{{ a.last_name[0] }}
+              </span>
+              <div>
+                <div class="fw-semibold">{{ a.full_name }}</div>
+                {% if a.id == current_user.id %}
+                <span class="badge bg-secondary" style="font-size:.65rem">{{ _('você') }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td class="text-muted small">{{ a.email }}</td>
+          <td>
+            {% if a.has_password() %}
+              <span class="badge bg-success">{{ _('Ativo') }}</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">{{ _('Convite pendente') }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <div class="d-flex justify-content-end gap-1">
+              <a href="{{ url_for('admin.edit_admin', id=a.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="POST" action="{{ url_for('admin.send_user_reset', user_id=a.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="redirect_to" value="admin.admins">
+                <button class="btn btn-outline-primary btn-sm" title="{{ _('Redefinir senha') }}">
+                  <i class="bi bi-envelope-arrow-up"></i>
+                </button>
+              </form>
+              {% if a.id != current_user.id %}
+              <form method="POST" action="{{ url_for('admin.delete_admin', id=a.id) }}"
+                    class="d-inline"
+                    data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+                    data-pan-title="{{ _('Excluir') }} {{ a.full_name }}"
+                    data-pan-danger="1"
+                    data-pan-confirm-text="{{ _('Excluir') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" title="{{ _('Excluir') }}">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% else %}
+              <button class="btn btn-outline-secondary btn-sm disabled" title="{{ _('Não é possível excluir sua própria conta') }}">
+                <i class="bi bi-trash"></i>
+              </button>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="emptyRow">
+          <td colspan="4" class="text-center py-4 text-muted">
+            <i class="bi bi-person-gear me-2"></i>{{ _('Nenhum administrador encontrado.') }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="text-muted small mt-2 d-none" id="noResults">
+  <i class="bi bi-search me-1"></i>{{ _('Nenhum resultado para a busca.') }}
+</p>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const searchInput = document.getElementById('searchInput');
+const countLabel  = document.getElementById('countLabel');
+const noResults   = document.getElementById('noResults');
+
+function applySearch() {
+  const q    = searchInput.value.toLowerCase().trim();
+  const rows = document.querySelectorAll('#adminsTable .data-row');
+  let visible = 0;
+  rows.forEach(row => {
+    const match = !q || (row.dataset.name || '').includes(q);
+    row.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const total = rows.length;
+  countLabel.textContent = total ? `${visible} / ${total}` : '';
+  noResults.classList.toggle('d-none', visible > 0 || total === 0);
+}
+
+searchInput.addEventListener('input', applySearch);
+applySearch();
+</script>
+{% endblock %}

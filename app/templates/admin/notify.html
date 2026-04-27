@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Notificar') }} – {{ event.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0">{{ _('Notificar Responsáveis') }} – {{ event.name }}</h4>
+  <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary btn-sm">{{ _('Voltar') }}</a>
+</div>
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+          <h6 class="fw-semibold mb-3">{{ _('Filtros de destinatários') }}</h6>
+          <div class="form-check mb-2">
+            {{ form.all_guardians(class="form-check-input") }}
+            <label class="form-check-label">{{ _('Todos os responsáveis') }}</label>
+          </div>
+          <div class="form-check mb-2">
+            {{ form.not_yet_notified(class="form-check-input") }}
+            <label class="form-check-label">{{ _('Ainda não notificados para este evento') }}</label>
+          </div>
+          <div class="form-check mb-2">
+            {{ form.multiple_children(class="form-check-input") }}
+            <label class="form-check-label">{{ _('Responsáveis com 2 ou mais filhos') }}</label>
+          </div>
+          <div class="mb-3 mt-3">
+            <label class="form-label">{{ _('Por turma') }}</label>
+            {{ form.grade_group_id(class="form-select") }}
+          </div>
+
+          {% if preview_count %}
+          <div class="alert alert-info py-2">
+            <strong>{{ preview_count }}</strong> {{ _('responsável(is) correspondem aos filtros.') }}
+          </div>
+          {% endif %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" name="preview" class="btn btn-outline-primary">{{ _('Ver quantidade') }}</button>
+            <button type="submit" class="btn btn-success">{{ _('Enviar e-mails') }}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold">{{ _('Lógica de envio') }}</div>
+      <div class="card-body text-muted small">
+        <ul class="mb-0">
+          <li>{{ _('Responsáveis que ainda não criaram senha recebem um link de primeiro acesso (válido por 72h).') }}</li>
+          <li>{{ _('Responsáveis com conta ativa recebem um link de login.') }}</li>
+          <li>{{ _('O idioma do e-mail segue a preferência de cada responsável.') }}</li>
+          <li>{{ _('Todos os envios são registrados no histórico.') }}</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

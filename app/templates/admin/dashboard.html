@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Painel') }} – Pan American{% endblock %}
+{% block content %}
+
+<h4 class="fw-bold mb-4">{{ _('Visão Geral') }}</h4>
+
+{# ── Stat cards ── #}
+<div class="row g-3 mb-4">
+
+  <div class="col-6 col-xl-3">
+    <div class="card stat-card">
+      <div class="card-body py-3">
+        <i class="bi bi-people stat-icon"></i>
+        <div class="stat-number">{{ total_students }}</div>
+        <div class="stat-label">{{ _('Alunos') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="card stat-card stat-green">
+      <div class="card-body py-3">
+        <i class="bi bi-person-workspace stat-icon"></i>
+        <div class="stat-number">{{ total_teachers }}</div>
+        <div class="stat-label">{{ _('Professores') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="card stat-card">
+      <div class="card-body py-3">
+        <i class="bi bi-person-heart stat-icon"></i>
+        <div class="stat-number">{{ total_guardians }}</div>
+        <div class="stat-label">{{ _('Responsáveis') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-6 col-xl-3">
+    <div class="card stat-card stat-green">
+      <div class="card-body py-3">
+        <i class="bi bi-calendar-event stat-icon"></i>
+        {% if events_stats|length == 1 %}
+          <div class="stat-number" style="font-size:1rem;font-weight:700;line-height:1.4">{{ events_stats[0].event.name }}</div>
+          <div class="stat-label">{{ _('Evento ativo') }}</div>
+        {% elif events_stats|length > 1 %}
+          <div class="stat-number">{{ events_stats|length }}</div>
+          <div class="stat-label">{{ _('Eventos ativos') }}</div>
+        {% else %}
+          <div class="stat-number" style="font-size:1rem;font-weight:500;color:var(--pan-text-muted)">—</div>
+          <div class="stat-label">{{ _('Nenhum evento ativo') }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# ── Booking progress (one bar per active event) ── #}
+{% for es in events_stats %}{% if es.total_slots > 0 %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold" style="color:var(--pan-blue);font-size:.9rem">
+        <i class="bi bi-calendar-check me-2"></i>{{ _('Progresso') }} — {{ es.event.name }}
+      </span>
+      <span class="badge-grade" style="font-size:.78rem">
+        {{ (es.booked / es.total_slots * 100)|round(1) }}%
+      </span>
+    </div>
+    <div class="progress" style="height:10px">
+      <div class="progress-bar" role="progressbar"
+           style="width: {{ (es.booked / es.total_slots * 100)|round|int }}%"
+           aria-valuenow="{{ es.booked }}" aria-valuemax="{{ es.total_slots }}"></div>
+    </div>
+    <div class="d-flex justify-content-between mt-1">
+      <small class="text-muted">{{ es.booked }} {{ _('agendados') }}</small>
+      <small class="text-muted">{{ es.total_slots }} {{ _('total') }}</small>
+    </div>
+  </div>
+</div>
+{% endif %}{% endfor %}
+
+{# ── Quick actions + recent emails ── #}
+<div class="row g-3">
+
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-lightning me-2"></i>{{ _('Ações rápidas') }}
+      </div>
+      <div class="list-group list-group-flush">
+        <a href="{{ url_for('admin.new_teacher') }}"
+           class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-3">
+          <span class="pan-avatar pan-avatar-sm" style="background:var(--pan-blue);width:28px;height:28px;font-size:.65rem">
+            <i class="bi bi-person-plus" style="font-size:.75rem"></i>
+          </span>
+          <div>
+            <div class="fw-semibold" style="font-size:.875rem">{{ _('Adicionar professor') }}</div>
+          </div>
+          <i class="bi bi-chevron-right ms-auto text-muted" style="font-size:.75rem"></i>
+        </a>
+        <a href="{{ url_for('admin.new_student') }}"
+           class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-3">
+          <span class="pan-avatar pan-avatar-sm" style="background:var(--pan-green);width:28px;height:28px;font-size:.65rem">
+            <i class="bi bi-person-plus" style="font-size:.75rem"></i>
+          </span>
+          <div>
+            <div class="fw-semibold" style="font-size:.875rem">{{ _('Adicionar aluno') }}</div>
+          </div>
+          <i class="bi bi-chevron-right ms-auto text-muted" style="font-size:.75rem"></i>
+        </a>
+        <a href="{{ url_for('admin.new_event') }}"
+           class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-3">
+          <span class="pan-avatar pan-avatar-sm" style="background:var(--pan-blue);width:28px;height:28px;font-size:.65rem">
+            <i class="bi bi-calendar-plus" style="font-size:.75rem"></i>
+          </span>
+          <div>
+            <div class="fw-semibold" style="font-size:.875rem">{{ _('Criar conferência') }}</div>
+          </div>
+          <i class="bi bi-chevron-right ms-auto text-muted" style="font-size:.75rem"></i>
+        </a>
+        <a href="{{ url_for('admin.events') }}"
+           class="list-group-item list-group-item-action d-flex align-items-center gap-2 py-3">
+          <span class="pan-avatar pan-avatar-sm" style="background:var(--pan-green);width:28px;height:28px;font-size:.65rem">
+            <i class="bi bi-list-ul" style="font-size:.75rem"></i>
+          </span>
+          <div>
+            <div class="fw-semibold" style="font-size:.875rem">{{ _('Todos os eventos') }}</div>
+          </div>
+          <i class="bi bi-chevron-right ms-auto text-muted" style="font-size:.75rem"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-envelope me-2"></i>{{ _('E-mails recentes') }}
+      </div>
+      <ul class="list-group list-group-flush">
+        {% for n in recent_emails %}
+        <li class="list-group-item d-flex justify-content-between align-items-center py-3">
+          <div>
+            <div class="fw-semibold" style="font-size:.875rem">{{ n.recipient.full_name }}</div>
+            <span class="badge-grade" style="font-size:.7rem">{{ n.type }}</span>
+          </div>
+          <small class="text-muted">{{ n.sent_at.strftime('%d/%m %H:%M') }}</small>
+        </li>
+        {% else %}
+        <li class="list-group-item py-3 text-muted" style="font-size:.875rem">
+          <i class="bi bi-inbox me-2"></i>{{ _('Nenhum e-mail enviado ainda.') }}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

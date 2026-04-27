@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Painel') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Bem-vindo(a)') }}, {{ current_user.first_name }}</h4>
+
+{% if today_slots %}
+<div class="card shadow-sm mb-4 border-start border-primary border-4">
+  <div class="card-header fw-semibold">{{ _('Reuniões de hoje') }}</div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>{{ _('Horário') }}</th><th>{{ _('Aluno') }}</th><th>{{ _('Responsável') }}</th></tr>
+      </thead>
+      <tbody>
+        {% for slot in today_slots %}
+        <tr>
+          <td>{{ slot.start_datetime.strftime('%H:%M') }} – {{ slot.end_datetime.strftime('%H:%M') }}</td>
+          <td>{{ slot.booking.student.full_name if slot.booking else '—' }}</td>
+          <td>{{ slot.booking.booked_by.full_name if slot.booking else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-light">{{ _('Nenhuma reunião agendada para hoje.') }}</div>
+{% endif %}
+
+{% if upcoming %}
+<div class="card shadow-sm">
+  <div class="card-header fw-semibold">{{ _('Próximas reuniões') }}</div>
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>{{ _('Data / Hora') }}</th><th>{{ _('Aluno') }}</th></tr>
+      </thead>
+      <tbody>
+        {% for slot in upcoming %}
+        <tr>
+          <td>{{ slot.start_datetime.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ slot.booking.student.full_name if slot.booking else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

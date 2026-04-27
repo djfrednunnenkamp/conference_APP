@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Painel') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Conferências dos meus filhos') }}</h4>
+
+{% if not children %}
+<div class="alert alert-info">{{ _('Nenhum filho vinculado à sua conta. Entre em contato com a secretaria.') }}</div>
+{% endif %}
+
+<div class="row g-3">
+  {% for item in children %}
+  {% set student = item.student %}
+  <div class="col-md-6">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <h5 class="fw-bold">{{ student.full_name }}</h5>
+        <p class="text-muted mb-3">
+          <i class="bi bi-mortarboard me-1"></i>
+          {{ student.student_profile.grade_group.name if student.student_profile else '—' }}
+        </p>
+        {% if item.event_counts %}
+          {% for ec in item.event_counts %}
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="small text-muted">
+              <i class="bi bi-calendar-check me-1"></i>
+              <strong class="text-body">{{ ec.event.name }}</strong>
+              — {{ ec.booked }} {{ _('reunião(ões)') }}
+            </span>
+            <a href="{{ url_for('guardian.schedule', student_id=student.id, event_id=ec.event.id) }}"
+               class="btn btn-primary btn-sm ms-2">
+              <i class="bi bi-grid me-1"></i>{{ _('Agendar') }}
+            </a>
+          </div>
+          {% endfor %}
+        {% else %}
+          <span class="text-muted small">{{ _('Nenhum evento ativo no momento.') }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

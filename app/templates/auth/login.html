@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Entrar') }} – Pan American{% endblock %}
+{% block body_class %}login-page{% endblock %}
+
+{# Suprime os flash do base.html — vamos exibi-los dentro do card #}
+{% block flash %}{% endblock %}
+
+{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+
+<div class="pan-login-card">
+
+  <div class="pan-login-logo">
+    <img src="{{ url_for('static', filename='img/logo.png') }}"
+         width="80" height="80" alt="Pan American"
+         style="border-radius:50%;margin-bottom:1.25rem">
+    <div class="logo-title">Pan American</div>
+    <div class="logo-sub">{{ _('Sistema de Conferências') }}</div>
+  </div>
+
+  {# Banners — verde para success, vermelho para danger #}
+  {% set error_msg   = messages | selectattr('0', 'equalto', 'danger')  | list %}
+  {% set success_msg = messages | selectattr('0', 'equalto', 'success') | list %}
+
+  {% if success_msg %}
+  <div class="login-error-banner login-banner-success">
+    <i class="bi bi-check-circle-fill"></i>
+    {{ success_msg[0][1] }}
+  </div>
+  {% elif error_msg or form.errors %}
+  <div class="login-error-banner">
+    <i class="bi bi-exclamation-circle-fill"></i>
+    {{ error_msg[0][1] if error_msg else _('Verifique os campos e tente novamente.') }}
+  </div>
+  {% endif %}
+
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+
+    {% set has_error = (error_msg | length > 0) or form.errors %}
+    <div class="mb-4">
+      <label class="form-label">{{ _('E-mail') }}</label>
+      {{ form.email(
+          class="form-control form-control-lg" + (" login-field-error" if has_error else ""),
+          placeholder="email@escola.com") }}
+    </div>
+
+    <div class="mb-5">
+      <label class="form-label">{{ _('Senha') }}</label>
+      {{ form.password(
+          class="form-control form-control-lg" + (" login-field-error" if has_error else "")) }}
+    </div>
+
+    <div class="d-grid mb-3">
+      <button type="submit" class="btn btn-primary btn-lg">
+        {{ _('Entrar') }}
+      </button>
+    </div>
+  </form>
+
+  <div class="text-center mt-1">
+    <a href="{{ url_for('auth.forgot_password') }}" class="login-link">
+      {{ _('Esqueci minha senha') }}
+    </a>
+  </div>
+
+</div>
+{% endwith %}
+{% endblock %}

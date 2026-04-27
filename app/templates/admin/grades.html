@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Turmas e Matérias') }} – Conferensia{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0">{{ _('Turmas e Matérias') }}</h4>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin.export_grades_matrix') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-download me-1"></i>{{ _('Exportar') }}
+    </a>
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
+      <i class="bi bi-upload me-1"></i>{{ _('Importar') }}
+    </button>
+  </div>
+</div>
+
+{# ── Import modal ── #}
+<div class="modal fade" id="importModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('admin.import_grades_matrix') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-upload me-2"></i>{{ _('Importar Turmas e Matérias') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-2">
+            {{ _('Formato: primeira coluna = nome da turma, demais colunas = matérias (1 = ativa, 0 = inativa).') }}
+          </p>
+          <a href="{{ url_for('admin.template_grades_matrix') }}" class="btn btn-outline-secondary btn-sm mb-3">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ _('Baixar modelo') }}
+          </a>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ _('Arquivo CSV') }}</label>
+            <input type="file" name="csv_file" accept=".csv" class="form-control" required>
+          </div>
+          <p class="fw-semibold small mb-2">{{ _('Modo de importação:') }}</p>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="mode" id="modeAdd" value="add" checked>
+            <label class="form-check-label" for="modeAdd">
+              <strong>{{ _('Somente adicionar') }}</strong>
+              <span class="text-muted d-block" style="font-size:.8rem">{{ _('Mantém os existentes, insere apenas os novos.') }}</span>
+            </label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="mode" id="modeReplace" value="replace">
+            <label class="form-check-label" for="modeReplace">
+              <strong>{{ _('Substituir lista') }}</strong>
+              <span class="text-muted d-block" style="font-size:.8rem">{{ _('Reconstrói toda a matriz: apaga o que não está no arquivo.') }}</span>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mode" id="modeDelete" value="delete">
+            <label class="form-check-label" for="modeDelete">
+              <strong>{{ _('Apagar os importados') }}</strong>
+              <span class="text-muted d-block" style="font-size:.8rem">{{ _('Apaga as turmas listadas no arquivo.') }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">{{ _('Importar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  {# ── Left sidebar: add forms only ── #}
+  <div class="col-md-3 d-flex flex-column gap-3">
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-3">{{ _('Adicionar turma') }}</h6>
+        <form method="POST" novalidate>
+          {{ grade_form.hidden_tag() }}
+          {{ grade_form.submit(style="display:none") }}
+          <div class="mb-3">
+            {{ grade_form.name(class="form-control form-control-sm" + (" is-invalid" if grade_form.name.errors else ""),
+                               placeholder=_('ex: 9º Ano A')) }}
+            {% for e in grade_form.name.errors %}
+              <div class="invalid-feedback">{{ e }}</div>
+            {% endfor %}
+          </div>
+          <div class="d-grid">
+            <button type="submit" name="{{ grade_form.submit.name }}" value="true"
+                    class="btn btn-primary btn-sm">
+              <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar turma') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h6 class="fw-semibold mb-3">{{ _('Adicionar matéria') }}</h6>
+        <form method="POST" novalidate>
+          {{ subject_form.hidden_tag() }}
+          {{ subject_form.submit(style="display:none") }}
+          <div class="mb-3">
+            {{ subject_form.name(class="form-control form-control-sm" + (" is-invalid" if subject_form.name.errors else ""),
+                                 placeholder=_('ex: Matemática')) }}
+            {% for e in subject_form.name.errors %}
+              <div class="invalid-feedback">{{ e }}</div>
+            {% endfor %}
+          </div>
+          <div class="d-grid">
+            <button type="submit" name="{{ subject_form.submit.name }}" value="true"
+                    class="btn btn-primary btn-sm">
+              <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar matéria') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+
+  {# ── Right: grade × subject matrix ── #}
+  <div class="col-md-9">
+
+    {% if grades and all_subjects %}
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>{{ _('Quais matérias cada turma tem?') }}</span>
+        <small class="text-muted fw-normal">{{ _('Clique numa célula para ativar/desativar.') }}</small>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover mb-0 text-center align-middle">
+          <thead class="table-light">
+            <tr>
+              <th class="text-start" style="min-width:160px">{{ _('Turma') }}</th>
+              {% for s in all_subjects %}
+              <th style="min-width:90px; font-size:.82rem">
+                <div class="d-flex align-items-center justify-content-center gap-1">
+                  <span>{{ s.name }}</span>
+                  <form method="POST" action="{{ url_for('admin.delete_subject', id=s.id) }}"
+                        class="d-inline"
+                        data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+                        data-pan-title="{{ _('Excluir matéria') }} {{ s.name }}"
+                        data-pan-danger="1" data-pan-confirm-text="{{ _('Excluir') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-link p-0 text-danger" style="font-size:.75rem; line-height:1" title="{{ _('Excluir matéria') }}">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </div>
+              </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for g in grades %}
+            <tr>
+              <td class="text-start ps-3">
+                <div class="d-flex align-items-center gap-2">
+                  <form method="POST" action="{{ url_for('admin.delete_grade', id=g.id) }}"
+                        class="d-inline"
+                    data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+                    data-pan-title="{{ _('Excluir turma') }} {{ g.name }}"
+                    data-pan-danger="1" data-pan-confirm-text="{{ _('Excluir') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-link p-0 text-danger" style="font-size:.8rem" title="{{ _('Excluir turma') }}">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                  <span class="fw-semibold">{{ g.name }}</span>
+                  <small class="text-muted fw-normal">{{ g.student_profiles|length }} {{ _('alunos') }}</small>
+                </div>
+              </td>
+              {% for s in all_subjects %}
+              <td>
+                <form method="POST"
+                      action="{{ url_for('admin.toggle_grade_subject', grade_id=g.id, subject_id=s.id) }}"
+                      class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  {% if (g.id, s.id) in active %}
+                  <button class="btn btn-success btn-sm px-2 py-1">
+                    <i class="bi bi-check-lg"></i>
+                  </button>
+                  {% else %}
+                  <button class="btn btn-outline-secondary btn-sm px-2 py-1">
+                    <i class="bi bi-plus-lg"></i>
+                  </button>
+                  {% endif %}
+                </form>
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% elif grades %}
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>{{ _('Turma') }}</th><th>{{ _('Alunos') }}</th></tr>
+          </thead>
+          <tbody>
+            {% for g in grades %}
+            <tr>
+              <td>
+                <div class="d-flex align-items-center gap-2">
+                  <form method="POST" action="{{ url_for('admin.delete_grade', id=g.id) }}"
+                        class="d-inline"
+                    data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+                    data-pan-title="{{ _('Excluir turma') }} {{ g.name }}"
+                    data-pan-danger="1" data-pan-confirm-text="{{ _('Excluir') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-link p-0 text-danger" title="{{ _('Excluir turma') }}">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                  <span class="fw-semibold">{{ g.name }}</span>
+                </div>
+              </td>
+              <td>{{ g.student_profiles|length }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="alert alert-warning mt-3 small">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      {{ _('Adicione matérias ao lado para poder atribuí-las às turmas.') }}
+    </div>
+
+    {% elif all_subjects %}
+    <div class="alert alert-light">
+      {{ _('Nenhuma turma ainda. Adicione uma ao lado.') }}
+    </div>
+
+    {% else %}
+    <div class="alert alert-light">
+      {{ _('Adicione turmas e matérias ao lado para começar.') }}
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

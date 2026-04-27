@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Novo Aluno') if is_new else _('Editar Aluno') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Novo Aluno') if is_new else _('Editar Aluno') }}</h4>
+
+<div class="row g-4">
+
+  {# ── Left: basic info ── #}
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">{{ _('Nome') }}</label>
+              {{ form.first_name(class="form-control" + (" is-invalid" if form.first_name.errors else "")) }}
+              {% for e in form.first_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Sobrenome') }}</label>
+              {{ form.last_name(class="form-control" + (" is-invalid" if form.last_name.errors else "")) }}
+              {% for e in form.last_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('E-mail') }}</label>
+              {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+              {% for e in form.email.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('Turma') }}</label>
+              {{ form.grade_group_id(class="form-select") }}
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">{{ _('Salvar') }}</button>
+            {% if is_new %}
+            <form method="POST" action="{{ url_for('admin.discard_student', id=student.id) }}"
+                  data-pan-confirm="{{ _('O rascunho será excluído permanentemente.') }}"
+                  data-pan-title="{{ _('Descartar novo aluno') }}"
+                  data-pan-warning="1" data-pan-confirm-text="{{ _('Descartar') }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-outline-secondary">{{ _('Descartar') }}</button>
+            </form>
+            {% else %}
+            <a href="{{ url_for('admin.students') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
+            {% endif %}
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# ── Right: subjects + guardians ── #}
+  <div class="col-md-6 d-flex flex-column gap-3">
+
+    {# ── Matérias ── #}
+    {% if grade_subjects %}
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>{{ _('Matérias') }}</span>
+        <button type="button" class="btn btn-outline-primary btn-sm"
+                data-bs-toggle="modal" data-bs-target="#subjectsModal">
+          <i class="bi bi-pencil me-1"></i>{{ _('Editar') }}
+        </button>
+      </div>
+      <div class="card-body">
+        {% for gs in grade_subjects %}
+          {% if gs.subject_id not in excluded_ids %}
+            <span class="badge bg-primary me-1 mb-1 subject-badge"
+                  data-subject-id="{{ gs.subject_id }}">{{ gs.subject.name }}</span>
+          {% else %}
+            <span class="badge bg-light text-secondary border me-1 mb-1 subject-badge"
+                  data-subject-id="{{ gs.subject_id }}"
+                  style="text-decoration:line-through">{{ gs.subject.name }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>{{ _('Matérias') }}</span>
+        <button class="btn btn-outline-primary btn-sm" disabled>
+          <i class="bi bi-pencil me-1"></i>{{ _('Editar') }}
+        </button>
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-0">
+          {% if is_new %}
+          <i class="bi bi-info-circle me-1"></i>{{ _('Salve a turma do aluno para configurar as matérias.') }}
+          {% else %}
+          <i class="bi bi-info-circle me-1"></i>{{ _('A turma deste aluno não possui matérias cadastradas.') }}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
+    {# ── Responsáveis ── #}
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span>{{ _('Responsáveis') }}</span>
+        {% if guardians|length < 2 %}
+        <button type="button" class="btn btn-primary btn-sm"
+                data-bs-toggle="modal" data-bs-target="#addGuardianModal">
+          <i class="bi bi-person-plus me-1"></i>{{ _('Adicionar') }}
+        </button>
+        {% endif %}
+      </div>
+      {% for g in guardians %}
+      <div class="list-group list-group-flush">
+        <div class="list-group-item px-3 py-2">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <div class="fw-semibold">{{ g.full_name }}</div>
+              <small class="text-muted">{{ g.email }}</small>
+            </div>
+            <div class="d-flex gap-1 ms-2 flex-shrink-0">
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      title="{{ _('Editar') }}"
+                      data-bs-toggle="modal" data-bs-target="#editGuardianModal"
+                      data-guardian-id="{{ g.id }}"
+                      data-first-name="{{ g.first_name }}"
+                      data-last-name="{{ g.last_name }}"
+                      data-email="{{ g.email }}"
+                      data-update-url="{{ url_for('admin.update_guardian_from_student', student_id=student.id, guardian_id=g.id) }}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <form method="POST"
+                    action="{{ url_for('admin.remove_guardian_from_student', student_id=student.id, guardian_id=g.id) }}"
+                    data-pan-confirm="{{ _('O responsável será desvinculado deste aluno.') }}"
+                    data-pan-title="{{ _('Desvincular') }} {{ g.full_name }}"
+                    data-pan-warning="1" data-pan-confirm-text="{{ _('Desvincular') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" title="{{ _('Desvincular') }}">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div class="card-body py-2">
+        <p class="text-muted small mb-0">{{ _('Nenhum responsável vinculado ainda.') }}</p>
+      </div>
+      {% endfor %}
+    </div>
+
+  </div>{# /right col #}
+</div>{# /row #}
+
+
+{# ════════════════ MODALS ════════════════ #}
+
+{# ── Add guardian modal ── #}
+<div class="modal fade" id="addGuardianModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-person-plus me-2"></i>{{ _('Adicionar Responsável') }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <ul class="nav nav-tabs px-3 pt-3">
+          <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabLink">
+              <i class="bi bi-search me-1"></i>{{ _('Vincular existente') }}
+            </button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCreate">
+              <i class="bi bi-person-add me-1"></i>{{ _('Criar novo') }}
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content p-3">
+
+          <div class="tab-pane fade show active" id="tabLink">
+            <input type="text" id="guardianSearch"
+                   class="form-control form-control-sm mb-3"
+                   placeholder="{{ _('Buscar por nome ou e-mail…') }}"
+                   autocomplete="off">
+            <div style="max-height:300px; overflow-y:auto">
+              {% if available_guardians %}
+              <div class="list-group list-group-flush border rounded">
+                {% for g in available_guardians %}
+                <form method="POST"
+                      action="{{ url_for('admin.add_guardian_to_student', student_id=student.id) }}">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="guardian_email" value="{{ g.email }}">
+                  <button type="submit"
+                          class="list-group-item list-group-item-action guardian-item px-3 py-2 text-start"
+                          data-name="{{ g.full_name|lower }}"
+                          data-email="{{ g.email|lower }}">
+                    <div class="fw-semibold">{{ g.full_name }}</div>
+                    <small class="text-muted">{{ g.email }}</small>
+                  </button>
+                </form>
+                {% endfor %}
+              </div>
+              {% else %}
+              <p class="text-muted small">{{ _('Nenhum responsável disponível para vincular.') }}</p>
+              {% endif %}
+            </div>
+            <p class="text-muted small mt-2 mb-0 d-none" id="noMatchMsg">
+              {{ _('Nenhum resultado encontrado.') }}
+            </p>
+          </div>
+
+          <div class="tab-pane fade" id="tabCreate">
+            <form method="POST"
+                  action="{{ url_for('admin.add_guardian_to_student', student_id=student.id) }}"
+                  novalidate>
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <div class="row g-3">
+                <div class="col-6">
+                  <label class="form-label">{{ _('Nome') }}</label>
+                  <input type="text" name="guardian_first_name" class="form-control" required>
+                </div>
+                <div class="col-6">
+                  <label class="form-label">{{ _('Sobrenome') }}</label>
+                  <input type="text" name="guardian_last_name" class="form-control" required>
+                </div>
+                <div class="col-12">
+                  <label class="form-label">{{ _('E-mail') }}</label>
+                  <input type="email" name="guardian_email" class="form-control" required>
+                </div>
+              </div>
+              <div class="mt-3">
+                <button type="submit" class="btn btn-primary btn-sm">
+                  <i class="bi bi-person-add me-1"></i>{{ _('Criar e vincular') }}
+                </button>
+              </div>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Edit guardian modal ── #}
+<div class="modal fade" id="editGuardianModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" id="editGuardianForm" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-pencil me-2"></i>{{ _('Editar Responsável') }}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">{{ _('Nome') }}</label>
+              <input type="text" name="first_name" id="guardianFirstName" class="form-control" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Sobrenome') }}</label>
+              <input type="text" name="last_name" id="guardianLastName" class="form-control" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('E-mail') }}</label>
+              <input type="email" name="email" id="guardianEmail" class="form-control" required>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">{{ _('Salvar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Subjects modal ── #}
+{% if grade_subjects %}
+<div class="modal fade" id="subjectsModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <i class="bi bi-journal-bookmark me-2"></i>{{ _('Matérias de') }} {{ student.full_name }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">
+          {{ _('Turma') }}: <strong>{{ student.student_profile.grade_group.name }}</strong>.
+          {{ _('Desmarque as que este aluno não cursa.') }}
+        </p>
+        <div class="list-group list-group-flush border rounded">
+          {% for gs in grade_subjects %}
+          <label class="list-group-item d-flex gap-3 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 subject-toggle-cb" type="checkbox"
+                   data-toggle-url="{{ url_for('admin.toggle_student_subject', student_id=student.id, subject_id=gs.subject_id) }}"
+                   data-subject-id="{{ gs.subject_id }}"
+                   {% if gs.subject_id not in excluded_ids %}checked{% endif %}>
+            <span>{{ gs.subject.name }}</span>
+          </label>
+          {% endfor %}
+        </div>
+        <div id="subjectsSaveMsg" class="mt-2 small text-success d-none">
+          <i class="bi bi-check-circle me-1"></i>{{ _('Salvo automaticamente.') }}
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">
+          {{ _('Fechar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+{% block scripts %}
+<script>
+const CSRF = "{{ csrf_token() }}";
+
+// Edit-guardian modal: populate from button data
+document.getElementById('editGuardianModal').addEventListener('show.bs.modal', function (e) {
+  const btn = e.relatedTarget;
+  if (!btn) return;
+  document.getElementById('guardianFirstName').value = btn.dataset.firstName || '';
+  document.getElementById('guardianLastName').value  = btn.dataset.lastName  || '';
+  document.getElementById('guardianEmail').value     = btn.dataset.email     || '';
+  document.getElementById('editGuardianForm').action = btn.dataset.updateUrl || '';
+});
+
+// Add-guardian modal: live search
+const searchInput = document.getElementById('guardianSearch');
+if (searchInput) {
+  searchInput.addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    let visible = 0;
+    document.querySelectorAll('.guardian-item').forEach(item => {
+      const match = !q || item.dataset.name.includes(q) || item.dataset.email.includes(q);
+      item.closest('form').style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    const noMatch = document.getElementById('noMatchMsg');
+    if (noMatch) noMatch.classList.toggle('d-none', visible > 0);
+  });
+  document.getElementById('addGuardianModal').addEventListener('hidden.bs.modal', function () {
+    searchInput.value = '';
+    document.querySelectorAll('.guardian-item').forEach(i => { i.closest('form').style.display = ''; });
+    const noMatch = document.getElementById('noMatchMsg');
+    if (noMatch) noMatch.classList.add('d-none');
+  });
+}
+
+// Subject toggles (AJAX, only present when grade_subjects exist)
+document.querySelectorAll('.subject-toggle-cb').forEach(cb => {
+  cb.addEventListener('change', function () {
+    fetch(this.dataset.toggleUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: 'csrf_token=' + encodeURIComponent(CSRF)
+    })
+    .then(r => r.json())
+    .then(data => {
+      const badge = document.querySelector(`.subject-badge[data-subject-id="${this.dataset.subjectId}"]`);
+      if (badge) {
+        if (data.excluded) {
+          badge.classList.replace('bg-primary', 'bg-light');
+          badge.classList.add('text-secondary', 'border');
+          badge.style.textDecoration = 'line-through';
+        } else {
+          badge.classList.replace('bg-light', 'bg-primary');
+          badge.classList.remove('text-secondary', 'border');
+          badge.style.textDecoration = '';
+        }
+      }
+      const msg = document.getElementById('subjectsSaveMsg');
+      if (msg) { msg.classList.remove('d-none'); setTimeout(() => msg.classList.add('d-none'), 2000); }
+    });
+  });
+});
+</script>
+{% endblock %}

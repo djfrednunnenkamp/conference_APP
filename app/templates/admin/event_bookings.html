@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Agendamentos') }} – {{ event.name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h4 class="fw-bold mb-0">{{ _('Agendamentos') }} – {{ event.name }}</h4>
+  <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary btn-sm">{{ _('Voltar') }}</a>
+</div>
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>{{ _('Data / Hora') }}</th>
+          <th>{{ _('Professor') }}</th>
+          <th>{{ _('Aluno') }}</th>
+          <th>{{ _('Agendado por') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in bookings %}
+        <tr>
+          <td>{{ b.slot.start_datetime.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ b.slot.teacher.full_name }}</td>
+          <td>{{ b.student.full_name }}</td>
+          <td>{{ b.booked_by.full_name }} <span class="badge bg-light text-dark">{{ b.booked_by.role }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="text-muted text-center py-3">{{ _('Nenhum agendamento ainda.') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

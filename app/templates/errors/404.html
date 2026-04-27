@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}404 – {{ _('Página não encontrada') }}{% endblock %}
+{% block content %}
+<div class="text-center py-5">
+  <div class="display-1 text-warning fw-bold">404</div>
+  <h4>{{ _('Página não encontrada') }}</h4>
+  <p class="text-muted">{{ _('A página que você procura não existe.') }}</p>
+  <a href="/" class="btn btn-primary">{{ _('Início') }}</a>
+</div>
+{% endblock %}

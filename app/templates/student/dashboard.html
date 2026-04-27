@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Painel') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Bem-vindo(a)') }}, {{ current_user.first_name }}</h4>
+
+{% if events %}
+  {% for event in events %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <h6 class="fw-semibold">{{ event.name }}</h6>
+      {% if event.student_booking_allowed %}
+      <p class="text-muted mb-3">{{ _('Você pode agendar suas próprias reuniões.') }}</p>
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('student.schedule', event_id=event.id) }}" class="btn btn-primary btn-sm">
+          <i class="bi bi-grid me-1"></i>{{ _('Agendar Reuniões') }}
+        </a>
+        <a href="{{ url_for('student.bookings') }}" class="btn btn-outline-secondary btn-sm">{{ _('Minhas Reuniões') }}</a>
+      </div>
+      {% else %}
+      <p class="text-muted mb-0">{{ _('As reuniões estão sendo agendadas pelos seus responsáveis.') }}</p>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="alert alert-light">{{ _('Nenhum evento de conferência ativo no momento.') }}</div>
+{% endif %}
+{% endblock %}

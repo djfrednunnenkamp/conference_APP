@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Editar Responsável') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Editar Responsável') }}</h4>
+
+<div class="row">
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">{{ _('Nome') }}</label>
+              {{ form.first_name(class="form-control" + (" is-invalid" if form.first_name.errors else "")) }}
+              {% for e in form.first_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Sobrenome') }}</label>
+              {{ form.last_name(class="form-control" + (" is-invalid" if form.last_name.errors else "")) }}
+              {% for e in form.last_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('E-mail') }}</label>
+              {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+              {% for e in form.email.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">{{ _('Salvar') }}</button>
+            <a href="{{ url_for('admin.guardians') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {# Show linked children (read-only) #}
+  {% set children = guardian.guardian_students | map(attribute='student') | list %}
+  {% if children %}
+  <div class="col-md-6">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold small">{{ _('Filhos vinculados') }}</div>
+      <ul class="list-group list-group-flush">
+        {% for c in children %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <span>{{ c.full_name }}</span>
+          {% if c.student_profile %}
+            <span class="badge bg-light text-dark border">{{ c.student_profile.grade_group.name }}</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

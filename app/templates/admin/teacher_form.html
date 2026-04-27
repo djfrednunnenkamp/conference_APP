@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Editar Professor') if teacher else _('Novo Professor') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Editar Professor') if teacher else _('Novo Professor') }}</h4>
+
+{# Form wraps BOTH columns so checkboxes are submitted together with the fields #}
+<form method="POST" novalidate>
+  {{ form.hidden_tag() }}
+  <div class="row g-4">
+
+    {# ── Left column: personal info ───────────────────────────────────────── #}
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label">{{ _('Nome') }}</label>
+              {{ form.first_name(class="form-control" + (" is-invalid" if form.first_name.errors else "")) }}
+              {% for e in form.first_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-6">
+              <label class="form-label">{{ _('Sobrenome') }}</label>
+              {{ form.last_name(class="form-control" + (" is-invalid" if form.last_name.errors else "")) }}
+              {% for e in form.last_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-12">
+              <label class="form-label">{{ _('E-mail') }}</label>
+              {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+              {% for e in form.email.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+
+          </div>
+          <div class="mt-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">{{ _('Salvar') }}</button>
+            <a href="{{ url_for('admin.teachers') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ── Right column: subject/grade checkboxes (inside the same form) ─────── #}
+    <div class="col-md-6">
+      <div class="card shadow-sm">
+        <div class="card-header fw-semibold">{{ _('Matérias / Turmas') }}</div>
+        <div class="card-body" style="max-height:440px; overflow-y:auto;">
+          {% if not grade_subjects %}
+          <div class="alert alert-warning small mb-0">
+            {{ _('Nenhuma combinação matéria–turma configurada ainda.') }}
+            <a href="{{ url_for('admin.grades') }}">{{ _('Configurar em Turmas e Matérias →') }}</a>
+          </div>
+          {% else %}
+          <p class="text-muted small mb-3">{{ _('Marque as matérias que este professor leciona.') }}</p>
+          {% for grade, subjects in grade_subjects %}
+          <div class="mb-3">
+            <div class="fw-semibold text-primary small mb-1">{{ grade.name }}</div>
+            {% for s in subjects %}
+            {% set key = "sg_" ~ s.id ~ "_" ~ grade.id %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox"
+                     name="{{ key }}" id="{{ key }}" value="1"
+                     {% if existing_sgs is defined and (grade.id, s.id) in existing_sgs %}checked{% endif %}>
+              <label class="form-check-label" for="{{ key }}">{{ s.name }}</label>
+            </div>
+            {% endfor %}
+          </div>
+          {% endfor %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+  </div>{# end .row #}
+</form>
+{% endblock %}

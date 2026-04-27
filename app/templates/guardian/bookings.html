@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Minhas Reuniões') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Minhas Reuniões') }}</h4>
+
+{% for item in children_data %}
+<h5 class="fw-semibold mb-2">
+  {{ item.student.full_name }}
+  <small class="text-muted fw-normal">{{ item.student.student_profile.grade_group.name if item.student.student_profile else '' }}</small>
+</h5>
+{% for eb in item.events_bookings %}
+<h6 class="text-muted mb-2">{{ eb.event.name }}</h6>
+{% if eb.bookings %}
+<div class="card shadow-sm mb-3">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>{{ _('Data / Hora') }}</th>
+          <th>{{ _('Professor') }}</th>
+          <th>{{ _('Matéria') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in eb.bookings %}
+        <tr>
+          <td>{{ b.slot.start_datetime.strftime('%d/%m/%Y %H:%M') }} – {{ b.slot.end_datetime.strftime('%H:%M') }}</td>
+          <td>{{ b.slot.teacher.full_name }}</td>
+          <td>
+            {% set sp = item.student.student_profile %}
+            {% if sp %}
+              {% for tsg in b.slot.teacher.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+                {{ tsg.subject.name }}
+              {% endfor %}
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
+               class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-grid"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<p class="text-muted mb-4">
+  {{ _('Nenhuma reunião agendada ainda.') }}
+  <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}">{{ _('Agendar agora') }}</a>.
+</p>
+{% endif %}
+{% endfor %}
+{% else %}
+<div class="alert alert-info">{{ _('Nenhum filho vinculado à sua conta.') }}</div>
+{% endfor %}
+{% endblock %}

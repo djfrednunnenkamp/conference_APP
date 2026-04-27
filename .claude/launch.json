@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Flask Dev Server",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["run.py"],
+      "port": 5000,
+      "autoPort": true
+    }
+  ]
+}

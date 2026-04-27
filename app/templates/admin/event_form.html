@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Editar Evento') if event else _('Novo Evento') }} – Conferensia{% endblock %}
+{% block head %}
+<style>
+  /* Hide the remove button when there is only one day row */
+  #daysContainer .day-row:only-child .remove-day { display: none !important; }
+</style>
+{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Editar Evento') if event else _('Novo Evento de Conferência') }}</h4>
+<div class="row g-4">
+  <div class="col-lg-7">
+    <form method="POST" novalidate id="eventForm">
+      {{ form.hidden_tag() }}
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold">{{ _('Informações gerais') }}</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">{{ _('Nome do evento') }}</label>
+            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+            {% for e in form.name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="form-check form-switch mt-2">
+                {{ form.student_booking_allowed(class="form-check-input") }}
+                <label class="form-check-label">{{ _('Permitir agendamento por alunos') }}</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">{{ _('Prazo de cancelamento (horas)') }}</label>
+              {{ form.cancel_deadline_hours(class="form-control") }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+          {{ _('Dias') }}
+          <button type="button" class="btn btn-outline-primary btn-sm" id="addDay">
+            <i class="bi bi-plus-lg"></i> {{ _('Adicionar dia') }}
+          </button>
+        </div>
+        <div class="card-body" id="daysContainer">
+          {% for day in form.days %}
+          {% set model_day = event.days[loop.index0] if event and loop.index0 < event.days|length else none %}
+          <div class="day-row border rounded p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold small text-muted day-label">{{ _('Dia') }} {{ loop.index }}</span>
+                {% if model_day and not model_day.is_active %}
+                <span class="badge bg-secondary" style="font-size:.68rem">{{ _('Desativado') }}</span>
+                {% endif %}
+              </div>
+              <div class="d-flex gap-1">
+                {% if model_day %}
+                <button type="button"
+                        class="btn btn-sm day-toggle-btn {% if model_day.is_active %}btn-outline-success{% else %}btn-outline-secondary{% endif %}"
+                        data-toggle-url="{{ url_for('admin.toggle_day_active', event_id=event.id, day_id=model_day.id) }}"
+                        data-is-active="{{ 'true' if model_day.is_active else 'false' }}"
+                        title="{{ _('Desativar dia') if model_day.is_active else _('Ativar dia') }}">
+                  <i class="bi {% if model_day.is_active %}bi-calendar-check{% else %}bi-calendar-x{% endif %}"></i>
+                </button>
+                {% endif %}
+                <button type="button" class="btn btn-outline-danger btn-sm remove-day"><i class="bi bi-trash"></i></button>
+              </div>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label small">{{ _('Data') }}</label>
+                {{ day.date(class="form-control form-control-sm") }}
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">{{ _('Início') }}</label>
+                {{ day.start_time(class="form-control form-control-sm") }}
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">{{ _('Fim') }}</label>
+                {{ day.end_time(class="form-control form-control-sm") }}
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">{{ _('Duração (min)') }}</label>
+                {{ day.slot_duration_minutes(class="form-control form-control-sm") }}
+              </div>
+              <div class="col-md-2">
+                <label class="form-label small">{{ _('Intervalo (min)') }}</label>
+                {{ day.break_minutes(class="form-control form-control-sm") }}
+              </div>
+            </div>
+            <div class="mt-2 slot-preview text-muted small"></div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <input type="hidden" name="conflict_action" id="conflictAction" value="keep">
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">{{ _('Salvar') }}</button>
+        <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
+      </div>
+    </form>
+  </div>
+
+  <div class="col-lg-5">
+    {# Slot preview card #}
+    <div class="card shadow-sm mb-3">
+      <div class="card-header fw-semibold">{{ _('Prévia dos horários') }}</div>
+      <div class="card-body" id="globalPreview">
+        <p class="text-muted small">{{ _('Preencha um dia para ver a prévia.') }}</p>
+      </div>
+    </div>
+
+    {# Teacher attendance – only shown when editing an existing event with days #}
+    {% if event and event.days and all_teachers %}
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold">{{ _('Presença de professores por dia') }}</div>
+      <div class="card-body p-0">
+        <p class="text-muted small px-3 pt-3 mb-2">
+          {{ _('Desmarque professores ausentes. Eles não aparecerão para alunos/responsáveis naquele dia.') }}
+        </p>
+
+        {# One accordion item per day #}
+        <div class="accordion accordion-flush" id="attendanceAccordion">
+          {% for day in event.days %}
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button {% if not loop.first %}collapsed{% endif %} py-2 small fw-semibold"
+                      type="button" data-bs-toggle="collapse"
+                      data-bs-target="#dayCollapse{{ day.id }}">
+                {{ day.date.strftime('%d/%m/%Y') }}
+              </button>
+            </h2>
+            <div id="dayCollapse{{ day.id }}"
+                 class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+                 data-bs-parent="#attendanceAccordion">
+              <div class="accordion-body py-2 px-3">
+                {% for teacher in all_teachers %}
+                {% set is_absent = (day.id, teacher.id) in absent_set %}
+                <div class="form-check">
+                  <input class="form-check-input teacher-attendance-cb"
+                         type="checkbox"
+                         id="att_{{ day.id }}_{{ teacher.id }}"
+                         data-toggle-url="{{ url_for('admin.toggle_teacher_absence', event_id=event.id, day_id=day.id, teacher_id=teacher.id) }}"
+                         {% if not is_absent %}checked{% endif %}>
+                  <label class="form-check-label small" for="att_{{ day.id }}_{{ teacher.id }}">
+                    {{ teacher.full_name }}
+                  </label>
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% elif event and not all_teachers %}
+    <div class="card shadow-sm">
+      <div class="card-body text-muted small">
+        {{ _('Nenhum professor cadastrado ainda.') }}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+{% if event %}
+{# ── Conflict modal — must come BEFORE the <script> so getElementById can find the buttons ── #}
+<div class="modal fade" id="conflictModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:36px;height:36px;border-radius:50%;background:#fff3cd;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+          </span>
+          <h6 class="modal-title fw-semibold mb-0" style="color:var(--pan-blue)">
+            {{ _('Dias com agendamentos confirmados') }}
+          </h6>
+        </div>
+      </div>
+      <div class="modal-body pt-2">
+        <p style="font-size:.875rem;color:var(--pan-text-muted)">
+          {{ _('Os dias') }} <span id="conflictDaysList"></span>
+          {{ _('serão removidos e possuem agendamentos. O que deseja fazer?') }}
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 flex-column align-items-stretch gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm text-start" id="conflictKeepBtn">
+          <i class="bi bi-bookmark-check me-2" style="color:var(--pan-green)"></i>
+          <strong>{{ _('Apagar o dia e manter os agendamentos') }}</strong><br>
+          <span class="text-muted ms-4" style="font-size:.78rem">
+            {{ _('Os agendamentos já confirmados continuam válidos.') }}
+          </span>
+        </button>
+        <button type="button" class="btn btn-outline-danger btn-sm text-start" id="conflictRemoveBtn">
+          <i class="bi bi-trash me-2"></i>
+          <strong>{{ _('Apagar o dia e remover todos os agendamentos') }}</strong><br>
+          <span class="text-muted ms-4" style="font-size:.78rem">
+            {{ _('Todos os horários marcados neste dia serão cancelados.') }}
+          </span>
+        </button>
+        <button type="button" class="btn btn-link btn-sm text-muted text-decoration-none"
+                data-bs-dismiss="modal">
+          {{ _('Cancelar — não salvar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script>
+const CSRF = "{{ csrf_token() }}";
+
+// ── Day active/inactive toggles (AJAX) ───────────────────────────────────────
+document.querySelectorAll('.day-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const url = this.dataset.toggleUrl;
+    const el  = this;
+    fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      const active = data.is_active;
+      el.dataset.isActive = active ? 'true' : 'false';
+      el.title = active ? '{{ _('Desativar dia') }}' : '{{ _('Ativar dia') }}';
+      el.className = `btn btn-sm day-toggle-btn ${active ? 'btn-outline-success' : 'btn-outline-secondary'}`;
+      el.innerHTML = `<i class="bi ${active ? 'bi-calendar-check' : 'bi-calendar-x'}"></i>`;
+      // update the badge inside the same .day-row
+      const row = el.closest('.day-row');
+      let badge = row.querySelector('.badge.bg-secondary');
+      if (!active) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'badge bg-secondary';
+          badge.style.fontSize = '.68rem';
+          badge.textContent = '{{ _('Desativado') }}';
+          row.querySelector('.day-label').insertAdjacentElement('afterend', badge);
+        }
+      } else {
+        if (badge) badge.remove();
+      }
+    })
+    .catch(() => { /* silently ignore */ });
+  });
+});
+
+// ── Teacher attendance toggles (AJAX) ─────────────────────────────────────────
+document.querySelectorAll('.teacher-attendance-cb').forEach(cb => {
+  cb.addEventListener('change', function() {
+    const url = this.dataset.toggleUrl;
+    const checked = this.checked;
+    const el = this;
+    fetch(url, {
+      method: 'POST',
+      headers: {'X-CSRFToken': CSRF, 'Content-Type': 'application/json'},
+    })
+    .then(r => r.json())
+    .then(data => {
+      // data.absent = true means was absent → now present (we just toggled to checked → correct)
+      // Nothing extra to do – the checkbox state already reflects the toggle
+    })
+    .catch(() => {
+      // Revert on error
+      el.checked = !checked;
+    });
+  });
+});
+
+// ── Day builder ───────────────────────────────────────────────────────────────
+let dayCount = document.querySelectorAll('.day-row').length;
+const labelDay = "{{ _('Dia') }}";
+
+document.getElementById('addDay').addEventListener('click', () => {
+  const idx = dayCount;
+  const tpl = document.querySelector('.day-row').cloneNode(true);
+  tpl.querySelectorAll('input').forEach(inp => {
+    inp.name = inp.name.replace(/days-\d+/, `days-${idx}`);
+    inp.id = inp.id.replace(/days-\d+/, `days-${idx}`);
+    inp.value = '';
+  });
+  tpl.querySelectorAll('label').forEach(lbl => {
+    lbl.htmlFor = lbl.htmlFor.replace(/days-\d+/, `days-${idx}`);
+  });
+  tpl.querySelector('.fw-semibold.small').textContent = `${labelDay} ${idx + 1}`;
+  tpl.querySelector('.slot-preview').textContent = '';
+  document.getElementById('daysContainer').appendChild(tpl);
+  dayCount++;
+  bindDayEvents(tpl);
+});
+
+document.addEventListener('click', e => {
+  if (e.target.closest('.remove-day')) e.target.closest('.day-row').remove();
+});
+
+function computeSlots(start, end, dur, brk) {
+  const slots  = [];
+  const durMin = parseInt(dur);
+  const brkMin = parseInt(brk) || 0;
+
+  // Guard: duration must be a positive integer; prevent infinite loop on 0 or NaN
+  if (!durMin || durMin <= 0 || !isFinite(durMin)) return slots;
+
+  const durMs = durMin * 60000;
+  const brkMs = brkMin * 60000;
+
+  let cur  = new Date(`2000-01-01T${start}`);
+  const endT = new Date(`2000-01-01T${end}`);
+
+  // Safety cap: never generate more than 500 slots (prevents browser hang)
+  let guard = 500;
+  while (cur.getTime() + durMs <= endT.getTime() && guard-- > 0) {
+    const s = cur.toTimeString().slice(0, 5);
+    cur = new Date(cur.getTime() + durMs);
+    slots.push(`${s}–${cur.toTimeString().slice(0, 5)}`);
+    cur = new Date(cur.getTime() + brkMs);
+  }
+  return slots;
+}
+
+function bindDayEvents(row) {
+  // Time fields: atualiza ao digitar (input)
+  row.querySelectorAll('input[type="time"]').forEach(inp =>
+    inp.addEventListener('input', () => updatePreview(row))
+  );
+  // Number fields: atualiza só ao sair do campo (change) — evita loop com tipo=number
+  row.querySelectorAll('input[type="number"]').forEach(inp =>
+    inp.addEventListener('change', () => updatePreview(row))
+  );
+}
+
+function updatePreview(row) {
+  const start = row.querySelector('[name$="start_time"]')?.value;
+  const end   = row.querySelector('[name$="end_time"]')?.value;
+  const dur   = row.querySelector('[name$="slot_duration_minutes"]')?.value;
+  const brk   = row.querySelector('[name$="break_minutes"]')?.value;
+  const preview = row.querySelector('.slot-preview');
+  if (!preview) return;
+
+  const durVal = parseInt(dur);
+  if (start && end && durVal > 0) {
+    const slots = computeSlots(start, end, dur, brk);
+    preview.textContent = slots.length
+      ? `${slots.length} horários: ${slots.slice(0, 3).join(', ')}${slots.length > 3 ? ' …' : ''}`
+      : '{{ _('Nenhum horário gerado com esses parâmetros.') }}';
+  } else {
+    preview.textContent = '';
+  }
+}
+
+document.querySelectorAll('.day-row').forEach(bindDayEvents);
+
+{% if event %}
+// ── Conflict check before save ─────────────────────────────────────────────
+const CHECK_URL    = "{{ url_for('admin.event_check_conflicts', id=event.id) }}";
+const EVENT_FORM   = document.getElementById('eventForm');
+let   conflictDays    = [];
+let   conflictChecked = false;  // flag: already cleared, just submit
+
+EVENT_FORM.addEventListener('submit', async function(e) {
+  // If we already ran the check and found no conflicts, let the submit through
+  if (conflictChecked) return;
+
+  // Always prevent immediately — async handlers can't rely on late preventDefault
+  e.preventDefault();
+
+  // Collect dates currently in the form
+  const dates = [...document.querySelectorAll('[name$="-date"]')]
+    .map(i => i.value).filter(Boolean);
+
+  const params = new URLSearchParams();
+  dates.forEach(d => params.append('dates[]', d));
+
+  try {
+    const resp = await fetch(`${CHECK_URL}?${params}`);
+    if (resp.ok) {
+      const data = await resp.json();
+      conflictDays = data.conflicts || [];
+    }
+  } catch { /* network error — proceed with save */ }
+
+  if (!conflictDays.length) {
+    // No conflicts — submit for real
+    conflictChecked = true;
+    EVENT_FORM.submit();
+    return;
+  }
+
+  // Conflicts found — show modal
+  const datesList = conflictDays
+    .map(c => `<strong>${c.date}</strong> (${c.bookings} ${c.bookings === 1 ? '{{ _('agendamento') }}' : '{{ _('agendamentos') }}'})`)
+    .join(', ');
+  document.getElementById('conflictDaysList').innerHTML = datesList;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('conflictModal')).show();
+});
+
+document.getElementById('conflictKeepBtn').addEventListener('click', () => {
+  document.getElementById('conflictAction').value = 'keep';
+  bootstrap.Modal.getInstance(document.getElementById('conflictModal')).hide();
+  conflictChecked = true;
+  EVENT_FORM.submit();
+});
+
+document.getElementById('conflictRemoveBtn').addEventListener('click', () => {
+  document.getElementById('conflictAction').value = 'remove_all';
+  bootstrap.Modal.getInstance(document.getElementById('conflictModal')).hide();
+  conflictChecked = true;
+  EVENT_FORM.submit();
+});
+{% endif %}
+</script>
+{% endblock %}

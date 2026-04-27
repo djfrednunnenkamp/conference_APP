@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Minha Agenda') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Minha Agenda') }}</h4>
+
+{% if event %}
+<form class="d-flex gap-2 mb-3" method="GET">
+  <input type="date" name="date" class="form-control form-control-sm w-auto"
+         value="{{ date_filter.isoformat() if date_filter else '' }}">
+  <button class="btn btn-outline-primary btn-sm">{{ _('Filtrar') }}</button>
+  {% if date_filter %}
+  <a href="{{ url_for('teacher.schedule') }}" class="btn btn-outline-secondary btn-sm">{{ _('Limpar') }}</a>
+  {% endif %}
+</form>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead class="table-light">
+        <tr><th>{{ _('Data / Hora') }}</th><th>{{ _('Status') }}</th><th>{{ _('Aluno') }}</th></tr>
+      </thead>
+      <tbody>
+        {% for slot in slots %}
+        <tr class="{{ 'table-success' if slot.is_booked else '' }}">
+          <td>{{ slot.start_datetime.strftime('%d/%m/%Y %H:%M') }} – {{ slot.end_datetime.strftime('%H:%M') }}</td>
+          <td>
+            {% if slot.booking and slot.booking.cancelled_at %}
+              <span class="badge bg-secondary">{{ _('Cancelado') }}</span>
+            {% elif slot.is_booked %}
+              <span class="badge bg-success">{{ _('Agendado') }}</span>
+            {% else %}
+              <span class="badge bg-light text-dark">{{ _('Disponível') }}</span>
+            {% endif %}
+          </td>
+          <td>{{ slot.booking.student.full_name if slot.booking and not slot.booking.cancelled_at else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-muted text-center py-3">{{ _('Nenhum horário encontrado.') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info">{{ _('Nenhum evento de conferência ativo no momento.') }}</div>
+{% endif %}
+{% endblock %}

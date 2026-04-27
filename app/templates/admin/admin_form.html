@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Editar Administrador') if admin_user else _('Novo Administrador') }} – Conferensia{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center gap-2 mb-4">
+  <a href="{{ url_for('admin.admins') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <h4 class="fw-bold mb-0">
+    {{ _('Editar Administrador') if admin_user else _('Novo Administrador') }}
+  </h4>
+</div>
+
+<div class="row">
+  <div class="col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-person-gear me-2"></i>{{ _('Dados do Administrador') }}
+      </div>
+      <div class="card-body">
+        <form method="POST" novalidate>
+          {{ form.hidden_tag() }}
+
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label">{{ _('Nome') }}</label>
+              {{ form.first_name(class="form-control" + (" is-invalid" if form.first_name.errors else "")) }}
+              {% for e in form.first_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label">{{ _('Sobrenome') }}</label>
+              {{ form.last_name(class="form-control" + (" is-invalid" if form.last_name.errors else "")) }}
+              {% for e in form.last_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label">{{ _('E-mail') }}</label>
+            {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+            {% for e in form.email.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+          </div>
+
+          {% if not admin_user %}
+          <div class="alert alert-info d-flex gap-2 align-items-start mb-4" style="font-size:.875rem">
+            <i class="bi bi-envelope me-1 mt-1 flex-shrink-0"></i>
+            <span>{{ _('Um e-mail de convite será enviado automaticamente para o endereço informado.') }}</span>
+          </div>
+          {% endif %}
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+            </button>
+            <a href="{{ url_for('admin.admins') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if admin_user %}
+  <div class="col-lg-4 mt-3 mt-lg-0">
+    <div class="card shadow-sm">
+      <div class="card-header fw-semibold">{{ _('Acesso') }}</div>
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="pan-avatar" style="background:var(--pan-blue);width:48px;height:48px;font-size:1rem;flex-shrink:0">
+            {{ admin_user.first_name[0] }}{{ admin_user.last_name[0] }}
+          </span>
+          <div>
+            <div class="fw-semibold">{{ admin_user.full_name }}</div>
+            <div class="text-muted small">{{ admin_user.email }}</div>
+          </div>
+        </div>
+        <div class="mb-3">
+          {% if admin_user.has_password() %}
+          <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>{{ _('Ativo') }}</span>
+          {% else %}
+          <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>{{ _('Convite pendente') }}</span>
+          {% endif %}
+        </div>
+        <form method="POST" action="{{ url_for('admin.send_user_reset', user_id=admin_user.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="redirect_to" value="admin.admins">
+          <button class="btn btn-outline-primary btn-sm w-100">
+            <i class="bi bi-envelope-arrow-up me-1"></i>
+            {% if admin_user.has_password() %}
+              {{ _('Enviar redefinição de senha') }}
+            {% else %}
+              {{ _('Reenviar convite') }}
+            {% endif %}
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

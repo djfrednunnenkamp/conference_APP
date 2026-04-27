@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Minhas Reuniões') }} – Conferensia{% endblock %}
+{% block content %}
+<h4 class="fw-bold mb-4">{{ _('Minhas Reuniões') }}</h4>
+
+{% if events_bookings %}
+  {% for item in events_bookings %}
+  <h5 class="fw-semibold mb-2">{{ item.event.name }}</h5>
+  {% if item.bookings %}
+  <div class="card shadow-sm mb-4">
+    <div class="card-body p-0">
+      <table class="table table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>{{ _('Data / Hora') }}</th>
+            <th>{{ _('Professor') }}</th>
+            <th>{{ _('Agendado por') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in item.bookings %}
+          <tr>
+            <td>{{ b.slot.start_datetime.strftime('%d/%m/%Y %H:%M') }} – {{ b.slot.end_datetime.strftime('%H:%M') }}</td>
+            <td>{{ b.slot.teacher.full_name }}</td>
+            <td>{{ b.booked_by.full_name }} <span class="badge bg-light text-dark">{{ b.booked_by.role }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-muted mb-4">{{ _('Nenhuma reunião agendada ainda.') }}</p>
+  {% endif %}
+  {% endfor %}
+{% else %}
+<div class="alert alert-info">{{ _('Nenhum evento de conferência ativo no momento.') }}</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Professores') }} – Conferensia{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="fw-bold mb-0">{{ _('Professores') }}</h4>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#exportModal">
+      <i class="bi bi-download me-1"></i>{{ _('Exportar') }}
+    </button>
+    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
+      <i class="bi bi-upload me-1"></i>{{ _('Importar') }}
+    </button>
+    <a href="{{ url_for('admin.new_teacher') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar Professor') }}
+    </a>
+  </div>
+</div>
+
+{# ── Search + filter + bulk bar ── #}
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+  <div class="input-group input-group-sm" style="max-width:260px">
+    <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+    <input type="text" id="searchInput" class="form-control border-start-0"
+           placeholder="{{ _('Buscar por nome...') }}" autocomplete="off">
+  </div>
+  <form method="GET" class="d-flex m-0">
+    <select name="grade_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+      <option value="">{{ _('Todas as turmas') }}</option>
+      {% for g in grades %}
+      <option value="{{ g.id }}" {% if grade_filter == g.id %}selected{% endif %}>{{ g.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <div id="bulkBar" class="d-none ms-auto d-flex align-items-center gap-2 flex-wrap">
+    <span class="text-muted small">
+      <span id="selectedCount" class="fw-semibold text-dark">0</span> {{ _('selecionado(s)') }}
+    </span>
+    <button id="bulkEmailBtn" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-envelope me-1"></i>{{ _('Enviar e-mail') }}
+    </button>
+    <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm">
+      <i class="bi bi-trash me-1"></i>{{ _('Apagar') }}
+    </button>
+  </div>
+</div>
+
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th style="width:42px" class="ps-3">
+            <input type="checkbox" class="form-check-input" id="selectAll">
+          </th>
+          <th>{{ _('Nome') }}</th>
+          <th>{{ _('E-mail') }}</th>
+          <th>{{ _('Matérias / Turmas') }}</th>
+          <th>{{ _('Status') }}</th>
+          <th class="text-end" style="min-width:110px"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in teachers %}
+        <tr class="data-row" data-name="{{ t.full_name|lower }}">
+          <td class="ps-3">
+            <input type="checkbox" class="form-check-input row-check" value="{{ t.id }}">
+          </td>
+          <td class="fw-semibold">{{ t.full_name }}</td>
+          <td class="text-muted small">{{ t.email }}</td>
+          <td>
+            {% if t.teacher_profile %}
+              {% for tsg in t.teacher_profile.subject_grades %}
+                <span class="badge bg-light text-dark border">{{ tsg.subject.name }} / {{ tsg.grade_group.name }}</span>
+              {% endfor %}
+            {% endif %}
+          </td>
+          <td>
+            {% if t.has_password() %}
+              <span class="badge bg-success">{{ _('Ativo') }}</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">{{ _('Pendente') }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <div class="d-flex justify-content-end gap-1">
+              <a href="{{ url_for('admin.edit_teacher', id=t.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="POST" action="{{ url_for('admin.send_user_reset', user_id=t.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="redirect_to" value="admin.teachers">
+                <button class="btn btn-outline-primary btn-sm" title="{{ _('Redefinir senha') }}">
+                  <i class="bi bi-envelope-arrow-up"></i>
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('admin.delete_teacher', id=t.id) }}"
+                    class="d-inline"
+                    data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+                    data-pan-title="{{ _('Excluir') }} {{ t.full_name }}"
+                    data-pan-danger="1"
+                    data-pan-confirm-text="{{ _('Excluir') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" title="{{ _('Excluir') }}">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="text-muted text-center py-3">{{ _('Nenhum professor encontrado.') }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Export modal ── #}
+<div class="modal fade" id="exportModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-download me-2"></i>{{ _('Exportar Professores') }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">{{ _('Escolha quais colunas incluir no arquivo CSV:') }}</p>
+        <div class="list-group list-group-flush border rounded">
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="email" checked disabled>
+            <span><strong>email</strong> <span class="text-muted small">— {{ _('obrigatório') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="first_name" checked>
+            <span>first_name <span class="text-muted small">— {{ _('Nome') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="last_name" checked>
+            <span>last_name <span class="text-muted small">— {{ _('Sobrenome') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="subjects_grades" checked>
+            <span>subjects_grades <span class="text-muted small">— {{ _('Matérias/Turmas') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="status" checked>
+            <span>status <span class="text-muted small">— {{ _('Ativo / Pendente') }}</span></span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" id="doExport" class="btn btn-primary btn-sm">
+          <i class="bi bi-download me-1"></i>{{ _('Baixar CSV') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Import modal ── #}
+<div class="modal fade" id="importModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('admin.import_teachers') }}" enctype="multipart/form-data" id="importForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="cols" id="importCols" value="email,first_name,last_name">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-upload me-2"></i>{{ _('Importar Professores') }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+
+            {# Left: column selection #}
+            <div class="col-md-5">
+              <p class="fw-semibold small mb-2">{{ _('Colunas presentes no arquivo:') }}</p>
+              <div class="list-group list-group-flush border rounded">
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="email" checked disabled>
+                  <span><strong>email</strong> <span class="text-muted small">— {{ _('obrigatório') }}</span></span>
+                </label>
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="first_name" checked>
+                  <span>first_name <span class="text-muted small">— {{ _('Nome') }}</span></span>
+                </label>
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="last_name" checked>
+                  <span>last_name <span class="text-muted small">— {{ _('Sobrenome') }}</span></span>
+                </label>
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="subjects_grades">
+                  <span>subjects_grades <span class="text-muted small">— {{ _('Matérias/Turmas') }}</span></span>
+                </label>
+              </div>
+              <button type="button" id="doTemplate" class="btn btn-outline-secondary btn-sm w-100 mt-2">
+                <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ _('Baixar modelo') }}
+              </button>
+            </div>
+
+            {# Right: file + mode #}
+            <div class="col-md-7">
+              <div class="mb-3">
+                <label class="form-label fw-semibold small">{{ _('Arquivo CSV') }}</label>
+                <input type="file" name="csv_file" accept=".csv" class="form-control form-control-sm" required>
+              </div>
+              <p class="fw-semibold small mb-2">{{ _('Modo de importação:') }}</p>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="mode" id="modeAdd" value="add" checked>
+                <label class="form-check-label" for="modeAdd">
+                  <strong>{{ _('Somente adicionar') }}</strong>
+                  <span class="text-muted d-block" style="font-size:.8rem">{{ _('Mantém os existentes, insere apenas os novos.') }}</span>
+                </label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="radio" name="mode" id="modeReplace" value="replace">
+                <label class="form-check-label" for="modeReplace">
+                  <strong>{{ _('Substituir lista') }}</strong>
+                  <span class="text-muted d-block" style="font-size:.8rem">{{ _('Apaga quem não está no arquivo e insere os novos.') }}</span>
+                </label>
+              </div>
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="mode" id="modeDelete" value="delete">
+                <label class="form-check-label" for="modeDelete">
+                  <strong>{{ _('Apagar os importados') }}</strong>
+                  <span class="text-muted d-block" style="font-size:.8rem">{{ _('Apaga exatamente os registros listados no arquivo.') }}</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">{{ _('Importar') }}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const BULK_DELETE_URL  = "{{ url_for('admin.bulk_delete') }}";
+const BULK_EMAIL_URL   = "{{ url_for('admin.bulk_email') }}";
+const EXPORT_BASE_URL  = "{{ url_for('admin.export_teachers') }}";
+const TEMPLATE_BASE_URL = "{{ url_for('admin.template_teachers') }}";
+const REDIRECT_TO      = "admin.teachers";
+const CSRF             = "{{ csrf_token() }}";
+
+// ── Search ────────────────────────────────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', function () {
+  const q = this.value.toLowerCase().trim();
+  document.querySelectorAll('tbody tr.data-row').forEach(row => {
+    row.style.display = (row.dataset.name || '').includes(q) ? '' : 'none';
+  });
+  syncSelectAll(); updateBulkBar();
+});
+
+// ── Select all / bulk bar ─────────────────────────────────────────────────────
+const selectAllCb = document.getElementById('selectAll');
+selectAllCb.addEventListener('change', () => {
+  visibleRows().forEach(r => r.querySelector('.row-check').checked = selectAllCb.checked);
+  updateBulkBar();
+});
+document.querySelectorAll('.row-check').forEach(cb =>
+  cb.addEventListener('change', () => { syncSelectAll(); updateBulkBar(); })
+);
+function visibleRows() {
+  return [...document.querySelectorAll('tbody tr.data-row')].filter(r => r.style.display !== 'none');
+}
+function checkedIds() {
+  return visibleRows().filter(r => r.querySelector('.row-check').checked)
+                      .map(r => r.querySelector('.row-check').value);
+}
+function syncSelectAll() {
+  const vis = visibleRows(), chk = vis.filter(r => r.querySelector('.row-check').checked);
+  selectAllCb.indeterminate = chk.length > 0 && chk.length < vis.length;
+  selectAllCb.checked = vis.length > 0 && chk.length === vis.length;
+}
+function updateBulkBar() {
+  const ids = checkedIds();
+  document.getElementById('selectedCount').textContent = ids.length;
+  document.getElementById('bulkBar').classList.toggle('d-none', ids.length === 0);
+}
+function postBulk(url, ids) {
+  const f = document.createElement('form');
+  f.method = 'POST'; f.action = url;
+  [['csrf_token', CSRF], ['ids', ids.join(',')], ['redirect_to', REDIRECT_TO]].forEach(([n, v]) => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = n; inp.value = v; f.appendChild(inp);
+  });
+  document.body.appendChild(f); f.submit();
+}
+document.getElementById('bulkDeleteBtn').addEventListener('click', async () => {
+  const ids = checkedIds();
+  const ok = await panConfirm({
+    title: `{{ _('Apagar') }} ${ids.length} {{ _('professor(es)') }}`,
+    body:  '{{ _('Esta ação não pode ser desfeita.') }}',
+    confirmText: '{{ _('Apagar') }}', danger: true
+  });
+  if (!ok) return;
+  postBulk(BULK_DELETE_URL, ids);
+});
+document.getElementById('bulkEmailBtn').addEventListener('click', async () => {
+  const ids = checkedIds();
+  const ok = await panConfirm({
+    title: `{{ _('Enviar e-mail para') }} ${ids.length} {{ _('professor(es)') }}`,
+    body:  '{{ _('Deseja enviar o e-mail de convite para os professores selecionados?') }}',
+    confirmText: '{{ _('Enviar') }}'
+  });
+  if (!ok) return;
+  postBulk(BULK_EMAIL_URL, ids);
+});
+
+// ── Export modal ──────────────────────────────────────────────────────────────
+function getCheckedCols(selector) {
+  return [...document.querySelectorAll(selector + ':checked')].map(c => c.value);
+}
+document.getElementById('doExport').addEventListener('click', function() {
+  const cols = getCheckedCols('.exp-col');
+  window.location.href = EXPORT_BASE_URL + '?cols=' + encodeURIComponent(cols.join(','));
+  bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
+});
+
+// ── Import modal: sync hidden cols input before submit ────────────────────────
+document.getElementById('importForm').addEventListener('submit', function() {
+  const cols = getCheckedCols('.imp-col');
+  document.getElementById('importCols').value = cols.join(',');
+});
+
+// ── Template download ─────────────────────────────────────────────────────────
+document.getElementById('doTemplate').addEventListener('click', function() {
+  // template never includes "status"
+  const cols = getCheckedCols('.imp-col').filter(c => c !== 'status');
+  window.location.href = TEMPLATE_BASE_URL + '?cols=' + encodeURIComponent(cols.join(','));
+});
+</script>
+{% endblock %}
