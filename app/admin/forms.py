@@ -1,7 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import (StringField, SelectField, BooleanField, IntegerField,
                      SubmitField, TextAreaField, DateField, TimeField, FieldList, FormField)
-from wtforms.validators import DataRequired, Email, Optional, NumberRange
+from wtforms.validators import DataRequired, Email, Optional, NumberRange, InputRequired
 
 
 class GradeGroupForm(FlaskForm):
@@ -57,7 +57,7 @@ class ConferenceDaySubForm(FlaskForm):
 class ConferenceEventForm(FlaskForm):
     name = StringField("Event Name", validators=[DataRequired()])
     student_booking_allowed = BooleanField("Allow student booking")
-    cancel_deadline_hours = IntegerField("Cancellation deadline (hours)", validators=[DataRequired(), NumberRange(min=0)], default=24)
+    cancel_deadline_hours = IntegerField("Prazo para agendar/cancelar (horas antes)", validators=[InputRequired(), NumberRange(min=0)], default=24)
     days = FieldList(FormField(ConferenceDaySubForm), min_entries=1)
     submit = SubmitField("Save")
 

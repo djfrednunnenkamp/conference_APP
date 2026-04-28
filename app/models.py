@@ -213,6 +213,18 @@ class Booking(db.Model):
         return self.cancelled_at is not None
 
 
+class EventReminder(db.Model):
+    """Configures a booking-summary email sent X hours before each conference day."""
+    __tablename__ = "event_reminder"
+
+    id = db.Column(db.Integer, primary_key=True)
+    event_id = db.Column(db.Integer, db.ForeignKey("conference_event.id", ondelete="CASCADE"), nullable=False)
+    hours_before = db.Column(db.Integer, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    event = db.relationship("ConferenceEvent", backref=db.backref("reminders", cascade="all, delete-orphan", order_by="EventReminder.hours_before"))
+
+
 class EmailNotification(db.Model):
     __tablename__ = "email_notification"
 

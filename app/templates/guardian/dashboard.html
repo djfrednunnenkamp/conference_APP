@@ -1,43 +1,112 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Painel') }} – Conferensia{% endblock %}
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Conferências dos meus filhos') }}</h4>
+<h4 class="fw-bold mb-4">{{ _('Conferências') }}</h4>
 
-{% if not children %}
-<div class="alert alert-info">{{ _('Nenhum filho vinculado à sua conta. Entre em contato com a secretaria.') }}</div>
+{% if not events %}
+  {% if not children %}
+  <div class="alert alert-info">
+    {{ _('Nenhum filho vinculado à sua conta. Entre em contato com a secretaria.') }}
+  </div>
+  {% else %}
+  <div class="alert alert-info">
+    {{ _('Nenhum evento de conferência ativo no momento.') }}
+  </div>
+  {% endif %}
 {% endif %}
 
-<div class="row g-3">
-  {% for item in children %}
-  {% set student = item.student %}
-  <div class="col-md-6">
-    <div class="card shadow-sm h-100">
-      <div class="card-body">
-        <h5 class="fw-bold">{{ student.full_name }}</h5>
-        <p class="text-muted mb-3">
-          <i class="bi bi-mortarboard me-1"></i>
-          {{ student.student_profile.grade_group.name if student.student_profile else '—' }}
-        </p>
-        {% if item.event_counts %}
-          {% for ec in item.event_counts %}
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <span class="small text-muted">
-              <i class="bi bi-calendar-check me-1"></i>
-              <strong class="text-body">{{ ec.event.name }}</strong>
-              — {{ ec.booked }} {{ _('reunião(ões)') }}
-            </span>
-            <a href="{{ url_for('guardian.schedule', student_id=student.id, event_id=ec.event.id) }}"
-               class="btn btn-primary btn-sm ms-2">
-              <i class="bi bi-grid me-1"></i>{{ _('Agendar') }}
-            </a>
+<div class="d-flex flex-column gap-4">
+{% for event in events %}
+
+  <div class="card shadow-sm">
+
+    {# ── Event header ── #}
+    <div class="card-header py-3 px-4"
+         style="background:linear-gradient(135deg,#1a3461,#174a30);border-radius:calc(.375rem - 1px) calc(.375rem - 1px) 0 0">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+        <div>
+          <h5 class="fw-bold mb-0" style="color:#fff">
+            <i class="bi bi-calendar-event me-2" style="opacity:.8"></i>{{ event.name }}
+          </h5>
+          {% if event.days %}
+          <div class="mt-1" style="font-size:.8rem;color:rgba(255,255,255,.7)">
+            {% set sorted_days = event.days | sort(attribute='date') %}
+            {% if sorted_days | length == 1 %}
+              <i class="bi bi-clock me-1"></i>{{ sorted_days[0].date.strftime('%d/%m/%Y') }}
+            {% else %}
+              <i class="bi bi-clock me-1"></i>
+              {{ sorted_days[0].date.strftime('%d/%m/%Y') }} – {{ sorted_days[-1].date.strftime('%d/%m/%Y') }}
+            {% endif %}
           </div>
-          {% endfor %}
-        {% else %}
-          <span class="text-muted small">{{ _('Nenhum evento ativo no momento.') }}</span>
-        {% endif %}
+          {% endif %}
+        </div>
+        <span class="badge"
+              style="background:rgba(255,255,255,.18);color:#fff;font-size:.75rem;font-weight:600;padding:.35rem .75rem">
+          {% if event.status == 'published' %}
+            <i class="bi bi-check-circle me-1"></i>{{ _('Aberto') }}
+          {% elif event.status == 'closed' %}
+            <i class="bi bi-lock me-1"></i>{{ _('Encerrado') }}
+          {% else %}
+            {{ event.status }}
+          {% endif %}
+        </span>
       </div>
     </div>
+
+    {# ── Children list for this event ── #}
+    <div class="card-body p-0">
+      {% set ns = namespace(found=false) %}
+      {% for item in children %}
+        {% for ec in item.event_counts %}
+          {% if ec.event.id == event.id %}
+            {% set ns.found = true %}
+            <div class="d-flex align-items-center justify-content-between px-4 py-3
+                        {% if not loop.first or not loop.first %}border-top{% endif %}"
+                 style="{% if not loop.first %}border-top:1px solid #f1f5f9{% endif %}">
+
+              <div class="d-flex align-items-center gap-3">
+                {# Avatar #}
+                <div style="width:40px;height:40px;border-radius:50%;background:#e8f0fe;
+                            display:flex;align-items:center;justify-content:center;
+                            font-weight:700;font-size:.85rem;color:#1a3461;flex-shrink:0">
+                  {{ item.student.first_name[0] }}{{ item.student.last_name[0] }}
+                </div>
+                <div>
+                  <div class="fw-semibold" style="color:#1e293b">{{ item.student.full_name }}</div>
+                  <div style="font-size:.8rem;color:#64748b">
+                    <i class="bi bi-mortarboard me-1"></i>
+                    {{ item.student.student_profile.grade_group.name if item.student.student_profile else '—' }}
+                    &nbsp;·&nbsp;
+                    {% if ec.booked > 0 %}
+                      <span style="color:#166534">
+                        <i class="bi bi-calendar-check me-1"></i>{{ ec.booked }} {{ _('reunião(ões) agendada(s)') }}
+                      </span>
+                    {% else %}
+                      <span style="color:#94a3b8">{{ _('Nenhuma reunião agendada') }}</span>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+
+              <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=event.id) }}"
+                 class="btn btn-primary btn-sm ms-3 flex-shrink-0">
+                <i class="bi bi-grid me-1"></i>{{ _('Agendar') }}
+              </a>
+
+            </div>
+          {% endif %}
+        {% endfor %}
+      {% endfor %}
+
+      {% if not ns.found %}
+      <div class="px-4 py-3 text-muted" style="font-size:.875rem">
+        <i class="bi bi-person-x me-1"></i>{{ _('Nenhum filho vinculado a este evento.') }}
+      </div>
+      {% endif %}
+    </div>
+
   </div>
-  {% endfor %}
+
+{% endfor %}
 </div>
 {% endblock %}

@@ -72,6 +72,41 @@ def schedule():
     return render_template("teacher/schedule.html", event=event, slots=slots, date_filter=date_filter)
 
 
+@teacher_bp.route("/print")
+@login_required
+@teacher_required
+def print_schedule():
+    event = get_active_event()
+    if not event:
+        abort(404)
+
+    all_days = sorted(event.days, key=lambda d: d.date)
+
+    day_ids_param = request.args.get("days", "")
+    if day_ids_param:
+        selected_ids  = {int(x) for x in day_ids_param.split(",") if x.strip().isdigit()}
+        selected_days = [d for d in all_days if d.id in selected_ids]
+    else:
+        selected_days = all_days
+
+    day_id_set = {d.id for d in selected_days}
+
+    raw_slots = (Slot.query
+                 .join(ConferenceDay)
+                 .filter(
+                     ConferenceDay.event_id == event.id,
+                     Slot.day_id.in_(day_id_set),
+                     Slot.teacher_id == current_user.id,
+                     Slot.is_booked == True)
+                 .order_by(Slot.start_datetime)
+                 .all())
+    booked_slots = [s for s in raw_slots if s.booking and not s.booking.cancelled_at]
+
+    pages = [{"teacher": current_user, "slots": booked_slots}]
+    return render_template("admin/print_schedule.html",
+                           event=event, pages=pages, selected_days=selected_days)
+
+
 @teacher_bp.route("/profile")
 @login_required
 @teacher_required

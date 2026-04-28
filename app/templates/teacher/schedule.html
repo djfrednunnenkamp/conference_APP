@@ -1,7 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Minha Agenda') }} – Conferensia{% endblock %}
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Minha Agenda') }}</h4>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h4 class="fw-bold mb-0">{{ _('Minha Agenda') }}</h4>
+  {% if event %}
+  <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#printModal">
+    <i class="bi bi-printer me-1"></i>{{ _('Imprimir') }}
+  </button>
+  {% endif %}
+</div>
 
 {% if event %}
 <form class="d-flex gap-2 mb-3" method="GET">
@@ -41,6 +49,70 @@
     </table>
   </div>
 </div>
+
+{# ── Print modal ─────────────────────────────────────────────────────────── #}
+<div class="modal fade" id="printModal" tabindex="-1" aria-labelledby="printModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="printModalLabel">
+          <i class="bi bi-printer me-2 text-primary"></i>{{ _('Imprimir minha agenda') }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body pt-3">
+        {% if event.days | length > 1 %}
+        <p class="fw-semibold mb-2 text-secondary" style="font-size:.85rem;text-transform:uppercase;letter-spacing:.04em">
+          {{ _('Dias a incluir') }}
+        </p>
+        <div class="d-flex flex-column gap-1 mb-3">
+          {% for day in event.days | sort(attribute='date') %}
+          <div class="form-check">
+            <input class="form-check-input print-day-cb" type="checkbox"
+                   id="tpd{{ day.id }}" value="{{ day.id }}" checked>
+            <label class="form-check-label" for="tpd{{ day.id }}">
+              {{ day.date.strftime('%A, %d/%m/%Y') | capitalize }}
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <p class="text-muted mb-0" style="font-size:.88rem">
+          <i class="bi bi-info-circle me-1"></i>
+          {{ _('Será aberta uma nova aba com sua agenda formatada para impressão. Salve como PDF pelo navegador.') }}
+        </p>
+      </div>
+
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="doPrint()">
+          <i class="bi bi-printer me-1"></i>{{ _('Abrir PDF') }}
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const PRINT_URL  = "{{ url_for('teacher.print_schedule') }}";
+const MULTI_DAY  = {{ (event.days | length > 1) | tojson }};
+
+function doPrint() {
+  let days = "";
+  if (MULTI_DAY) {
+    const cbs = document.querySelectorAll(".print-day-cb:checked");
+    days = Array.from(cbs).map(c => c.value).join(",");
+  }
+  const params = days ? "?days=" + days : "";
+  window.open(PRINT_URL + params, "_blank");
+  bootstrap.Modal.getInstance(document.getElementById("printModal")).hide();
+}
+</script>
+
 {% else %}
 <div class="alert alert-info">{{ _('Nenhum evento de conferência ativo no momento.') }}</div>
 {% endif %}

@@ -1,10 +1,16 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Agendamentos') }} – {{ event.name }}{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h4 class="fw-bold mb-0">{{ _('Agendamentos') }} – {{ event.name }}</h4>
-  <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary btn-sm">{{ _('Voltar') }}</a>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#printModal">
+      <i class="bi bi-printer me-1"></i>{{ _('Imprimir') }}
+    </button>
+    <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary btn-sm">{{ _('Voltar') }}</a>
+  </div>
 </div>
+
 <div class="card shadow-sm">
   <div class="card-body p-0">
     <table class="table table-hover mb-0">
@@ -31,4 +37,137 @@
     </table>
   </div>
 </div>
+
+{# ── Print modal ─────────────────────────────────────────────────────────── #}
+<div class="modal fade" id="printModal" tabindex="-1" aria-labelledby="printModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="printModalLabel">
+          <i class="bi bi-printer me-2 text-primary"></i>{{ _('Imprimir agenda de reuniões') }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body pt-3">
+
+        {# Day selection – only shown when the event has more than one day #}
+        {% if event.days | length > 1 %}
+        <div class="mb-4">
+          <p class="fw-semibold mb-2 text-secondary" style="font-size:.85rem;text-transform:uppercase;letter-spacing:.04em">
+            {{ _('Dias a incluir') }}
+          </p>
+          <div class="d-flex flex-column gap-1">
+            {% for day in event.days | sort(attribute='date') %}
+            <div class="form-check">
+              <input class="form-check-input print-day-cb" type="checkbox"
+                     id="pd{{ day.id }}" value="{{ day.id }}" checked>
+              <label class="form-check-label" for="pd{{ day.id }}">
+                {{ day.date.strftime('%A, %d/%m/%Y') | capitalize }}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# PDF type #}
+        <div class="mb-2">
+          <p class="fw-semibold mb-2 text-secondary" style="font-size:.85rem;text-transform:uppercase;letter-spacing:.04em">
+            {{ _('Tipo de exportação') }}
+          </p>
+
+          <label class="d-flex align-items-start gap-3 p-3 rounded-3 border mb-2 cursor-pointer"
+                 style="cursor:pointer" id="lbl-unique">
+            <input class="form-check-input mt-0 flex-shrink-0" type="radio"
+                   name="pdfType" id="pdfUnique" value="unique" checked
+                   onchange="updatePrintLabels()">
+            <div>
+              <div class="fw-semibold">{{ _('PDF único') }}</div>
+              <div class="text-muted" style="font-size:.83rem">
+                {{ _('Todos os professores em um só arquivo. Abre uma aba — salve como PDF pelo navegador.') }}
+              </div>
+            </div>
+          </label>
+
+          <label class="d-flex align-items-start gap-3 p-3 rounded-3 border cursor-pointer"
+                 style="cursor:pointer" id="lbl-individual">
+            <input class="form-check-input mt-0 flex-shrink-0" type="radio"
+                   name="pdfType" id="pdfIndividual" value="individual"
+                   onchange="updatePrintLabels()">
+            <div>
+              <div class="fw-semibold">{{ _('PDFs individuais') }}</div>
+              <div class="text-muted" style="font-size:.83rem">
+                {{ _('Uma aba por professor (%(n)s professores com agendamentos). Permita pop-ups se solicitado.', n=teacher_ids_with_bookings | length) }}
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {# Warning for individual + many teachers #}
+        <div id="manyTeachersWarn" class="alert alert-warning py-2 mt-3 mb-0 d-none" style="font-size:.83rem">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          {{ _('Serão abertas %(n)s abas. Certifique-se de que pop-ups estão permitidos para este site.', n=teacher_ids_with_bookings | length) }}
+        </div>
+
+      </div>
+
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="printConfirmBtn" onclick="doPrint()">
+          <i class="bi bi-printer me-1"></i><span id="printBtnLabel">{{ _('Abrir PDF') }}</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const PRINT_BASE    = "{{ url_for('admin.print_schedule', id=event.id) }}";
+const TEACHER_IDS   = {{ teacher_ids_with_bookings | tojson }};
+const MULTI_DAY     = {{ (event.days | length > 1) | tojson }};
+
+function getSelectedDays() {
+  if (!MULTI_DAY) return "";
+  const cbs = document.querySelectorAll(".print-day-cb:checked");
+  return Array.from(cbs).map(c => c.value).join(",");
+}
+
+function updatePrintLabels() {
+  const isIndividual = document.getElementById("pdfIndividual").checked;
+  document.getElementById("printBtnLabel").textContent = isIndividual
+    ? "{{ _('Abrir abas') }}"
+    : "{{ _('Abrir PDF') }}";
+  const warn = document.getElementById("manyTeachersWarn");
+  warn.classList.toggle("d-none", !isIndividual || TEACHER_IDS.length <= 3);
+
+  // Highlight selected card
+  document.getElementById("lbl-unique").classList.toggle("border-primary", !isIndividual);
+  document.getElementById("lbl-individual").classList.toggle("border-primary", isIndividual);
+}
+
+function doPrint() {
+  const isIndividual = document.getElementById("pdfIndividual").checked;
+  const days = getSelectedDays();
+  const dayParam = days ? "days=" + days : "";
+
+  if (isIndividual) {
+    TEACHER_IDS.forEach(function(tid) {
+      const params = [dayParam, "teacher=" + tid].filter(Boolean).join("&");
+      window.open(PRINT_BASE + (params ? "?" + params : ""), "_blank");
+    });
+  } else {
+    const params = dayParam ? "?" + dayParam : "";
+    window.open(PRINT_BASE + params, "_blank");
+  }
+
+  // Close modal
+  bootstrap.Modal.getInstance(document.getElementById("printModal")).hide();
+}
+
+// Initialise highlight on page load
+document.addEventListener("DOMContentLoaded", updatePrintLabels);
+</script>
 {% endblock %}

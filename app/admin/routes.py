@@ -10,10 +10,12 @@ from app.extensions import db, bcrypt
 from app.models import (User, TeacherProfile, Subject, GradeGroup, GradeGroupSubject,
                         TeacherSubjectGrade, StudentProfile, GuardianStudent,
                         ConferenceEvent, ConferenceDay, Slot, Booking, EmailNotification,
-                        TeacherDayAbsence, StudentSubjectExclusion)
+                        TeacherDayAbsence, StudentSubjectExclusion, EventReminder)
 from app.admin.forms import (GradeGroupForm, SubjectForm, TeacherForm, StudentForm,
                               GuardianForm, AdminForm, ConferenceEventForm, NotifyForm)
-from app.utils import generate_token, send_invite_email, send_conference_info_email, send_reset_email, generate_slots_for_day
+from app.utils import (generate_token, send_invite_email, send_conference_info_email,
+                       send_reset_email, generate_slots_for_day,
+                       send_teacher_absent_email, send_booking_reminder_email)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -1124,10 +1126,117 @@ def toggle_teacher_absence(event_id, day_id, teacher_id):
     existing = TeacherDayAbsence.query.filter_by(day_id=day_id, teacher_id=teacher_id).first()
     if existing:
         db.session.delete(existing)
+        is_absent = False
+        affected = 0
     else:
         db.session.add(TeacherDayAbsence(day_id=day_id, teacher_id=teacher_id))
+        is_absent = True
+        affected = (Booking.query.join(Slot)
+                    .filter(Slot.teacher_id == teacher_id,
+                            Slot.day_id == day_id,
+                            Booking.cancelled_at == None)
+                    .count())
     db.session.commit()
-    return jsonify({"absent": existing is not None})  # True = was absent, now present; False = was present, now absent
+    return jsonify({"is_absent": is_absent, "affected_bookings": affected})
+
+
+@admin_bp.route("/events/<int:event_id>/days/<int:day_id>/absence/<int:teacher_id>/notify", methods=["POST"])
+@login_required
+@admin_required
+def notify_teacher_absent(event_id, day_id, teacher_id):
+    """Send absence notification emails to guardians/students with bookings for this teacher on this day."""
+    day = ConferenceDay.query.filter_by(id=day_id, event_id=event_id).first_or_404()
+    event = ConferenceEvent.query.get_or_404(event_id)
+    teacher = User.query.get_or_404(teacher_id)
+    bookings = (Booking.query.join(Slot)
+                .filter(Slot.teacher_id == teacher_id,
+                        Slot.day_id == day_id,
+                        Booking.cancelled_at == None)
+                .all())
+    sent = 0
+    notified = set()
+    for booking in bookings:
+        student = User.query.get(booking.student_id)
+        if not student:
+            continue
+        for gs in student.student_guardians:
+            guardian = gs.guardian
+            if guardian.id in notified:
+                continue
+            # Collect all this guardian's affected bookings
+            gids = {link.student_id for link in guardian.guardian_students}
+            guardian_bookings = [b for b in bookings if b.student_id in gids]
+            try:
+                send_teacher_absent_email(guardian, teacher, day, guardian_bookings, event)
+                notified.add(guardian.id)
+                sent += 1
+            except Exception:
+                pass
+    return jsonify({"sent": sent})
+
+
+# ── Event reminders ────────────────────────────────────────────────────────────
+
+@admin_bp.route("/events/<int:event_id>/reminders/add", methods=["POST"])
+@login_required
+@admin_required
+def add_reminder(event_id):
+    ConferenceEvent.query.get_or_404(event_id)
+    hours = request.get_json(silent=True) or {}
+    hours_before = hours.get("hours_before")
+    if hours_before is None:
+        hours_before = request.form.get("hours_before", type=int)
+    if hours_before is None or int(hours_before) < 0:
+        return jsonify({"error": "Invalid value"}), 400
+    reminder = EventReminder(event_id=event_id, hours_before=int(hours_before))
+    db.session.add(reminder)
+    db.session.commit()
+    return jsonify({"id": reminder.id, "hours_before": reminder.hours_before})
+
+
+@admin_bp.route("/events/<int:event_id>/reminders/<int:reminder_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_reminder(event_id, reminder_id):
+    reminder = EventReminder.query.filter_by(id=reminder_id, event_id=event_id).first_or_404()
+    db.session.delete(reminder)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/events/<int:event_id>/reminders/<int:reminder_id>/send", methods=["POST"])
+@login_required
+@admin_required
+def send_reminder_now(event_id, reminder_id):
+    """Manually send a booking-summary reminder to all guardians with bookings in this event."""
+    event = ConferenceEvent.query.get_or_404(event_id)
+    EventReminder.query.filter_by(id=reminder_id, event_id=event_id).first_or_404()
+    sent = errors = 0
+    for day in event.days:
+        # Build guardian → bookings map for this day
+        guardian_map = {}
+        day_bookings = (Booking.query.join(Slot).join(ConferenceDay)
+                        .filter(ConferenceDay.id == day.id,
+                                Booking.cancelled_at == None).all())
+        for b in day_bookings:
+            student = User.query.get(b.student_id)
+            if not student:
+                continue
+            for gs in student.student_guardians:
+                gid = gs.guardian_id
+                if gid not in guardian_map:
+                    guardian_map[gid] = []
+                guardian_map[gid].append(b)
+        for gid, bkgs in guardian_map.items():
+            guardian = User.query.get(gid)
+            if not guardian:
+                continue
+            try:
+                send_booking_reminder_email(guardian, event, day, bkgs)
+                sent += 1
+            except Exception:
+                errors += 1
+    return jsonify({"sent": sent, "errors": errors})
 
 
 # ── Toggle day active/inactive ─────────────────────────────────────────────────
@@ -1182,8 +1291,20 @@ def _save_teacher_subject_grades(teacher_id, form_data):
 @login_required
 @admin_required
 def students():
+    # Purge abandoned draft records (created via new_student but never filled in)
+    abandoned = User.query.filter(
+        User.role == "student",
+        User.email.like("__draft_%@draft.local")
+    ).all()
+    for u in abandoned:
+        db.session.delete(u)
+    if abandoned:
+        db.session.commit()
+
     grade_filter = request.args.get("grade_id", type=int)
-    query = User.query.filter_by(role="student")
+    query = User.query.filter_by(role="student").filter(
+        ~User.email.like("__draft_%@draft.local")
+    )
     if grade_filter:
         query = query.join(StudentProfile).filter(StudentProfile.grade_group_id == grade_filter)
     students = query.order_by(User.last_name).all()
@@ -1552,8 +1673,17 @@ def edit_event(id):
                   for a in TeacherDayAbsence.query
                   .join(ConferenceDay, TeacherDayAbsence.day_id == ConferenceDay.id)
                   .filter(ConferenceDay.event_id == id).all()}
+    # Serialised for JS
+    all_teachers_data = [
+        {"id": t.id, "name": t.full_name,
+         "initials": (t.first_name[0] + t.last_name[0]).upper()}
+        for t in all_teachers
+    ]
+    absent_set_list = [[d, t] for d, t in absent_set]
     return render_template("admin/event_form.html", form=form, event=event,
-                           all_teachers=all_teachers, absent_set=absent_set)
+                           all_teachers=all_teachers, absent_set=absent_set,
+                           all_teachers_data=all_teachers_data,
+                           absent_set_list=absent_set_list)
 
 
 @admin_bp.route("/events/<int:id>/publish", methods=["POST"])
@@ -1593,13 +1723,67 @@ def delete_event(id):
 @login_required
 @admin_required
 def event_bookings(id):
+    from collections import defaultdict
     event = ConferenceEvent.query.get_or_404(id)
     bookings = (Booking.query
                 .join(Slot).join(ConferenceDay)
                 .filter(ConferenceDay.event_id == id, Booking.cancelled_at == None)
                 .order_by(Slot.start_datetime)
                 .all())
-    return render_template("admin/event_bookings.html", event=event, bookings=bookings)
+    # Collect distinct teacher IDs that have at least one booking (for print modal)
+    teacher_ids_with_bookings = list({b.slot.teacher_id for b in bookings})
+    return render_template("admin/event_bookings.html", event=event, bookings=bookings,
+                           teacher_ids_with_bookings=teacher_ids_with_bookings)
+
+
+@admin_bp.route("/events/<int:id>/print")
+@login_required
+@admin_required
+def print_schedule(id):
+    from collections import defaultdict
+    event = ConferenceEvent.query.get_or_404(id)
+
+    day_ids_param   = request.args.get("days", "")
+    teacher_id_param = request.args.get("teacher", "")
+
+    all_days = sorted(event.days, key=lambda d: d.date)
+
+    if day_ids_param:
+        selected_ids  = {int(x) for x in day_ids_param.split(",") if x.strip().isdigit()}
+        selected_days = [d for d in all_days if d.id in selected_ids]
+    else:
+        selected_days = all_days
+
+    day_id_set = {d.id for d in selected_days}
+
+    # Booked, non-cancelled slots for the selected days
+    raw_slots = (Slot.query
+                 .join(ConferenceDay)
+                 .filter(
+                     ConferenceDay.event_id == id,
+                     Slot.day_id.in_(day_id_set),
+                     Slot.is_booked == True)
+                 .order_by(Slot.start_datetime)
+                 .all())
+    booked_slots = [s for s in raw_slots if s.booking and not s.booking.cancelled_at]
+
+    # Optionally filter to a single teacher
+    if teacher_id_param and teacher_id_param.isdigit():
+        booked_slots = [s for s in booked_slots if s.teacher_id == int(teacher_id_param)]
+
+    # Group by teacher_id
+    teacher_slot_map = defaultdict(list)
+    for slot in booked_slots:
+        teacher_slot_map[slot.teacher_id].append(slot)
+
+    teacher_ids = list(teacher_slot_map.keys())
+    teachers = (User.query.filter(User.id.in_(teacher_ids))
+                .order_by(User.last_name, User.first_name).all())
+
+    pages = [{"teacher": t, "slots": teacher_slot_map[t.id]} for t in teachers]
+
+    return render_template("admin/print_schedule.html",
+                           event=event, pages=pages, selected_days=selected_days)
 
 
 def _save_event_days_and_slots(event, form):

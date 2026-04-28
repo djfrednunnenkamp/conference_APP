@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ event.name }} – Agenda de Reuniões</title>
+  <style>
+    /* ── Base ─────────────────────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      color: #1e293b;
+    }
+
+    /* ── Print page settings ─────────────────────────────────────────── */
+    @page {
+      size: A4 portrait;
+      margin: 1.8cm 1.5cm 1.5cm;
+    }
+
+    /* ── Screen wrapper (preview look) ──────────────────────────────── */
+    @media screen {
+      body { background: #e5e7eb; padding: 24px; }
+      .page {
+        background: #fff;
+        max-width: 210mm;
+        margin: 0 auto 28px;
+        padding: 1.8cm 1.5cm 1.5cm;
+        box-shadow: 0 3px 16px rgba(0,0,0,.18);
+        border-radius: 4px;
+      }
+      .screen-bar {
+        max-width: 210mm;
+        margin: 0 auto 16px;
+        display: flex;
+        gap: 8px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 18px;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+      }
+      .btn-primary { background: #1a3461; color: #fff; }
+      .btn-secondary { background: #e2e8f0; color: #374151; }
+    }
+
+    /* ── Page break between teachers ─────────────────────────────────── */
+    .page { page-break-after: always; }
+    .page:last-child { page-break-after: avoid; }
+
+    /* ── Page header ─────────────────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 2.5px solid #1a3461;
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+    }
+    .page-header .event-name {
+      font-size: 9pt;
+      color: #64748b;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .page-header .teacher-name {
+      font-size: 15pt;
+      font-weight: 700;
+      color: #1a3461;
+    }
+    .page-header .days-info {
+      text-align: right;
+      font-size: 9pt;
+      color: #475569;
+      line-height: 1.5;
+    }
+
+    /* ── Schedule table ──────────────────────────────────────────────── */
+    .schedule-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 18px;
+    }
+    .schedule-table thead tr {
+      background: #1a3461;
+      color: #fff;
+    }
+    .schedule-table th {
+      padding: 7px 10px;
+      text-align: left;
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .schedule-table tbody tr:nth-child(even) { background: #f8fafc; }
+    .schedule-table tbody tr { border-bottom: 1px solid #e2e8f0; }
+    .schedule-table td {
+      padding: 9px 10px;
+      font-size: 9.5pt;
+      vertical-align: middle;
+    }
+    .col-date  { width: 16%; white-space: nowrap; }
+    .col-time  { width: 18%; white-space: nowrap; font-weight: 600; }
+    .col-student { width: 34%; }
+    .col-sig   { width: 32%; }
+
+    .sig-line {
+      border-bottom: 1px solid #94a3b8;
+      height: 22px;
+      width: 100%;
+      display: block;
+    }
+
+    /* ── Day sub-header inside table ─────────────────────────────────── */
+    .day-subheader td {
+      background: #f1f5f9;
+      font-size: 8.5pt;
+      font-weight: 700;
+      color: #334155;
+      padding: 5px 10px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      border-bottom: 1px solid #cbd5e1;
+    }
+
+    /* ── Empty state ─────────────────────────────────────────────────── */
+    .empty-row td {
+      color: #94a3b8;
+      font-style: italic;
+      text-align: center;
+      padding: 18px;
+    }
+
+    /* ── Page footer ─────────────────────────────────────────────────── */
+    .page-footer {
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 8pt;
+      color: #94a3b8;
+    }
+
+    /* ── Hide screen-only elements when printing ─────────────────────── */
+    @media print {
+      .screen-bar { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+  {# ── Screen toolbar ── #}
+  <div class="screen-bar">
+    <button class="btn btn-primary" onclick="window.print()">
+      🖨️ Imprimir / Salvar PDF
+    </button>
+    <button class="btn btn-secondary" onclick="window.close()">
+      ✕ Fechar
+    </button>
+  </div>
+
+  {% if pages %}
+    {% for page in pages %}
+    {# Group slots by day #}
+    {% set ns = namespace(current_day_id=None) %}
+
+    <div class="page">
+
+      {# ── Header ── #}
+      <div class="page-header">
+        <div>
+          <div class="event-name">{{ event.name }}</div>
+          <div class="teacher-name">{{ page.teacher.full_name }}</div>
+        </div>
+        <div class="days-info">
+          {% set unique_dates = page.slots | map(attribute='day.date') | unique | list | sort %}
+          {% for d in unique_dates %}
+            {{ d.strftime('%d/%m/%Y') }}{% if not loop.last %}<br>{% endif %}
+          {% endfor %}
+          {% if not unique_dates %}
+            {{ selected_days | map(attribute='date') | map('strftime', '%d/%m/%Y') | join(' · ') }}
+          {% endif %}
+        </div>
+      </div>
+
+      {# ── Schedule table ── #}
+      <table class="schedule-table">
+        <thead>
+          <tr>
+            <th class="col-date">Data</th>
+            <th class="col-time">Horário</th>
+            <th class="col-student">Aluno</th>
+            <th class="col-sig">Assinatura do Responsável</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if page.slots %}
+            {% set ns = namespace(last_day_id=None) %}
+            {% for slot in page.slots | sort(attribute='start_datetime') %}
+              {# Day sub-header when the day changes #}
+              {% if slot.day_id != ns.last_day_id %}
+                {% set ns.last_day_id = slot.day_id %}
+                <tr class="day-subheader">
+                  <td colspan="4">
+                    {{ slot.day.date.strftime('%A, %d de %B de %Y') | capitalize }}
+                  </td>
+                </tr>
+              {% endif %}
+              <tr>
+                <td class="col-date">{{ slot.start_datetime.strftime('%d/%m/%Y') }}</td>
+                <td class="col-time">
+                  {{ slot.start_datetime.strftime('%H:%M') }}–{{ slot.end_datetime.strftime('%H:%M') }}
+                </td>
+                <td class="col-student">
+                  {{ slot.booking.student.full_name if slot.booking and slot.booking.student else '—' }}
+                </td>
+                <td class="col-sig"><span class="sig-line"></span></td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="empty-row"><td colspan="4">Nenhum agendamento para os dias selecionados.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      {# ── Footer ── #}
+      <div class="page-footer">
+        <span>Conferensia · Agenda de Reuniões</span>
+        <span>{{ page.teacher.full_name }}</span>
+      </div>
+
+    </div>
+    {% endfor %}
+
+  {% else %}
+    <div class="page">
+      <div class="page-header">
+        <div>
+          <div class="event-name">{{ event.name }}</div>
+          <div class="teacher-name">Nenhum agendamento encontrado</div>
+        </div>
+      </div>
+      <p style="color:#94a3b8;font-style:italic;margin-top:24px;text-align:center">
+        Não há reuniões agendadas para os critérios selecionados.
+      </p>
+    </div>
+  {% endif %}
+
+  <script>
+    // Auto-trigger print after a tiny delay so the page renders first
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); }, 400);
+    });
+  </script>
+</body>
+</html>

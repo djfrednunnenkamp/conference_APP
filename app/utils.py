@@ -89,6 +89,38 @@ def generate_slots_for_day(day, teachers):
     return slots
 
 
+def send_teacher_absent_email(guardian, teacher, day, bookings, event):
+    """Email to a guardian when a teacher they have meetings with is marked absent."""
+    link = url_for("auth.login", _external=True)
+    lang = guardian.preferred_language
+    if lang == "en":
+        subject = f"Teacher absence notice: {teacher.full_name} — {event.name}"
+        template = "emails/teacher_absent_en.html"
+    else:
+        subject = f"Aviso de ausência: Prof. {teacher.full_name} — {event.name}"
+        template = "emails/teacher_absent_pt.html"
+    body = render_template(template, guardian=guardian, teacher=teacher,
+                           day=day, bookings=bookings, event=event, link=link)
+    msg = Message(subject=subject, recipients=[guardian.email], html=body)
+    mail.send(msg)
+
+
+def send_booking_reminder_email(guardian, event, day, bookings):
+    """Reminder email with a summary of confirmed meetings for a given conference day."""
+    link = url_for("auth.login", _external=True)
+    lang = guardian.preferred_language
+    if lang == "en":
+        subject = f"Meeting reminder — {event.name} · {day.date.strftime('%d/%m/%Y')}"
+        template = "emails/reminder_en.html"
+    else:
+        subject = f"Lembrete de reuniões — {event.name} · {day.date.strftime('%d/%m/%Y')}"
+        template = "emails/reminder_pt.html"
+    body = render_template(template, guardian=guardian, event=event,
+                           day=day, bookings=bookings, link=link)
+    msg = Message(subject=subject, recipients=[guardian.email], html=body)
+    mail.send(msg)
+
+
 def get_active_event():
     from app.models import ConferenceEvent
     return ConferenceEvent.query.filter_by(status="published").order_by(ConferenceEvent.created_at.desc()).first()

@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Minhas Reuniões') }} – Conferensia{% endblock %}
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Minhas Reuniões') }}</h4>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h4 class="fw-bold mb-0">{{ _('Minhas Reuniões') }}</h4>
+  <a href="{{ url_for('student.print_schedule') }}" target="_blank"
+     class="btn btn-outline-primary btn-sm">
+    <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
+  </a>
+</div>
 
 {% if events_bookings %}
   {% for item in events_bookings %}

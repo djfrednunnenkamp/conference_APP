@@ -1,5 +1,6 @@
 from functools import wraps
-from flask import Blueprint, render_template, redirect, url_for, flash, abort
+from datetime import datetime
+from flask import Blueprint, render_template, redirect, url_for, flash, abort, request
 from flask_login import login_required, current_user
 from flask_babel import _
 from app.models import GuardianStudent, User, StudentProfile, Booking, Slot, ConferenceDay, ConferenceEvent
@@ -56,6 +57,30 @@ def schedule(student_id, event_id):
         flash(_("Nenhum evento de conferência ativo."), "info")
         return redirect(url_for("guardian.dashboard"))
     return render_template("guardian/schedule.html", event=event, student=student)
+
+
+@guardian_bp.route("/print")
+@login_required
+@guardian_required
+def print_schedule():
+    student_id = request.args.get("student_id", type=int)
+    if not student_id:
+        abort(400)
+    _assert_guardian_owns_student(student_id)
+    student = User.query.get_or_404(student_id)
+    events = get_active_events()
+    events_data = []
+    for event in events:
+        bkgs = (Booking.query.join(Slot).join(ConferenceDay)
+                .filter(ConferenceDay.event_id == event.id,
+                        Booking.student_id == student.id,
+                        Booking.cancelled_at == None)
+                .order_by(Slot.start_datetime).all())
+        if bkgs:
+            events_data.append({"event": event, "bookings": bkgs})
+    return render_template("print_my_schedule.html",
+                           student=student, events_data=events_data,
+                           now=datetime.utcnow())
 
 
 @guardian_bp.route("/bookings")

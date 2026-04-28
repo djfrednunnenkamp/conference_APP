@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{ student.full_name }} – {{ _('Minhas Reuniões') }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #1e293b; }
+
+    @page { size: A4 portrait; margin: 1.8cm 1.5cm 1.5cm; }
+
+    @media screen {
+      body { background: #e5e7eb; padding: 24px; }
+      .page {
+        background: #fff;
+        max-width: 210mm;
+        margin: 0 auto 28px;
+        padding: 1.8cm 1.5cm 1.5cm;
+        box-shadow: 0 3px 16px rgba(0,0,0,.18);
+        border-radius: 4px;
+      }
+      .screen-bar {
+        max-width: 210mm;
+        margin: 0 auto 16px;
+        display: flex;
+        gap: 8px;
+      }
+      .btn {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 7px 18px; border-radius: 6px; border: none;
+        cursor: pointer; font-size: 13px; font-weight: 600; text-decoration: none;
+      }
+      .btn-primary   { background: #1a3461; color: #fff; }
+      .btn-secondary { background: #e2e8f0; color: #374151; }
+    }
+
+    @media print { .screen-bar { display: none !important; } }
+
+    /* ── Page header ── */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 2.5px solid #1a3461;
+      padding-bottom: 10px;
+      margin-bottom: 18px;
+    }
+    .school-label {
+      font-size: 8.5pt;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 2px;
+    }
+    .student-name {
+      font-size: 16pt;
+      font-weight: 700;
+      color: #1a3461;
+    }
+    .student-meta {
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .print-date {
+      text-align: right;
+      font-size: 8.5pt;
+      color: #94a3b8;
+    }
+
+    /* ── Event block ── */
+    .event-block { margin-bottom: 22px; }
+    .event-title {
+      font-size: 10pt;
+      font-weight: 700;
+      color: #1a3461;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: #1a3461; color: #fff; }
+    th { padding: 7px 10px; text-align: left; font-size: 8.5pt; font-weight: 700;
+         letter-spacing: .05em; text-transform: uppercase; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody tr { border-bottom: 1px solid #e2e8f0; }
+    td { padding: 9px 10px; font-size: 9.5pt; vertical-align: middle; }
+
+    .col-date   { width: 18%; white-space: nowrap; }
+    .col-time   { width: 16%; white-space: nowrap; font-weight: 600; }
+    .col-teacher{ width: 38%; }
+    .col-subject{ width: 28%; color: #475569; }
+
+    /* ── Empty state ── */
+    .empty { color: #94a3b8; font-style: italic; text-align: center; padding: 16px; font-size: 9pt; }
+
+    /* ── Footer ── */
+    .page-footer {
+      margin-top: 18px;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 8pt;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="screen-bar">
+    <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+    <button class="btn btn-secondary" onclick="window.close()">✕ Fechar</button>
+  </div>
+
+  <div class="page">
+
+    {# ── Header ── #}
+    <div class="page-header">
+      <div>
+        <div class="school-label">Pan American · Agenda de Reuniões</div>
+        <div class="student-name">{{ student.full_name }}</div>
+        <div class="student-meta">
+          <i>{{ student.student_profile.grade_group.name if student.student_profile else '' }}</i>
+        </div>
+      </div>
+      <div class="print-date">
+        Gerado em {{ now.strftime('%d/%m/%Y') }}<br>
+        <span style="font-size:7.5pt">Conferensia</span>
+      </div>
+    </div>
+
+    {# ── Events ── #}
+    {% if events_data %}
+      {% for item in events_data %}
+      <div class="event-block">
+        <div class="event-title">
+          {{ item.event.name }}
+          {% set sorted_days = item.event.days | sort(attribute='date') %}
+          {% if sorted_days %}
+            &nbsp;·&nbsp;
+            {% if sorted_days | length == 1 %}
+              {{ sorted_days[0].date.strftime('%d/%m/%Y') }}
+            {% else %}
+              {{ sorted_days[0].date.strftime('%d/%m/%Y') }} – {{ sorted_days[-1].date.strftime('%d/%m/%Y') }}
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th class="col-date">Data</th>
+              <th class="col-time">Horário</th>
+              <th class="col-teacher">Professor</th>
+              <th class="col-subject">Matéria</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if item.bookings %}
+              {% for b in item.bookings %}
+              <tr>
+                <td class="col-date">{{ b.slot.start_datetime.strftime('%d/%m/%Y') }}</td>
+                <td class="col-time">
+                  {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
+                </td>
+                <td class="col-teacher">{{ b.slot.teacher.full_name }}</td>
+                <td class="col-subject">
+                  {% set sp = student.student_profile %}
+                  {% if sp and b.slot.teacher.teacher_profile %}
+                    {% for tsg in b.slot.teacher.teacher_profile.subject_grades
+                         if tsg.grade_group_id == sp.grade_group_id %}
+                      {{ tsg.subject.name }}
+                    {% endfor %}
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="4" class="empty">Nenhuma reunião agendada para este evento.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty" style="margin-top:24px">Nenhuma reunião agendada nos eventos ativos.</p>
+    {% endif %}
+
+    {# ── Footer ── #}
+    <div class="page-footer">
+      <span>Pan American · Agenda de Reuniões</span>
+      <span>{{ student.full_name }}</span>
+    </div>
+
+  </div>
+
+  <script>
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); }, 400);
+    });
+  </script>
+</body>
+</html>

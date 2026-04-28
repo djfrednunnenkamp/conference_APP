@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,Helvetica,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:32px 0">
+  <tr><td align="center">
+    <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.08)">
+
+      <!-- Header -->
+      <tr><td style="background:linear-gradient(135deg,#1a3461,#c0392b);padding:32px 40px 28px;text-align:center">
+        <div style="font-size:2rem;margin-bottom:8px">⚠️</div>
+        <h1 style="color:#fff;font-size:1.35rem;font-weight:700;margin:0">Teacher Absence Notice</h1>
+        <p style="color:rgba(255,255,255,.8);font-size:.9rem;margin:6px 0 0">{{ event.name }}</p>
+      </td></tr>
+
+      <!-- Body -->
+      <tr><td style="padding:32px 40px">
+        <p style="color:#374151;font-size:.95rem;margin:0 0 16px">Hello, <strong>{{ guardian.first_name }}</strong>,</p>
+        <p style="color:#374151;font-size:.95rem;margin:0 0 20px">
+          We would like to inform you that teacher <strong style="color:#1a3461">{{ teacher.full_name }}</strong>
+          <strong>will not be present</strong> on <strong>{{ day.date.strftime('%B %d, %Y') }}</strong>.
+        </p>
+
+        <!-- Affected meetings -->
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px 20px;margin-bottom:24px">
+          <p style="color:#991b1b;font-size:.85rem;font-weight:700;margin:0 0 10px">
+            Affected meeting(s):
+          </p>
+          {% for b in bookings %}
+          <div style="padding:6px 0;border-bottom:1px solid #fee2e2;font-size:.875rem;color:#374151">
+            {% if b.student %}
+            <strong>{{ b.student.full_name }}</strong> —
+            {% endif %}
+            {{ b.slot.start_datetime.strftime('%I:%M %p') }}–{{ b.slot.end_datetime.strftime('%I:%M %p') }}
+          </div>
+          {% endfor %}
+        </div>
+
+        <p style="color:#374151;font-size:.9rem;margin:0 0 24px">
+          If you would like to reschedule or check your meetings, please access the platform using the button below.
+        </p>
+
+        <!-- CTA -->
+        <table cellpadding="0" cellspacing="0" width="100%"><tr><td align="center">
+          <a href="{{ link }}" style="display:inline-block;background:#1a3461;color:#fff;font-size:.9rem;font-weight:700;padding:12px 32px;border-radius:8px;text-decoration:none">
+            Go to platform
+          </a>
+        </td></tr></table>
+      </td></tr>
+
+      <!-- Footer -->
+      <tr><td style="background:#f8fafc;padding:20px 40px;text-align:center;border-top:1px solid #e5e7eb">
+        <p style="color:#9ca3af;font-size:.78rem;margin:0">Conferensia · School conference scheduling</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>

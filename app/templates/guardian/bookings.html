@@ -1,7 +1,26 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Minhas Reuniões') }} – Conferensia{% endblock %}
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Minhas Reuniões') }}</h4>
+
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h4 class="fw-bold mb-0">{{ _('Minhas Reuniões') }}</h4>
+
+  {% if children_data %}
+    {% if children_data | length == 1 %}
+      {# Single child – direct download #}
+      <a href="{{ url_for('guardian.print_schedule', student_id=children_data[0].student.id) }}"
+         target="_blank" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
+      </a>
+    {% else %}
+      {# Multiple children – show picker modal #}
+      <button class="btn btn-outline-primary btn-sm"
+              data-bs-toggle="modal" data-bs-target="#printChildModal">
+        <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
+      </button>
+    {% endif %}
+  {% endif %}
+</div>
 
 {% for item in children_data %}
 <h5 class="fw-semibold mb-2">
@@ -57,4 +76,52 @@
 {% else %}
 <div class="alert alert-info">{{ _('Nenhum filho vinculado à sua conta.') }}</div>
 {% endfor %}
+
+{# ── Child picker modal (only rendered when there are multiple children) ── #}
+{% if children_data | length > 1 %}
+<div class="modal fade" id="printChildModal" tabindex="-1" aria-labelledby="printChildModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
+    <div class="modal-content">
+
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="printChildModalLabel">
+          <i class="bi bi-download me-2 text-primary"></i>{{ _('Baixar PDF') }}
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body pt-2 pb-3">
+        <p class="text-muted mb-3" style="font-size:.875rem">
+          {{ _('Selecione o filho cujas reuniões deseja exportar:') }}
+        </p>
+        <div class="d-flex flex-column gap-2">
+          {% for item in children_data %}
+          <a href="{{ url_for('guardian.print_schedule', student_id=item.student.id) }}"
+             target="_blank"
+             class="d-flex align-items-center gap-3 p-3 rounded-3 border text-decoration-none text-dark"
+             style="transition:background .1s" onmouseover="this.style.background='#f1f5f9'"
+             onmouseout="this.style.background=''"
+             data-bs-dismiss="modal">
+            <div style="width:40px;height:40px;border-radius:50%;background:#e8f0fe;
+                        display:flex;align-items:center;justify-content:center;
+                        font-weight:700;font-size:.85rem;color:#1a3461;flex-shrink:0">
+              {{ item.student.first_name[0] }}{{ item.student.last_name[0] }}
+            </div>
+            <div>
+              <div class="fw-semibold">{{ item.student.full_name }}</div>
+              <div class="text-muted" style="font-size:.8rem">
+                {{ item.student.student_profile.grade_group.name if item.student.student_profile else '—' }}
+              </div>
+            </div>
+            <i class="bi bi-box-arrow-up-right ms-auto text-muted" style="font-size:.85rem"></i>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}

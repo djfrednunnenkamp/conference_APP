@@ -45,6 +45,13 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
   cursor: not-allowed;
 }
 
+/* ── Past booking deadline ───────────────────────────────── */
+.slot-locked {
+  background: #f0f0f0;
+  color: #adb5bd;
+  cursor: not-allowed;
+}
+
 /* ── Column hover highlight ──────────────────────────────── */
 .col-hover { background: #dbeafe !important; }
 
@@ -70,6 +77,10 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
     </small>
   </div>
   <div class="d-flex gap-2">
+    <a href="{{ url_for('guardian.print_schedule', student_id=student.id) }}"
+       target="_blank" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
+    </a>
     <a href="{{ url_for('guardian.bookings') }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-list-check me-1"></i>{{ _('Minhas Reuniões') }}
     </a>
@@ -90,8 +101,8 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
 {# ── Main layout: sidebar + grid ──────────────────────────── #}
 <div class="row g-3 align-items-start">
 
-  {# ── Left sidebar – booked meetings ──────────────────────── #}
-  <div class="col-auto" style="width:210px;position:sticky;top:1rem">
+  {# ── Left sidebar – booked meetings (desktop only) ──────── #}
+  <div class="col-auto d-none d-md-block" style="width:210px;position:sticky;top:1rem">
     <div class="card shadow-sm">
       <div class="card-header d-flex justify-content-between align-items-center py-2">
         <span class="fw-semibold small">{{ _('Reuniões Agendadas') }}</span>
@@ -108,12 +119,13 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
     <div id="dayTabs" class="d-flex gap-2 mb-3 flex-wrap d-none"></div>
 
     {# Legend + last update #}
-    <div class="d-flex flex-wrap gap-2 mb-2 align-items-center">
-      <span class="badge bg-light text-dark border">{{ _('Disponível') }}</span>
-      <span class="badge bg-success">{{ _('Agendado por mim') }}</span>
-      <span class="badge bg-secondary">{{ _('Ocupado') }}</span>
-      <span class="badge bg-warning text-dark">{{ _('Conflito de horário') }}</span>
-      <small class="ms-auto text-muted" id="lastUpdated"></small>
+    <div class="d-flex flex-wrap gap-1 mb-2 align-items-center" style="row-gap:.3rem">
+      <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ _('Disponível') }}</span>
+      <span class="badge bg-success" style="font-size:.7rem">{{ _('Meu') }}</span>
+      <span class="badge bg-secondary" style="font-size:.7rem">{{ _('Ocupado') }}</span>
+      <span class="badge bg-warning text-dark" style="font-size:.7rem">{{ _('Conflito') }}</span>
+      <span class="badge" style="background:#e9ecef;color:#6c757d;font-size:.7rem"><i class="bi bi-lock"></i></span>
+      <small class="ms-auto text-muted" style="font-size:.7rem" id="lastUpdated"></small>
     </div>
 
     {# Grid table #}
@@ -128,6 +140,27 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
     </div>
 
   </div>
+</div>
+
+{# ── Mobile: floating button + bottom offcanvas ──────────── #}
+<div class="d-md-none" style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:1055">
+  <button class="btn btn-primary rounded-pill shadow-lg"
+          style="padding:.55rem 1.1rem;font-size:.875rem"
+          data-bs-toggle="offcanvas" data-bs-target="#mobileBookedOffcanvas">
+    <i class="bi bi-list-check me-1"></i>
+    <span id="mobileBookedCount">0</span>
+  </button>
+</div>
+
+<div class="offcanvas offcanvas-bottom d-md-none" tabindex="-1" id="mobileBookedOffcanvas"
+     style="height:60vh;border-radius:16px 16px 0 0">
+  <div class="offcanvas-header border-bottom py-2">
+    <h6 class="offcanvas-title fw-semibold">
+      <i class="bi bi-list-check me-2"></i>{{ _('Reuniões Agendadas') }}
+    </h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body p-0" id="mobileBookedList" style="overflow-y:auto"></div>
 </div>
 
 {# ── Duplicate-teacher confirmation modal ─────────────────── #}
@@ -377,10 +410,16 @@ function renderGrid() {
       </div>`;
 
       switch (slot.status) {
-        case 'available':
+        case 'available': {
+          const bookDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
+          const pastDeadline = new Date() >= bookDeadline;
           if (timeBooked) {
             td.classList.add('slot-blocked');
             td.innerHTML = timeLabel;
+          } else if (pastDeadline) {
+            td.classList.add('slot-locked');
+            td.title = '{{ _('Prazo de agendamento encerrado') }}';
+            td.innerHTML = `<i class="bi bi-lock-fill d-block" style="font-size:.75rem;opacity:.5"></i>${timeLabel}`;
           } else {
             td.classList.add('slot-available');
             td.innerHTML = timeLabel;
@@ -389,18 +428,20 @@ function renderGrid() {
             td.addEventListener('mouseleave',  () => highlightCol(tIdx, false));
           }
           break;
+        }
 
-        case 'booked_by_me':
+        case 'booked_by_me': {
           td.classList.add('slot-booked-me');
           td.innerHTML = `<i class="bi bi-check-circle-fill text-success d-block mb-1" style="font-size:1rem"></i>${timeLabel}`;
-          const deadline = new Date(new Date(time).getTime() - cancelDeadlineHours * 3600000);
-          if (new Date() < deadline) {
+          const cancelDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
+          if (new Date() < cancelDeadline) {
             td.classList.add('slot-cancellable');
             td.addEventListener('click',      () => cancelSlot(slot.booking_id, td));
             td.addEventListener('mouseenter', () => highlightCol(tIdx, true));
             td.addEventListener('mouseleave', () => highlightCol(tIdx, false));
           }
           break;
+        }
 
         case 'booked_by_others':
           td.classList.add('slot-taken');
@@ -425,26 +466,37 @@ function renderGrid() {
 
 /* ── Sidebar ──────────────────────────────────────────────── */
 function renderSidebar(booked) {
+  const html = booked.length
+    ? booked.map(s => {
+        const d    = new Date(s.start);
+        const date = d.toLocaleDateString('pt-BR', { weekday:'short', day:'2-digit', month:'2-digit' });
+        return `<div class="booked-item d-flex gap-2 p-2 align-items-start">
+          <div class="booked-dot"><i class="bi bi-check text-white" style="font-size:.85rem"></i></div>
+          <div class="overflow-hidden">
+            <div class="fw-semibold small text-truncate">${s.teacher_name}</div>
+            <div class="text-primary" style="font-size:.68rem">${s.subject}</div>
+            <div class="text-muted" style="font-size:.68rem">
+              ${date} &middot; ${fmtTime(s.start)}–${fmtTime(s.end)}
+            </div>
+          </div>
+        </div>`;
+      }).join('')
+    : `<p class="text-muted small p-3 mb-0">${MSG_NO_BOOKINGS}</p>`;
+
+  // Desktop sidebar
   const el = document.getElementById('bookedList');
-  if (!booked.length) {
-    el.innerHTML = `<p class="text-muted small p-3 mb-0">${MSG_NO_BOOKINGS}</p>`;
-    return;
+  if (el) el.innerHTML = html;
+
+  // Mobile offcanvas + floating badge
+  const mobileList  = document.getElementById('mobileBookedList');
+  const mobileCount = document.getElementById('mobileBookedCount');
+  if (mobileList)  mobileList.innerHTML = html;
+  if (mobileCount) {
+    mobileCount.textContent = booked.length;
+    const btn = mobileCount.closest('button');
+    if (btn) btn.classList.toggle('btn-success', booked.length > 0);
+    if (btn) btn.classList.toggle('btn-primary', booked.length === 0);
   }
-  el.innerHTML = booked.map((s, i) => {
-    const d    = new Date(s.start);
-    const dEnd = new Date(s.end);
-    const date = d.toLocaleDateString('pt-BR', { weekday:'short', day:'2-digit', month:'2-digit' });
-    return `<div class="booked-item d-flex gap-2 p-2 align-items-start">
-      <div class="booked-dot"><i class="bi bi-check text-white" style="font-size:.85rem"></i></div>
-      <div class="overflow-hidden">
-        <div class="fw-semibold small text-truncate">${s.teacher_name}</div>
-        <div class="text-primary" style="font-size:.68rem">${s.subject}</div>
-        <div class="text-muted" style="font-size:.68rem">
-          ${date} &middot; ${fmtTime(s.start)}–${fmtTime(s.end)}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 /* ── Filter modal ────────────────────────────────────────── */

@@ -28,8 +28,9 @@
               </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">{{ _('Prazo de cancelamento (horas)') }}</label>
-              {{ form.cancel_deadline_hours(class="form-control") }}
+              <label class="form-label">{{ _('Bloquear edição (horas antes)') }}</label>
+              {{ form.cancel_deadline_hours(class="form-control", min="0") }}
+              <div class="form-text">{{ _('0 = livre até o início da reunião') }}</div>
             </div>
           </div>
         </div>
@@ -111,54 +112,74 @@
       </div>
     </div>
 
-    {# Teacher attendance – only shown when editing an existing event with days #}
-    {% if event and event.days and all_teachers %}
-    <div class="card shadow-sm">
-      <div class="card-header fw-semibold">{{ _('Presença de professores por dia') }}</div>
-      <div class="card-body p-0">
-        <p class="text-muted small px-3 pt-3 mb-2">
-          {{ _('Desmarque professores ausentes. Eles não aparecerão para alunos/responsáveis naquele dia.') }}
-        </p>
+    {# ── Teacher attendance ─────────────────────────────── #}
+    {% if event and event.days %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-header fw-semibold">
+        <i class="bi bi-people me-2"></i>{{ _('Presença de professores') }}
+      </div>
+      {% if all_teachers %}
+      <div class="list-group list-group-flush">
+        {% for day in event.days %}
+        {% set abs_count = namespace(n=0) %}
+        {% for t in all_teachers %}{% if (day.id, t.id) in absent_set %}{% set abs_count.n = abs_count.n + 1 %}{% endif %}{% endfor %}
+        <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+          <div>
+            <span class="small fw-semibold">{{ day.date.strftime('%d/%m/%Y') }}</span>
+            {% if abs_count.n > 0 %}
+            <span class="badge bg-danger ms-2" style="font-size:.65rem" id="absBadge_{{ day.id }}">{{ abs_count.n }} {{ _('ausente(s)') }}</span>
+            {% else %}
+            <span class="badge bg-success ms-2" style="font-size:.65rem" id="absBadge_{{ day.id }}">{{ _('todos presentes') }}</span>
+            {% endif %}
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm"
+                  onclick="openAttendanceModal({{ day.id }}, '{{ day.date.strftime('%d/%m/%Y') }}')">
+            <i class="bi bi-pencil me-1"></i>{{ _('Gerenciar') }}
+          </button>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="card-body text-muted small">{{ _('Nenhum professor cadastrado ainda.') }}</div>
+      {% endif %}
+    </div>
+    {% endif %}
 
-        {# One accordion item per day #}
-        <div class="accordion accordion-flush" id="attendanceAccordion">
-          {% for day in event.days %}
-          <div class="accordion-item">
-            <h2 class="accordion-header">
-              <button class="accordion-button {% if not loop.first %}collapsed{% endif %} py-2 small fw-semibold"
-                      type="button" data-bs-toggle="collapse"
-                      data-bs-target="#dayCollapse{{ day.id }}">
-                {{ day.date.strftime('%d/%m/%Y') }}
+    {# ── Lembretes automáticos ──────────────────────────── #}
+    {% if event %}
+    <div class="card shadow-sm mt-3">
+      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-bell me-2"></i>{{ _('Lembretes para responsáveis') }}</span>
+        <button type="button" class="btn btn-outline-primary btn-sm"
+                data-bs-toggle="modal" data-bs-target="#addReminderModal">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+      </div>
+      <div class="card-body p-0">
+        <p class="text-muted small px-3 pt-3 mb-2" style="font-size:.8rem">
+          {{ _('Enviar resumo de agendamentos X horas antes de cada dia da conferência.') }}
+        </p>
+        <div id="remindersList">
+          {% for reminder in event.reminders %}
+          <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top reminder-row" data-id="{{ reminder.id }}">
+            <span class="small"><i class="bi bi-clock me-1 text-muted"></i><strong>{{ reminder.hours_before }}h</strong> {{ _('antes') }}</span>
+            <div class="d-flex gap-1">
+              <button type="button" class="btn btn-outline-secondary btn-sm send-reminder-btn"
+                      data-url="{{ url_for('admin.send_reminder_now', event_id=event.id, reminder_id=reminder.id) }}"
+                      title="{{ _('Enviar agora') }}">
+                <i class="bi bi-send"></i>
               </button>
-            </h2>
-            <div id="dayCollapse{{ day.id }}"
-                 class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
-                 data-bs-parent="#attendanceAccordion">
-              <div class="accordion-body py-2 px-3">
-                {% for teacher in all_teachers %}
-                {% set is_absent = (day.id, teacher.id) in absent_set %}
-                <div class="form-check">
-                  <input class="form-check-input teacher-attendance-cb"
-                         type="checkbox"
-                         id="att_{{ day.id }}_{{ teacher.id }}"
-                         data-toggle-url="{{ url_for('admin.toggle_teacher_absence', event_id=event.id, day_id=day.id, teacher_id=teacher.id) }}"
-                         {% if not is_absent %}checked{% endif %}>
-                  <label class="form-check-label small" for="att_{{ day.id }}_{{ teacher.id }}">
-                    {{ teacher.full_name }}
-                  </label>
-                </div>
-                {% endfor %}
-              </div>
+              <button type="button" class="btn btn-outline-danger btn-sm delete-reminder-btn"
+                      data-url="{{ url_for('admin.delete_reminder', event_id=event.id, reminder_id=reminder.id) }}"
+                      title="{{ _('Remover') }}">
+                <i class="bi bi-trash"></i>
+              </button>
             </div>
           </div>
+          {% else %}
+          <p class="text-muted small px-3 pb-3 mb-0" id="noReminders">{{ _('Nenhum lembrete configurado.') }}</p>
           {% endfor %}
         </div>
-      </div>
-    </div>
-    {% elif event and not all_teachers %}
-    <div class="card shadow-sm">
-      <div class="card-body text-muted small">
-        {{ _('Nenhum professor cadastrado ainda.') }}
       </div>
     </div>
     {% endif %}
@@ -166,7 +187,87 @@
 </div>
 {% endblock %}
 {% block scripts %}
+{% if event and all_teachers %}
+{# ── Attendance modal ─────────────────────────────────────────────────────── #}
+<div class="modal fade" id="attendanceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-people me-2"></i>{{ _('Presença') }} — <span id="attModalDate"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2 pb-0">
+        <input type="text" id="attSearch" class="form-control form-control-sm mb-3"
+               placeholder="{{ _('Buscar professor...') }}" autocomplete="off">
+        <div id="attList" style="max-height:360px;overflow-y:auto"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ _('Fechar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Absence notification confirm modal ──────────────────────────────────── #}
+<div class="modal fade" id="absentNotifyModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:36px;height:36px;border-radius:50%;background:#fff3cd;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-envelope-exclamation-fill text-warning"></i>
+          </span>
+          <h6 class="modal-title fw-semibold mb-0" style="color:var(--pan-blue)">
+            {{ _('Notificar responsáveis?') }}
+          </h6>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p style="font-size:.875rem;color:var(--pan-text-muted)" id="absentNotifyText"></p>
+      </div>
+      <div class="modal-footer border-0 pt-0 gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
+          {{ _('Não enviar') }}
+        </button>
+        <button type="button" class="btn btn-primary btn-sm" id="absentNotifyConfirmBtn">
+          <i class="bi bi-envelope-arrow-up me-1"></i>{{ _('Enviar aviso') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% if event %}
+{# ── Add reminder modal ───────────────────────────────────────────────────── #}
+<div class="modal fade" id="addReminderModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold"><i class="bi bi-bell me-2"></i>{{ _('Novo lembrete') }}</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label small fw-semibold">{{ _('Enviar quantas horas antes de cada dia?') }}</label>
+        <div class="input-group input-group-sm">
+          <input type="number" id="reminderHoursInput" class="form-control" min="0" value="24">
+          <span class="input-group-text">h</span>
+        </div>
+        <div class="form-text">{{ _('Ex: 24 = envia 1 dia antes; 2 = envia 2h antes') }}</div>
+      </div>
+      <div class="modal-footer py-2 gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="saveReminderBtn">
+          <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {# ── Conflict modal — must come BEFORE the <script> so getElementById can find the buttons ── #}
 <div class="modal fade" id="conflictModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
@@ -250,27 +351,187 @@ document.querySelectorAll('.day-toggle-btn').forEach(btn => {
   });
 });
 
-// ── Teacher attendance toggles (AJAX) ─────────────────────────────────────────
-document.querySelectorAll('.teacher-attendance-cb').forEach(cb => {
-  cb.addEventListener('change', function() {
-    const url = this.dataset.toggleUrl;
-    const checked = this.checked;
-    const el = this;
-    fetch(url, {
-      method: 'POST',
-      headers: {'X-CSRFToken': CSRF, 'Content-Type': 'application/json'},
-    })
-    .then(r => r.json())
-    .then(data => {
-      // data.absent = true means was absent → now present (we just toggled to checked → correct)
-      // Nothing extra to do – the checkbox state already reflects the toggle
-    })
-    .catch(() => {
-      // Revert on error
-      el.checked = !checked;
-    });
-  });
+// ── Teacher attendance modal ──────────────────────────────────────────────────
+{% if event and all_teachers %}
+const ALL_TEACHERS_DATA = {{ all_teachers_data | tojson }};
+const absentPairs = new Set({{ absent_set_list | tojson }}.map(([d,t]) => `${d}_${t}`));
+const EVENT_ID_FORM = {{ event.id }};
+
+let currentAttDayId = null;
+let pendingNotifyUrl = null;
+
+function openAttendanceModal(dayId, dateStr) {
+  currentAttDayId = dayId;
+  document.getElementById('attModalDate').textContent = dateStr;
+  document.getElementById('attSearch').value = '';
+  renderAttList('');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('attendanceModal')).show();
+}
+
+document.getElementById('attSearch').addEventListener('input', function() {
+  renderAttList(this.value.toLowerCase().trim());
 });
+
+function renderAttList(query) {
+  const container = document.getElementById('attList');
+  container.innerHTML = '';
+  const filtered = ALL_TEACHERS_DATA.filter(t => !query || t.name.toLowerCase().includes(query));
+  if (!filtered.length) {
+    container.innerHTML = `<p class="text-muted small py-2">{{ _('Nenhum professor encontrado.') }}</p>`;
+    return;
+  }
+  filtered.forEach(t => {
+    const key = `${currentAttDayId}_${t.id}`;
+    const absent = absentPairs.has(key);
+    const div = document.createElement('div');
+    div.className = 'd-flex align-items-center justify-content-between py-2 border-bottom';
+    div.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <span class="pan-avatar" style="background:var(--pan-blue);width:32px;height:32px;font-size:.7rem;flex-shrink:0">${t.initials}</span>
+        <span class="small fw-semibold">${t.name}</span>
+      </div>
+      <button type="button"
+              class="btn btn-sm ${absent ? 'btn-outline-danger' : 'btn-outline-success'} att-toggle-btn"
+              data-teacher-id="${t.id}" data-teacher-name="${t.name}">
+        <i class="bi ${absent ? 'bi-x-circle' : 'bi-check-circle'} me-1"></i>
+        ${absent ? '{{ _('Ausente') }}' : '{{ _('Presente') }}'}
+      </button>`;
+    div.querySelector('.att-toggle-btn').addEventListener('click', function() {
+      toggleAttendance(currentAttDayId, t.id, t.name, this);
+    });
+    container.appendChild(div);
+  });
+}
+
+async function toggleAttendance(dayId, teacherId, teacherName, btn) {
+  const url = `/admin/events/${EVENT_ID_FORM}/days/${dayId}/absence/${teacherId}/toggle`;
+  btn.disabled = true;
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' } });
+    const data = await res.json();
+    const nowAbsent = data.is_absent;
+    const key = `${dayId}_${teacherId}`;
+    if (nowAbsent) {
+      absentPairs.add(key);
+    } else {
+      absentPairs.delete(key);
+    }
+    // Update button
+    btn.className = `btn btn-sm ${nowAbsent ? 'btn-outline-danger' : 'btn-outline-success'} att-toggle-btn`;
+    btn.innerHTML = `<i class="bi ${nowAbsent ? 'bi-x-circle' : 'bi-check-circle'} me-1"></i>${nowAbsent ? '{{ _('Ausente') }}' : '{{ _('Presente') }}'}`;
+    btn.disabled = false;
+    // Update badge on the main list
+    updateAbsBadge(dayId);
+    // If marking absent and there are bookings → offer to notify
+    if (nowAbsent && data.affected_bookings > 0) {
+      pendingNotifyUrl = `/admin/events/${EVENT_ID_FORM}/days/${dayId}/absence/${teacherId}/notify`;
+      const n = data.affected_bookings;
+      document.getElementById('absentNotifyText').textContent =
+        `${teacherName} tem ${n} reunião(ões) agendada(s) neste dia. Deseja enviar um aviso aos responsáveis afetados?`;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('absentNotifyModal')).show();
+    }
+  } catch(e) {
+    btn.disabled = false;
+  }
+}
+
+function updateAbsBadge(dayId) {
+  const badge = document.getElementById(`absBadge_${dayId}`);
+  if (!badge) return;
+  const count = [...absentPairs].filter(k => k.startsWith(`${dayId}_`)).length;
+  if (count > 0) {
+    badge.className = 'badge bg-danger ms-2';
+    badge.style.fontSize = '.65rem';
+    badge.textContent = `${count} {{ _('ausente(s)') }}`;
+  } else {
+    badge.className = 'badge bg-success ms-2';
+    badge.style.fontSize = '.65rem';
+    badge.textContent = '{{ _('todos presentes') }}';
+  }
+}
+
+document.getElementById('absentNotifyConfirmBtn').addEventListener('click', async function() {
+  bootstrap.Modal.getInstance(document.getElementById('absentNotifyModal')).hide();
+  if (!pendingNotifyUrl) return;
+  const btn = this;
+  btn.disabled = true;
+  try {
+    const res = await fetch(pendingNotifyUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+    const data = await res.json();
+    await panAlert({ body: `${data.sent} e-mail(s) enviado(s).`, type: 'success' });
+  } catch(e) {
+    await panAlert({ body: '{{ _('Erro ao enviar emails.') }}', type: 'danger' });
+  }
+  btn.disabled = false;
+  pendingNotifyUrl = null;
+});
+{% endif %}
+
+// ── Lembretes ─────────────────────────────────────────────────────────────────
+{% if event %}
+const ADD_REMINDER_URL    = "{{ url_for('admin.add_reminder', event_id=event.id) }}";
+const REMINDER_SAVE_BTN   = document.getElementById('saveReminderBtn');
+const REMINDER_HOURS_INP  = document.getElementById('reminderHoursInput');
+
+REMINDER_SAVE_BTN.addEventListener('click', async function() {
+  const hours = parseInt(REMINDER_HOURS_INP.value);
+  if (isNaN(hours) || hours < 0) return;
+  REMINDER_SAVE_BTN.disabled = true;
+  const res = await fetch(ADD_REMINDER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ hours_before: hours })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    addReminderRow(data.id, data.hours_before);
+    document.getElementById('noReminders')?.remove();
+    bootstrap.Modal.getInstance(document.getElementById('addReminderModal')).hide();
+    REMINDER_HOURS_INP.value = '24';
+  }
+  REMINDER_SAVE_BTN.disabled = false;
+});
+
+function addReminderRow(id, hours) {
+  const delUrl  = `/admin/events/${EVENT_ID_FORM}/reminders/${id}/delete`;
+  const sendUrl = `/admin/events/${EVENT_ID_FORM}/reminders/${id}/send`;
+  const div = document.createElement('div');
+  div.className = 'd-flex align-items-center justify-content-between px-3 py-2 border-top reminder-row';
+  div.dataset.id = id;
+  div.innerHTML = `
+    <span class="small"><i class="bi bi-clock me-1 text-muted"></i><strong>${hours}h</strong> {{ _('antes') }}</span>
+    <div class="d-flex gap-1">
+      <button type="button" class="btn btn-outline-secondary btn-sm send-reminder-btn" data-url="${sendUrl}" title="{{ _('Enviar agora') }}">
+        <i class="bi bi-send"></i>
+      </button>
+      <button type="button" class="btn btn-outline-danger btn-sm delete-reminder-btn" data-url="${delUrl}" title="{{ _('Remover') }}">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>`;
+  bindReminderRow(div);
+  document.getElementById('remindersList').appendChild(div);
+}
+
+function bindReminderRow(row) {
+  row.querySelector('.send-reminder-btn').addEventListener('click', async function() {
+    const url = this.dataset.url;
+    this.disabled = true;
+    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+    const data = await res.json();
+    this.disabled = false;
+    await panAlert({ body: `${data.sent} e-mail(s) enviado(s)${data.errors ? `, ${data.errors} erro(s)` : ''}.`, type: data.errors ? 'warning' : 'success' });
+  });
+  row.querySelector('.delete-reminder-btn').addEventListener('click', async function() {
+    const url = this.dataset.url;
+    const ok = await panConfirm({ title: '{{ _('Remover lembrete?') }}', body: '{{ _('Esta ação não pode ser desfeita.') }}', warning: true, confirmText: '{{ _('Remover') }}', cancelText: '{{ _('Cancelar') }}' });
+    if (!ok) return;
+    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+    if (res.ok) row.remove();
+  });
+}
+
+document.querySelectorAll('.reminder-row').forEach(bindReminderRow);
+{% endif %}
 
 // ── Day builder ───────────────────────────────────────────────────────────────
 let dayCount = document.querySelectorAll('.day-row').length;
