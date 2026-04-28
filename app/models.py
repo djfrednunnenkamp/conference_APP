@@ -56,15 +56,29 @@ class Subject(db.Model):
     grade_subjects = db.relationship("GradeGroupSubject", back_populates="subject", cascade="all, delete-orphan")
 
 
+class Division(db.Model):
+    """School division / sector (e.g. High School, Middle School, Fundamental, Pre-School)."""
+    __tablename__ = "division"
+
+    id    = db.Column(db.Integer, primary_key=True)
+    name  = db.Column(db.String(100), nullable=False, unique=True)
+    order = db.Column(db.Integer, default=0, nullable=False)
+
+    grade_groups   = db.relationship("GradeGroup",      back_populates="division")
+    conference_days = db.relationship("ConferenceDay",   back_populates="division")
+
+
 class GradeGroup(db.Model):
     __tablename__ = "grade_group"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(100), nullable=False, unique=True)
+    division_id = db.Column(db.Integer, db.ForeignKey("division.id", ondelete="SET NULL"), nullable=True)
 
-    student_profiles = db.relationship("StudentProfile", back_populates="grade_group")
+    division             = db.relationship("Division", back_populates="grade_groups")
+    student_profiles     = db.relationship("StudentProfile",      back_populates="grade_group")
     teacher_subject_grades = db.relationship("TeacherSubjectGrade", back_populates="grade_group")
-    grade_subjects = db.relationship("GradeGroupSubject", back_populates="grade_group", cascade="all, delete-orphan")
+    grade_subjects       = db.relationship("GradeGroupSubject",   back_populates="grade_group", cascade="all, delete-orphan")
 
 
 class GradeGroupSubject(db.Model):
@@ -151,18 +165,21 @@ class ConferenceEvent(db.Model):
 class ConferenceDay(db.Model):
     __tablename__ = "conference_day"
 
-    id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey("conference_event.id"), nullable=False)
-    date = db.Column(db.Date, nullable=False)
-    start_time = db.Column(db.Time, nullable=False)
-    end_time = db.Column(db.Time, nullable=False)
+    id                    = db.Column(db.Integer, primary_key=True)
+    event_id              = db.Column(db.Integer, db.ForeignKey("conference_event.id"), nullable=False)
+    division_id           = db.Column(db.Integer, db.ForeignKey("division.id", ondelete="SET NULL"), nullable=True)
+    date                  = db.Column(db.Date, nullable=False)
+    start_time            = db.Column(db.Time, nullable=False)
+    end_time              = db.Column(db.Time, nullable=False)
     slot_duration_minutes = db.Column(db.Integer, nullable=False)
-    break_minutes = db.Column(db.Integer, default=0, nullable=False)
-    is_active = db.Column(db.Boolean, default=True, nullable=False, server_default='1')
+    break_minutes         = db.Column(db.Integer, default=0, nullable=False)
+    is_active             = db.Column(db.Boolean, default=True, nullable=False, server_default='1')
 
-    event = db.relationship("ConferenceEvent", back_populates="days")
-    slots = db.relationship("Slot", back_populates="day", cascade="all, delete-orphan")
+    event    = db.relationship("ConferenceEvent", back_populates="days")
+    division = db.relationship("Division", back_populates="conference_days")
+    slots    = db.relationship("Slot",              back_populates="day", cascade="all, delete-orphan")
     absences = db.relationship("TeacherDayAbsence", back_populates="day", cascade="all, delete-orphan")
+    teacher_overrides = db.relationship("TeacherDayOverride", back_populates="day", cascade="all, delete-orphan")
 
 
 class TeacherDayAbsence(db.Model):
@@ -174,6 +191,21 @@ class TeacherDayAbsence(db.Model):
     teacher_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
     day = db.relationship("ConferenceDay", back_populates="absences")
+    teacher = db.relationship("User")
+
+    __table_args__ = (db.UniqueConstraint("day_id", "teacher_id"),)
+
+
+class TeacherDayOverride(db.Model):
+    """Per-teacher slot duration override for a specific conference day (e.g. advisors)."""
+    __tablename__ = "teacher_day_override"
+
+    id                    = db.Column(db.Integer, primary_key=True)
+    day_id                = db.Column(db.Integer, db.ForeignKey("conference_day.id"), nullable=False)
+    teacher_id            = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    slot_duration_minutes = db.Column(db.Integer, nullable=False)
+
+    day     = db.relationship("ConferenceDay", back_populates="teacher_overrides")
     teacher = db.relationship("User")
 
     __table_args__ = (db.UniqueConstraint("day_id", "teacher_id"),)

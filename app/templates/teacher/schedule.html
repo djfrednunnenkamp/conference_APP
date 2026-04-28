@@ -2,118 +2,228 @@
 {% block title %}{{ _('Minha Agenda') }} – Conferensia{% endblock %}
 {% block content %}
 
+{% if not selected_event %}
+{# ════════════════════════════════════════════════════
+   LEVEL 1 — Event picker
+════════════════════════════════════════════════════ #}
+
+<h4 class="fw-bold mb-4">{{ _('Minha Agenda') }}</h4>
+
+{% if not events_summary %}
+  <div class="alert alert-info">{{ _('Nenhum evento de conferência ativo no momento.') }}</div>
+{% else %}
+  <div class="row g-3">
+    {% for item in events_summary %}
+    <div class="col-md-6 col-lg-4">
+      <a href="{{ url_for('teacher.schedule', event_id=item.event.id) }}"
+         class="card shadow-sm h-100 text-decoration-none"
+         style="transition:box-shadow .15s,transform .15s"
+         onmouseover="this.style.boxShadow='0 6px 20px rgba(0,0,0,.12)';this.style.transform='translateY(-2px)'"
+         onmouseout="this.style.boxShadow='';this.style.transform=''">
+        <div class="card-body d-flex flex-column gap-2 p-4">
+
+          {# Event name #}
+          <div class="fw-bold" style="font-size:1.05rem;color:#1a3461">
+            <i class="bi bi-calendar-event me-2" style="opacity:.7"></i>{{ item.event.name }}
+          </div>
+
+          {# Date range #}
+          {% set sorted_days = item.event.days | sort(attribute='date') %}
+          {% if sorted_days %}
+          <div class="text-muted" style="font-size:.83rem">
+            <i class="bi bi-clock me-1"></i>
+            {% if sorted_days | length == 1 %}
+              {{ sorted_days[0].date.strftime('%d/%m/%Y') }}
+            {% else %}
+              {{ sorted_days[0].date.strftime('%d/%m/%Y') }} – {{ sorted_days[-1].date.strftime('%d/%m/%Y') }}
+              &nbsp;·&nbsp; {{ sorted_days | length }} {{ _('dias') }}
+            {% endif %}
+          </div>
+          {% endif %}
+
+          {# Booking progress #}
+          <div class="mt-auto pt-2">
+            {% if item.total > 0 %}
+            <div class="d-flex justify-content-between mb-1" style="font-size:.78rem;color:#64748b">
+              <span><i class="bi bi-calendar-check me-1"></i>{{ item.booked }} / {{ item.total }} {{ _('agendados') }}</span>
+              <span>{{ ((item.booked / item.total) * 100) | int }}%</span>
+            </div>
+            <div class="progress" style="height:5px;border-radius:4px">
+              <div class="progress-bar bg-success" style="width:{{ ((item.booked / item.total) * 100) | int }}%"></div>
+            </div>
+            {% else %}
+            <span class="text-muted" style="font-size:.8rem">{{ _('Nenhum horário configurado') }}</span>
+            {% endif %}
+          </div>
+
+        </div>
+        <div class="card-footer bg-transparent border-top-0 pb-3 px-4 pt-0">
+          <span class="text-primary fw-semibold" style="font-size:.83rem">
+            {{ _('Ver agenda') }} <i class="bi bi-arrow-right ms-1"></i>
+          </span>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+
+{% else %}
+{# ════════════════════════════════════════════════════
+   LEVEL 2 — Days & slots for the selected event
+════════════════════════════════════════════════════ #}
+
+{# Header #}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-  <h4 class="fw-bold mb-0">{{ _('Minha Agenda') }}</h4>
-  {% if event %}
-  <button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#printModal">
+  <div>
+    <a href="{{ url_for('teacher.schedule') }}"
+       class="text-muted text-decoration-none d-inline-flex align-items-center gap-1 mb-1"
+       style="font-size:.83rem">
+      <i class="bi bi-arrow-left"></i> {{ _('Todos os eventos') }}
+    </a>
+    <h4 class="fw-bold mb-0">{{ selected_event.name }}</h4>
+    {% set sorted_days = selected_event.days | sort(attribute='date') %}
+    {% if sorted_days %}
+    <small class="text-muted">
+      <i class="bi bi-clock me-1"></i>
+      {% if sorted_days | length == 1 %}
+        {{ sorted_days[0].date.strftime('%d/%m/%Y') }}
+      {% else %}
+        {{ sorted_days[0].date.strftime('%d/%m/%Y') }} – {{ sorted_days[-1].date.strftime('%d/%m/%Y') }}
+      {% endif %}
+    </small>
+    {% endif %}
+  </div>
+  <button class="btn btn-outline-primary btn-sm"
+          data-bs-toggle="modal" data-bs-target="#printModal">
     <i class="bi bi-printer me-1"></i>{{ _('Imprimir') }}
   </button>
-  {% endif %}
 </div>
 
-{% if event %}
-<form class="d-flex gap-2 mb-3" method="GET">
-  <input type="date" name="date" class="form-control form-control-sm w-auto"
-         value="{{ date_filter.isoformat() if date_filter else '' }}">
-  <button class="btn btn-outline-primary btn-sm">{{ _('Filtrar') }}</button>
-  {% if date_filter %}
-  <a href="{{ url_for('teacher.schedule') }}" class="btn btn-outline-secondary btn-sm">{{ _('Limpar') }}</a>
-  {% endif %}
-</form>
+{% if not days_data %}
+  <div class="alert alert-info">{{ _('Nenhum dia configurado para este evento.') }}</div>
+{% else %}
 
+<div class="d-flex flex-column gap-3">
+{% for day_item in days_data %}
 <div class="card shadow-sm">
+
+  {# Day header #}
+  <div class="card-header py-2 px-4 d-flex align-items-center justify-content-between"
+       style="background:#f1f5f9;border-bottom:1px solid #e2e8f0">
+    <span class="fw-semibold" style="color:#1a3461">
+      <i class="bi bi-calendar3 me-2 text-primary"></i>
+      {{ day_item.day.date.strftime('%A, %d de %B de %Y') | capitalize }}
+    </span>
+    {% set ns = namespace(nb=0) %}
+    {% for s in day_item.slots %}{% if s.is_booked and s.booking and not s.booking.cancelled_at %}{% set ns.nb = ns.nb + 1 %}{% endif %}{% endfor %}
+    {% if ns.nb > 0 %}
+    <span class="badge bg-success">{{ ns.nb }} {{ _('agendado(s)') }}</span>
+    {% else %}
+    <span class="badge bg-light text-muted border">{{ _('Nenhum agendamento') }}</span>
+    {% endif %}
+  </div>
+
+  {# Slots #}
+  {% if day_item.slots %}
   <div class="card-body p-0">
     <table class="table table-hover mb-0">
-      <thead class="table-light">
-        <tr><th>{{ _('Data / Hora') }}</th><th>{{ _('Status') }}</th><th>{{ _('Aluno') }}</th></tr>
+      <thead class="table-light" style="font-size:.8rem">
+        <tr>
+          <th class="ps-4" style="width:22%">{{ _('Horário') }}</th>
+          <th style="width:22%">{{ _('Status') }}</th>
+          <th>{{ _('Aluno') }}</th>
+        </tr>
       </thead>
       <tbody>
-        {% for slot in slots %}
-        <tr class="{{ 'table-success' if slot.is_booked else '' }}">
-          <td>{{ slot.start_datetime.strftime('%d/%m/%Y %H:%M') }} – {{ slot.end_datetime.strftime('%H:%M') }}</td>
+        {% for slot in day_item.slots %}
+        <tr class="{{ 'table-success' if slot.is_booked and slot.booking and not slot.booking.cancelled_at else '' }}">
+          <td class="ps-4 fw-semibold" style="white-space:nowrap">
+            {{ slot.start_datetime.strftime('%H:%M') }} – {{ slot.end_datetime.strftime('%H:%M') }}
+          </td>
           <td>
-            {% if slot.booking and slot.booking.cancelled_at %}
-              <span class="badge bg-secondary">{{ _('Cancelado') }}</span>
-            {% elif slot.is_booked %}
+            {% if slot.booking and not slot.booking.cancelled_at %}
               <span class="badge bg-success">{{ _('Agendado') }}</span>
+            {% elif slot.booking and slot.booking.cancelled_at %}
+              <span class="badge bg-secondary">{{ _('Cancelado') }}</span>
             {% else %}
-              <span class="badge bg-light text-dark">{{ _('Disponível') }}</span>
+              <span class="badge bg-light text-dark border">{{ _('Disponível') }}</span>
             {% endif %}
           </td>
-          <td>{{ slot.booking.student.full_name if slot.booking and not slot.booking.cancelled_at else '—' }}</td>
+          <td>
+            {% if slot.booking and not slot.booking.cancelled_at and slot.booking.student %}
+              {{ slot.booking.student.full_name }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
         </tr>
-        {% else %}
-        <tr><td colspan="3" class="text-muted text-center py-3">{{ _('Nenhum horário encontrado.') }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-</div>
+  {% else %}
+  <div class="card-body text-muted" style="font-size:.875rem">
+    <i class="bi bi-dash me-1"></i>{{ _('Nenhum horário neste dia.') }}
+  </div>
+  {% endif %}
 
-{# ── Print modal ─────────────────────────────────────────────────────────── #}
-<div class="modal fade" id="printModal" tabindex="-1" aria-labelledby="printModalLabel" aria-hidden="true">
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+{# Print modal #}
+<div class="modal fade" id="printModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-
       <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title fw-bold" id="printModalLabel">
-          <i class="bi bi-printer me-2 text-primary"></i>{{ _('Imprimir minha agenda') }}
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-printer me-2 text-primary"></i>{{ _('Imprimir agenda') }}
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-
       <div class="modal-body pt-3">
-        {% if event.days | length > 1 %}
+        {% if days_data | length > 1 %}
         <p class="fw-semibold mb-2 text-secondary" style="font-size:.85rem;text-transform:uppercase;letter-spacing:.04em">
           {{ _('Dias a incluir') }}
         </p>
         <div class="d-flex flex-column gap-1 mb-3">
-          {% for day in event.days | sort(attribute='date') %}
+          {% for d in days_data %}
           <div class="form-check">
             <input class="form-check-input print-day-cb" type="checkbox"
-                   id="tpd{{ day.id }}" value="{{ day.id }}" checked>
-            <label class="form-check-label" for="tpd{{ day.id }}">
-              {{ day.date.strftime('%A, %d/%m/%Y') | capitalize }}
+                   id="tpd{{ d.day.id }}" value="{{ d.day.id }}" checked>
+            <label class="form-check-label" for="tpd{{ d.day.id }}">
+              {{ d.day.date.strftime('%A, %d/%m/%Y') | capitalize }}
             </label>
           </div>
           {% endfor %}
         </div>
         {% endif %}
-
         <p class="text-muted mb-0" style="font-size:.88rem">
           <i class="bi bi-info-circle me-1"></i>
-          {{ _('Será aberta uma nova aba com sua agenda formatada para impressão. Salve como PDF pelo navegador.') }}
+          {{ _('Será aberta uma nova aba formatada para impressão. Salve como PDF pelo navegador.') }}
         </p>
       </div>
-
       <div class="modal-footer border-0 pt-0">
         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
         <button type="button" class="btn btn-primary btn-sm" onclick="doPrint()">
           <i class="bi bi-printer me-1"></i>{{ _('Abrir PDF') }}
         </button>
       </div>
-
     </div>
   </div>
 </div>
-
 <script>
-const PRINT_URL  = "{{ url_for('teacher.print_schedule') }}";
-const MULTI_DAY  = {{ (event.days | length > 1) | tojson }};
-
+const PRINT_URL = "{{ url_for('teacher.print_schedule') }}";
 function doPrint() {
-  let days = "";
-  if (MULTI_DAY) {
-    const cbs = document.querySelectorAll(".print-day-cb:checked");
-    days = Array.from(cbs).map(c => c.value).join(",");
-  }
-  const params = days ? "?days=" + days : "";
-  window.open(PRINT_URL + params, "_blank");
-  bootstrap.Modal.getInstance(document.getElementById("printModal")).hide();
+  const cbs = document.querySelectorAll('.print-day-cb:checked');
+  const days = Array.from(cbs).map(c => c.value).join(',');
+  window.open(PRINT_URL + (days ? '?days=' + days : ''), '_blank');
+  bootstrap.Modal.getInstance(document.getElementById('printModal')).hide();
 }
 </script>
 
-{% else %}
-<div class="alert alert-info">{{ _('Nenhum evento de conferência ativo no momento.') }}</div>
-{% endif %}
+{% endif %}{# /selected_event #}
 {% endblock %}

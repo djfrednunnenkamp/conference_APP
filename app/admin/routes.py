@@ -10,7 +10,8 @@ from app.extensions import db, bcrypt
 from app.models import (User, TeacherProfile, Subject, GradeGroup, GradeGroupSubject,
                         TeacherSubjectGrade, StudentProfile, GuardianStudent,
                         ConferenceEvent, ConferenceDay, Slot, Booking, EmailNotification,
-                        TeacherDayAbsence, StudentSubjectExclusion, EventReminder)
+                        TeacherDayAbsence, StudentSubjectExclusion, EventReminder,
+                        Division, TeacherDayOverride)
 from app.admin.forms import (GradeGroupForm, SubjectForm, TeacherForm, StudentForm,
                               GuardianForm, AdminForm, ConferenceEventForm, NotifyForm)
 from app.utils import (generate_token, send_invite_email, send_conference_info_email,
@@ -54,6 +55,89 @@ def dashboard():
                            recent_emails=recent_emails)
 
 
+# ── Divisions ──────────────────────────────────────────────────────────────────
+
+@admin_bp.route("/divisions")
+@login_required
+@admin_required
+def divisions():
+    all_divisions = Division.query.order_by(Division.order, Division.name).all()
+    unassigned    = GradeGroup.query.filter_by(division_id=None).order_by(GradeGroup.name).all()
+    return render_template("admin/divisions.html",
+                           divisions=all_divisions, unassigned=unassigned)
+
+
+@admin_bp.route("/divisions/new", methods=["POST"])
+@login_required
+@admin_required
+def new_division():
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash(_("Nome obrigatório."), "warning")
+    elif Division.query.filter_by(name=name).first():
+        flash(_("Setor já existe."), "warning")
+    else:
+        max_order = db.session.query(db.func.max(Division.order)).scalar() or 0
+        db.session.add(Division(name=name, order=max_order + 1))
+        db.session.commit()
+        flash(_("Setor criado."), "success")
+    return redirect(url_for("admin.divisions"))
+
+
+@admin_bp.route("/divisions/<int:id>/edit", methods=["POST"])
+@login_required
+@admin_required
+def edit_division(id):
+    division = Division.query.get_or_404(id)
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash(_("Nome obrigatório."), "warning")
+    elif Division.query.filter(Division.name == name, Division.id != id).first():
+        flash(_("Já existe um setor com esse nome."), "warning")
+    else:
+        division.name = name
+        db.session.commit()
+        flash(_("Setor atualizado."), "success")
+    return redirect(url_for("admin.divisions"))
+
+
+@admin_bp.route("/divisions/<int:id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_division(id):
+    division = Division.query.get_or_404(id)
+    # Unassign grade groups before deleting
+    GradeGroup.query.filter_by(division_id=id).update({"division_id": None})
+    db.session.delete(division)
+    db.session.commit()
+    flash(_("Setor excluído."), "success")
+    return redirect(url_for("admin.divisions"))
+
+
+@admin_bp.route("/divisions/reorder", methods=["POST"])
+@login_required
+@admin_required
+def reorder_divisions():
+    """Accepts JSON list of {id, order} and updates order values."""
+    data = request.get_json(silent=True) or []
+    for item in data:
+        Division.query.filter_by(id=item["id"]).update({"order": item["order"]})
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
+@admin_bp.route("/grades/<int:grade_id>/set-division", methods=["POST"])
+@login_required
+@admin_required
+def set_grade_division(grade_id):
+    """AJAX: assign or unassign a grade group to a division."""
+    grade = GradeGroup.query.get_or_404(grade_id)
+    division_id = request.get_json(silent=True, force=True).get("division_id")
+    grade.division_id = int(division_id) if division_id else None
+    db.session.commit()
+    return jsonify({"ok": True, "division_id": grade.division_id})
+
+
 # ── Grade Groups ───────────────────────────────────────────────────────────────
 
 @admin_bp.route("/grades", methods=["GET", "POST"])
@@ -81,12 +165,14 @@ def grades():
             flash(_("Disciplina adicionada."), "success")
         return redirect(url_for("admin.grades"))
 
+    all_divisions = Division.query.order_by(Division.order, Division.name).all()
     all_grades   = GradeGroup.query.order_by(GradeGroup.name).all()
     all_subjects = Subject.query.order_by(Subject.name).all()
     active = {(gs.grade_group_id, gs.subject_id) for gs in GradeGroupSubject.query.all()}
     return render_template("admin/grades.html",
                            grade_form=grade_form, subject_form=subject_form,
-                           grades=all_grades, all_subjects=all_subjects, active=active)
+                           grades=all_grades, all_subjects=all_subjects,
+                           active=active, divisions=all_divisions)
 
 
 @admin_bp.route("/grades/<int:grade_id>/subjects/<int:subject_id>/toggle", methods=["POST"])

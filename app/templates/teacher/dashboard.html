@@ -1,50 +1,268 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Painel') }} – Conferensia{% endblock %}
+{% block head %}
+<style>
+.next-day-card {
+  background: linear-gradient(135deg, #1a3461 0%, #174a30 100%);
+  border-radius: 16px;
+  color: #fff;
+  padding: 2rem 2rem 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+.next-day-card::before {
+  content: '';
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 200px; height: 200px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.05);
+  pointer-events: none;
+}
+.next-day-card::after {
+  content: '';
+  position: absolute;
+  bottom: -60px; right: 40px;
+  width: 160px; height: 160px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.04);
+  pointer-events: none;
+}
+.day-label {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  opacity: .7;
+  margin-bottom: .25rem;
+}
+.day-date {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: .2rem;
+}
+.day-event-name {
+  font-size: .85rem;
+  opacity: .75;
+}
+.slot-timeline {
+  position: relative;
+  padding-left: 1.5rem;
+}
+.slot-timeline::before {
+  content: '';
+  position: absolute;
+  left: .4rem; top: .5rem; bottom: .5rem;
+  width: 2px;
+  background: rgba(255,255,255,.2);
+}
+.slot-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .45rem 0;
+  font-size: .875rem;
+}
+.slot-dot {
+  position: absolute;
+  left: -1.5rem;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.6);
+  background: transparent;
+  flex-shrink: 0;
+}
+.slot-dot.booked {
+  background: #4ade80;
+  border-color: #4ade80;
+}
+.slot-time {
+  font-weight: 700;
+  white-space: nowrap;
+  min-width: 90px;
+  opacity: .95;
+}
+.slot-student { opacity: .85; }
+.slot-empty   { opacity: .45; font-style: italic; }
+.badge-today {
+  display: inline-flex; align-items: center; gap: .3rem;
+  background: rgba(74,222,128,.2);
+  color: #4ade80;
+  border: 1px solid rgba(74,222,128,.35);
+  border-radius: 20px;
+  font-size: .72rem; font-weight: 700;
+  padding: .2rem .65rem;
+  letter-spacing: .04em;
+}
+.badge-future {
+  display: inline-flex; align-items: center; gap: .3rem;
+  background: rgba(255,255,255,.12);
+  color: rgba(255,255,255,.8);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 20px;
+  font-size: .72rem; font-weight: 700;
+  padding: .2rem .65rem;
+  letter-spacing: .04em;
+}
+.stat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.1rem 1.25rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,.07);
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+}
+.stat-icon {
+  width: 42px; height: 42px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; flex-shrink: 0;
+}
+.stat-value { font-size: 1.4rem; font-weight: 700; line-height: 1; color: #1a3461; }
+.stat-label { font-size: .75rem; color: #64748b; margin-top: .15rem; }
+</style>
+{% endblock %}
+
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Bem-vindo(a)') }}, {{ current_user.first_name }}</h4>
 
-{% if today_slots %}
-<div class="card shadow-sm mb-4 border-start border-primary border-4">
-  <div class="card-header fw-semibold">{{ _('Reuniões de hoje') }}</div>
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
-      <thead class="table-light">
-        <tr><th>{{ _('Horário') }}</th><th>{{ _('Aluno') }}</th><th>{{ _('Responsável') }}</th></tr>
-      </thead>
-      <tbody>
-        {% for slot in today_slots %}
-        <tr>
-          <td>{{ slot.start_datetime.strftime('%H:%M') }} – {{ slot.end_datetime.strftime('%H:%M') }}</td>
-          <td>{{ slot.booking.student.full_name if slot.booking else '—' }}</td>
-          <td>{{ slot.booking.booked_by.full_name if slot.booking else '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+{# ── Greeting ── #}
+<div class="mb-4">
+  <h4 class="fw-bold mb-0">{{ _('Olá') }}, {{ current_user.first_name }} 👋</h4>
+  <p class="text-muted mb-0" style="font-size:.9rem">
+    {% if next_day %}
+      {% if is_today %}
+        {{ _('Você tem reuniões hoje. Boa conferência!') }}
+      {% else %}
+        {{ _('Aqui está o seu próximo dia de conferência.') }}
+      {% endif %}
+    {% else %}
+      {{ _('Nenhuma reunião agendada no momento.') }}
+    {% endif %}
+  </p>
 </div>
+
+{# ── Stats row ── #}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#eff6ff">
+        <i class="bi bi-calendar-check" style="color:#1a3461"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ total_upcoming }}</div>
+        <div class="stat-label">{{ _('reuniões futuras') }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#f0fdf4">
+        <i class="bi bi-calendar-event" style="color:#174a30"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ events | length }}</div>
+        <div class="stat-label">{{ _('evento(s) ativo(s)') }}</div>
+      </div>
+    </div>
+  </div>
+  {% if next_day %}
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fefce8">
+        <i class="bi bi-clock" style="color:#a16207"></i>
+      </div>
+      <div>
+        {% set booked_next = next_day_slots | selectattr('booking') | list | length %}
+        <div class="stat-value">{{ booked_next }}</div>
+        <div class="stat-label">
+          {% if is_today %}{{ _('agendados hoje') }}{% else %}{{ _('no próximo dia') }}{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-icon" style="background:#fdf4ff">
+        <i class="bi bi-hourglass-split" style="color:#7e22ce"></i>
+      </div>
+      <div>
+        <div class="stat-value">{{ next_day_slots | length }}</div>
+        <div class="stat-label">{{ _('horários no dia') }}</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+{# ── Next day card ── #}
+{% if next_day and next_day_event %}
+<div class="next-day-card mb-4">
+
+  <div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+    <div>
+      <div class="day-label">
+        {% if is_today %}{{ _('HOJE') }}{% else %}{{ _('PRÓXIMO DIA') }}{% endif %}
+      </div>
+      <div class="day-date">
+        {{ next_day.strftime('%A, %d de %B') | capitalize }}
+      </div>
+      <div class="day-event-name">
+        <i class="bi bi-calendar-event me-1"></i>{{ next_day_event.name }}
+      </div>
+    </div>
+    <div class="d-flex flex-column align-items-end gap-2">
+      {% if is_today %}
+      <span class="badge-today"><i class="bi bi-dot"></i>{{ _('Hoje') }}</span>
+      {% else %}
+      <span class="badge-future">
+        <i class="bi bi-calendar3"></i>
+        {{ next_day.strftime('%d/%m/%Y') }}
+      </span>
+      {% endif %}
+      <a href="{{ url_for('teacher.schedule', event_id=next_day_event.id) }}"
+         style="font-size:.78rem;color:rgba(255,255,255,.7);text-decoration:none">
+        {{ _('Ver agenda completa') }} <i class="bi bi-arrow-right ms-1"></i>
+      </a>
+    </div>
+  </div>
+
+  {# Timeline of slots #}
+  {% if next_day_slots %}
+  <div class="slot-timeline mt-2">
+    {% for slot in next_day_slots %}
+    {% set booked = slot.booking and not slot.booking.cancelled_at %}
+    <div class="slot-row">
+      <span class="slot-dot {{ 'booked' if booked else '' }}"></span>
+      <span class="slot-time">{{ slot.start_datetime.strftime('%H:%M') }} – {{ slot.end_datetime.strftime('%H:%M') }}</span>
+      {% if booked %}
+        <span class="slot-student">{{ slot.booking.student.full_name }}</span>
+      {% else %}
+        <span class="slot-empty">{{ _('Disponível') }}</span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="opacity:.6;font-size:.875rem;margin:0">{{ _('Nenhum horário configurado para este dia.') }}</p>
+  {% endif %}
+
+</div>
+
 {% else %}
-<div class="alert alert-light">{{ _('Nenhuma reunião agendada para hoje.') }}</div>
-{% endif %}
-
-{% if upcoming %}
+{# No upcoming meetings #}
 <div class="card shadow-sm">
-  <div class="card-header fw-semibold">{{ _('Próximas reuniões') }}</div>
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
-      <thead class="table-light">
-        <tr><th>{{ _('Data / Hora') }}</th><th>{{ _('Aluno') }}</th></tr>
-      </thead>
-      <tbody>
-        {% for slot in upcoming %}
-        <tr>
-          <td>{{ slot.start_datetime.strftime('%d/%m/%Y %H:%M') }}</td>
-          <td>{{ slot.booking.student.full_name if slot.booking else '—' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="card-body text-center py-5">
+    <i class="bi bi-calendar-x" style="font-size:2.5rem;color:#cbd5e1"></i>
+    <p class="text-muted mt-3 mb-0">{{ _('Nenhuma reunião agendada nos eventos ativos.') }}</p>
+    {% if events %}
+    <a href="{{ url_for('teacher.schedule') }}" class="btn btn-outline-primary btn-sm mt-3">
+      <i class="bi bi-calendar-week me-1"></i>{{ _('Ver minha agenda') }}
+    </a>
+    {% endif %}
   </div>
 </div>
 {% endif %}
+
 {% endblock %}
