@@ -48,9 +48,9 @@
       <i class="bi bi-person-heart"></i>{{ _('Responsáveis') }}
     </a>
     <div class="pan-nav-section">{{ _('Acadêmico') }}</div>
-    <a href="{{ url_for('admin.grades') }}"
-       class="pan-nav-item {% if 'grade' in ep or 'subject' in ep %}active{% endif %}">
-      <i class="bi bi-journal-bookmark"></i>{{ _('Turmas e Matérias') }}
+    <a href="{{ url_for('admin.divisions') }}"
+       class="pan-nav-item {% if 'division' in ep or 'grade' in ep or 'subject' in ep %}active{% endif %}">
+      <i class="bi bi-diagram-3"></i>{{ _('Setores e Turmas') }}
     </a>
     <a href="{{ url_for('admin.events') }}"
        class="pan-nav-item {% if 'event' in ep %}active{% endif %}">
@@ -106,7 +106,7 @@
       <div style="min-width:0;flex:1">
         <div class="user-name">{{ current_user.full_name }}</div>
         <div class="user-role">
-          {% if current_user.role == 'admin' %}Admin
+          {% if current_user.role == 'admin' %}{{ _('Administrador') }}
           {% elif current_user.role == 'teacher' %}{{ _('Professor') }}
           {% elif current_user.role == 'guardian' %}{{ _('Responsável') }}
           {% else %}{{ _('Aluno') }}{% endif %}
@@ -153,7 +153,7 @@
     <div class="pan-topbar-brand">Pan American</div>
     <div class="pan-topbar-spacer"></div>
     <span class="pan-role-badge">
-      {% if current_user.role == 'admin' %}Admin
+      {% if current_user.role == 'admin' %}{{ _('Administrador') }}
       {% elif current_user.role == 'teacher' %}{{ _('Professor') }}
       {% elif current_user.role == 'guardian' %}{{ _('Responsável') }}
       {% else %}{{ _('Aluno') }}{% endif %}
@@ -168,11 +168,24 @@
   {% block flash %}
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
-    <div class="{{ 'px-4 pt-3' if current_user.is_authenticated else '' }}">
+    <div class="{{ 'px-4 pt-3' if current_user.is_authenticated else '' }}" id="flash-container">
       {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show mb-3" role="alert">
-          {{ message }}
+        <div class="alert alert-{{ category }} alert-dismissible fade show mb-3 pan-flash"
+             role="alert"
+             data-flash-duration="{{ '0' if category == 'danger' else ('6000' if category == 'warning' else '4000') }}">
+          <div class="d-flex align-items-start gap-2">
+            {%- if category == 'success' %}<i class="bi bi-check-circle-fill flex-shrink-0 mt-1"></i>
+            {%- elif category == 'danger'  %}<i class="bi bi-x-circle-fill flex-shrink-0 mt-1"></i>
+            {%- elif category == 'warning' %}<i class="bi bi-exclamation-triangle-fill flex-shrink-0 mt-1"></i>
+            {%- else %}<i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
+            {%- endif %}
+            <span>{{ message }}</span>
+          </div>
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          {# Progress bar — only shown for timed alerts #}
+          {% if category != 'danger' %}
+          <div class="pan-flash-bar" aria-hidden="true"></div>
+          {% endif %}
         </div>
       {% endfor %}
     </div>
@@ -217,8 +230,8 @@ function closeSidebar() {
       </div>
       <div class="modal-footer border-0 pt-2 gap-2">
         <button type="button" class="btn btn-outline-secondary btn-sm"
-                id="panConfirmCancel" data-bs-dismiss="modal">Cancelar</button>
-        <button type="button" class="btn btn-sm" id="panConfirmOk">Confirmar</button>
+                id="panConfirmCancel" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-sm" id="panConfirmOk">{{ _('Confirmar') }}</button>
       </div>
     </div>
   </div>
@@ -241,7 +254,7 @@ function closeSidebar() {
       </div>
       <div class="modal-footer border-0 pt-2">
         <button type="button" class="btn btn-primary btn-sm"
-                data-bs-dismiss="modal" id="panAlertClose">Fechar</button>
+                data-bs-dismiss="modal" id="panAlertClose">{{ _('Fechar') }}</button>
       </div>
     </div>
   </div>
@@ -252,8 +265,8 @@ function closeSidebar() {
    panConfirm({ title, body, confirmText, cancelText, danger })
    → Promise<boolean>
 ───────────────────────────────────────────────────────────── */
-function panConfirm({ title = 'Confirmar', body = '', confirmText = 'Confirmar',
-                      cancelText = 'Cancelar', danger = false, warning = false } = {}) {
+function panConfirm({ title = '{{ _("Confirmar") }}', body = '', confirmText = '{{ _("Confirmar") }}',
+                      cancelText = '{{ _("Cancelar") }}', danger = false, warning = false } = {}) {
   return new Promise(resolve => {
     const el = document.getElementById('panConfirmModal');
     document.getElementById('panConfirmTitle').textContent  = title;
@@ -293,10 +306,10 @@ function panConfirm({ title = 'Confirmar', body = '', confirmText = 'Confirmar',
 function panAlert({ title, body = '', type = 'danger' } = {}) {
   return new Promise(resolve => {
     const defaults = {
-      danger:  { bg: '#fef2f2',               icon: 'bi-x-circle-fill',            color: '#dc2626',           label: 'Erro' },
-      warning: { bg: '#fff3cd',               icon: 'bi-exclamation-triangle-fill', color: '#d97706',           label: 'Atenção' },
-      success: { bg: 'var(--pan-green-light)', icon: 'bi-check-circle-fill',        color: 'var(--pan-green)',  label: 'Sucesso' },
-      info:    { bg: 'var(--pan-blue-light)',  icon: 'bi-info-circle-fill',         color: 'var(--pan-blue)',   label: 'Aviso' },
+      danger:  { bg: '#fef2f2',               icon: 'bi-x-circle-fill',            color: '#dc2626',           label: '{{ _("Erro") }}' },
+      warning: { bg: '#fff3cd',               icon: 'bi-exclamation-triangle-fill', color: '#d97706',           label: '{{ _("Atenção") }}' },
+      success: { bg: 'var(--pan-green-light)', icon: 'bi-check-circle-fill',        color: 'var(--pan-green)',  label: '{{ _("Sucesso") }}' },
+      info:    { bg: 'var(--pan-blue-light)',  icon: 'bi-info-circle-fill',         color: 'var(--pan-blue)',   label: '{{ _("Aviso") }}' },
     };
     const cfg = defaults[type] || defaults.info;
 
@@ -323,15 +336,70 @@ document.addEventListener('submit', async function(e) {
   if (!msg) return;
   e.preventDefault();
   const ok = await panConfirm({
-    title:       form.dataset.panTitle       || 'Confirmar',
+    title:       form.dataset.panTitle       || '{{ _("Confirmar") }}',
     body:        msg,
-    confirmText: form.dataset.panConfirmText || 'Confirmar',
-    cancelText:  form.dataset.panCancelText  || 'Cancelar',
+    confirmText: form.dataset.panConfirmText || '{{ _("Confirmar") }}',
+    cancelText:  form.dataset.panCancelText  || '{{ _("Cancelar") }}',
     danger:      form.dataset.panDanger      === '1',
     warning:     form.dataset.panWarning     === '1',
   });
   if (ok) { form.removeAttribute('data-pan-confirm'); form.submit(); }
 });
+
+/* ─────────────────────────────────────────────────────────────
+   Auto-dismiss flash alerts
+   – success / info  → 4 s
+   – warning         → 6 s
+   – danger          → stays open (user must close manually)
+   Progress bar shrinks left-to-right; pauses on hover.
+───────────────────────────────────────────────────────────── */
+(function () {
+  document.querySelectorAll('.pan-flash[data-flash-duration]').forEach(function (el) {
+    const ms = parseInt(el.dataset.flashDuration, 10);
+    if (!ms) return;   // 0 = danger, keep open
+
+    const bar = el.querySelector('.pan-flash-bar');
+    let remaining = ms;
+    let startedAt = null;
+    let raf = null;
+
+    function startBar() {
+      if (bar) {
+        bar.style.transition = 'transform ' + remaining + 'ms linear';
+        // Force reflow so transition picks up the new duration
+        bar.getBoundingClientRect();
+        bar.style.transform = 'scaleX(0)';
+      }
+      startedAt = performance.now();
+      raf = setTimeout(dismiss, remaining);
+    }
+
+    function pauseBar() {
+      if (!startedAt) return;
+      clearTimeout(raf);
+      remaining -= (performance.now() - startedAt);
+      startedAt = null;
+      if (bar) {
+        // Freeze the bar at its current position
+        const frac = Math.max(0, remaining / ms);
+        bar.style.transition = 'none';
+        bar.style.transform  = 'scaleX(' + frac + ')';
+      }
+    }
+
+    function dismiss() {
+      bootstrap.Alert.getOrCreateInstance(el).close();
+    }
+
+    el.addEventListener('mouseenter', pauseBar);
+    el.addEventListener('mouseleave', function () {
+      if (remaining > 0) startBar();
+    });
+
+    // Small delay before starting so the alert fade-in finishes first
+    setTimeout(startBar, 300);
+  });
+})();
 </script>
 
 {# Preferences modal — authenticated only #}

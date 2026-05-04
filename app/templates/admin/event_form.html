@@ -1,194 +1,370 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Editar Evento') if event else _('Novo Evento') }} – Conferensia{% endblock %}
+
 {% block head %}
 <style>
-  /* Hide the remove button when there is only one day row */
-  #daysContainer .day-row:only-child .remove-day { display: none !important; }
+/* ── Sector accordion ───────────────────────────────────────────────── */
+.ev-sector-item .ev-sector-body          { display: none; }
+.ev-sector-item.open .ev-sector-body     { display: block; }
+.ev-sector-header                        { cursor: pointer; user-select: none; }
+.ev-sector-chevron                       { transition: transform .2s; flex-shrink: 0; }
+.ev-sector-item.open .ev-sector-chevron  { transform: rotate(180deg); }
+
+/* ── Teacher rows ────────────────────────────────────────────────────── */
+.ev-teacher-row                          { transition: background .1s; }
+.ev-teacher-row:not(.t-visible)          { display: none !important; }
+.ev-teacher-row:hover                    { background: var(--pan-bg-light, #f8f9fa); }
+.ev-dur-inp                              { width: 68px !important; }
+.in-sector-tag {
+  font-size: .62rem; padding: 1px 5px;
+  background: #e7f1ff; color: #0d6efd;
+  border-radius: 99px; white-space: nowrap;
+}
+
+/* ── Day rows ────────────────────────────────────────────────────────── */
+.ev-day-group { max-width: 200px; }
+
+/* ── Section step labels ─────────────────────────────────────────────── */
+.step-badge {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--pan-blue, #1e4fa3);
+  color: #fff; font-size: .78rem; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
 </style>
 {% endblock %}
+
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Editar Evento') if event else _('Novo Evento de Conferência') }}</h4>
-<div class="row g-4">
-  <div class="col-lg-7">
-    <form method="POST" novalidate id="eventForm">
-      {{ form.hidden_tag() }}
+<div class="d-flex align-items-center gap-3 mb-4">
+  <div>
+    <h4 class="fw-bold mb-0">
+      {{ _('Editar Conferência') if event else _('Nova Conferência') }}
+    </h4>
+    {% if event %}
+    <span class="badge
+      {% if event.status == 'published' %}bg-success
+      {% elif event.status == 'closed'   %}bg-secondary
+      {% else                            %}bg-warning text-dark{% endif %}
+      mt-1">
+      {{ event.status|capitalize }}
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+<form method="POST" novalidate id="eventForm">
+  {{ form.hidden_tag() }}
+  <input type="hidden" name="conflict_action" id="conflictAction" value="keep">
+
+  <div class="row g-4">
+    {# ══════════════════════════════════════════════════════ LEFT COLUMN #}
+    <div class="col-lg-8">
+
+      {# ── Step 1 · General Info ─────────────────────────────────────── #}
       <div class="card shadow-sm mb-3">
-        <div class="card-header fw-semibold">{{ _('Informações gerais') }}</div>
+        <div class="card-header fw-semibold d-flex align-items-center gap-2">
+          <span class="step-badge">1</span>
+          {{ _('Informações Gerais') }}
+        </div>
         <div class="card-body">
           <div class="mb-3">
-            <label class="form-label">{{ _('Nome do evento') }}</label>
-            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else "")) }}
+            <label class="form-label fw-semibold">{{ _('Nome da conferência') }}</label>
+            {{ form.name(class="form-control" + (" is-invalid" if form.name.errors else ""),
+                         placeholder=_("Ex.: Reunião de Pais — Maio 2026")) }}
             {% for e in form.name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
           </div>
           <div class="row g-3">
             <div class="col-md-6">
               <div class="form-check form-switch mt-2">
                 {{ form.student_booking_allowed(class="form-check-input") }}
-                <label class="form-check-label">{{ _('Permitir agendamento por alunos') }}</label>
+                <label class="form-check-label small">
+                  {{ _('Permitir agendamento por alunos') }}
+                </label>
               </div>
             </div>
             <div class="col-md-6">
-              <label class="form-label">{{ _('Bloquear edição (horas antes)') }}</label>
-              {{ form.cancel_deadline_hours(class="form-control", min="0") }}
+              <label class="form-label small fw-semibold">
+                {{ _('Bloquear edição (horas antes)') }}
+              </label>
+              {{ form.cancel_deadline_hours(class="form-control form-control-sm", min="0") }}
               <div class="form-text">{{ _('0 = livre até o início da reunião') }}</div>
             </div>
           </div>
         </div>
       </div>
 
+      {# ── Step 2 + 3 · Sectors (days, timing, teachers) ───────────────── #}
       <div class="card shadow-sm mb-3">
-        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-          {{ _('Dias') }}
-          <button type="button" class="btn btn-outline-primary btn-sm" id="addDay">
-            <i class="bi bi-plus-lg"></i> {{ _('Adicionar dia') }}
-          </button>
+        <div class="card-header fw-semibold d-flex align-items-center justify-content-between">
+          <div class="d-flex align-items-center gap-2">
+            <span class="step-badge">2</span>
+            {{ _('Setores, Dias e Professores') }}
+          </div>
+          <span class="badge bg-secondary" id="activeSectorsBadge">0</span>
         </div>
-        <div class="card-body" id="daysContainer">
-          {% for day in form.days %}
-          {% set model_day = event.days[loop.index0] if event and loop.index0 < event.days|length else none %}
-          <div class="day-row border rounded p-3 mb-3">
-            <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="card-body p-0" id="sectorsContainer">
+
+          {% for div in divisions %}
+          {% set dk = div.id | string %}
+          {% set esect = existing_sectors.get(dk, {}) %}
+          <div class="ev-sector-item{% if esect %} open{% endif %}"
+               data-div-id="{{ div.id }}" id="evSector_{{ div.id }}">
+
+            {# ── Header ─────────────────────────────────────────────── #}
+            <div class="ev-sector-header d-flex justify-content-between align-items-center px-3 py-2 border-bottom"
+                 onclick="toggleEvSector({{ div.id }})">
+              <span class="fw-semibold small">{{ div.name }}</span>
               <div class="d-flex align-items-center gap-2">
-                <span class="fw-semibold small text-muted day-label">{{ _('Dia') }} {{ loop.index }}</span>
-                {% if model_day and not model_day.is_active %}
-                <span class="badge bg-secondary" style="font-size:.68rem">{{ _('Desativado') }}</span>
-                {% endif %}
+                <span class="badge bg-primary" id="evDayBadge_{{ div.id }}">
+                  {{ esect.get('dates', []) | length }} {{ _('dia(s)') }}
+                </span>
+                <span class="badge bg-success" id="evTeacherBadge_{{ div.id }}">
+                  {{ esect.get('teachers', []) | length }} {{ _('prof.') }}
+                </span>
+                <i class="bi bi-chevron-down ev-sector-chevron text-muted"></i>
               </div>
-              <div class="d-flex gap-1">
-                {% if model_day %}
-                <button type="button"
-                        class="btn btn-sm day-toggle-btn {% if model_day.is_active %}btn-outline-success{% else %}btn-outline-secondary{% endif %}"
-                        data-toggle-url="{{ url_for('admin.toggle_day_active', event_id=event.id, day_id=model_day.id) }}"
-                        data-is-active="{{ 'true' if model_day.is_active else 'false' }}"
-                        title="{{ _('Desativar dia') if model_day.is_active else _('Ativar dia') }}">
-                  <i class="bi {% if model_day.is_active %}bi-calendar-check{% else %}bi-calendar-x{% endif %}"></i>
+            </div>
+
+            {# ── Body ────────────────────────────────────────────────── #}
+            <div class="ev-sector-body px-3 pt-3 pb-2">
+
+              {# Timing constants (duration + break) — start/end time is per day #}
+              <div class="row g-2 mb-3">
+                <div class="col-6">
+                  <label class="form-label small fw-semibold text-muted">
+                    {{ _('Duração da reunião (min)') }}
+                  </label>
+                  <input type="number" name="sector_{{ div.id }}_slot_duration"
+                         class="form-control form-control-sm ev-timing"
+                         value="{{ esect.get('slot_duration', 10) }}" min="1"
+                         data-div="{{ div.id }}">
+                </div>
+                <div class="col-6">
+                  <label class="form-label small fw-semibold text-muted">
+                    {{ _('Intervalo entre reuniões (min)') }}
+                  </label>
+                  <input type="number" name="sector_{{ div.id }}_break"
+                         class="form-control form-control-sm ev-timing"
+                         value="{{ esect.get('break', 0) }}" min="0"
+                         data-div="{{ div.id }}">
+                </div>
+              </div>
+
+              {# Days #}
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-semibold text-muted">{{ _('Dias') }}</span>
+                <button type="button" class="btn btn-outline-primary btn-sm ev-add-day"
+                        data-div="{{ div.id }}">
+                  <i class="bi bi-plus-lg me-1"></i>{{ _('Dia') }}
                 </button>
-                {% endif %}
-                <button type="button" class="btn btn-outline-danger btn-sm remove-day"><i class="bi bi-trash"></i></button>
               </div>
-            </div>
-            <div class="row g-2">
-              <div class="col-md-3">
-                <label class="form-label small">{{ _('Data') }}</label>
-                {{ day.date(class="form-control form-control-sm") }}
+              {# Column headers #}
+              {% if esect.get('days', []) %}
+              <div class="d-flex align-items-center gap-2 mb-1 px-1">
+                <span class="small text-muted" style="min-width:172px">{{ _('Data') }}</span>
+                <span class="small text-muted" style="min-width:100px">{{ _('Início') }}</span>
+                <span class="small text-muted" style="min-width:100px">{{ _('Fim') }}</span>
               </div>
-              <div class="col-md-2">
-                <label class="form-label small">{{ _('Início') }}</label>
-                {{ day.start_time(class="form-control form-control-sm") }}
+              {% endif %}
+              <div class="ev-days-list mb-1" id="evDaysList_{{ div.id }}">
+                {% for day_entry in esect.get('days', []) %}
+                <div class="ev-day-row d-flex align-items-center gap-2 mb-2">
+                  <div class="input-group input-group-sm ev-day-group">
+                    <input type="date" name="sector_{{ div.id }}_day_dates[]"
+                           class="form-control form-control-sm ev-timing"
+                           value="{{ day_entry.date }}" data-div="{{ div.id }}">
+                    <button type="button" class="btn btn-outline-secondary ev-cal-btn"
+                            tabindex="-1" title="{{ _('Abrir calendário') }}">
+                      <i class="bi bi-calendar3"></i>
+                    </button>
+                  </div>
+                  <input type="time" name="sector_{{ div.id }}_day_starts[]"
+                         class="form-control form-control-sm ev-timing ev-day-time"
+                         value="{{ day_entry.start }}" data-div="{{ div.id }}"
+                         style="max-width:108px" placeholder="{{ _('Início') }}">
+                  <span class="text-muted small flex-shrink-0">→</span>
+                  <input type="time" name="sector_{{ div.id }}_day_ends[]"
+                         class="form-control form-control-sm ev-timing ev-day-time"
+                         value="{{ day_entry.end }}" data-div="{{ div.id }}"
+                         style="max-width:108px" placeholder="{{ _('Fim') }}">
+                  <button type="button"
+                          class="btn btn-sm btn-outline-danger ev-remove-day flex-shrink-0"
+                          title="{{ _('Remover dia') }}">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+                {% endfor %}
               </div>
-              <div class="col-md-2">
-                <label class="form-label small">{{ _('Fim') }}</label>
-                {{ day.end_time(class="form-control form-control-sm") }}
+              <div class="text-muted small mb-3 ev-slot-preview"
+                   id="evSlotPreview_{{ div.id }}"></div>
+
+              {# Teachers ────────────────────────────────────────────── #}
+              <hr class="my-2">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small fw-semibold text-muted">{{ _('Professores') }}</span>
+                <div class="d-flex gap-1">
+                  <button type="button" class="btn btn-outline-secondary btn-sm ev-select-sector"
+                          data-div="{{ div.id }}" title="{{ _('Selecionar professores do setor') }}">
+                    <i class="bi bi-person-check me-1"></i>{{ _('Setor') }}
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-sm ev-deselect-all"
+                          data-div="{{ div.id }}" title="{{ _('Desmarcar todos') }}">
+                    <i class="bi bi-x-circle"></i>
+                  </button>
+                </div>
               </div>
-              <div class="col-md-2">
-                <label class="form-label small">{{ _('Duração (min)') }}</label>
-                {{ day.slot_duration_minutes(class="form-control form-control-sm") }}
+              <input type="text" class="form-control form-control-sm mb-2 ev-teacher-search"
+                     placeholder="{{ _('Buscar professor…') }}"
+                     data-div="{{ div.id }}" autocomplete="off">
+              <div class="ev-teacher-list"
+                   id="evTeacherList_{{ div.id }}"
+                   style="max-height: 260px; overflow-y: auto">
+                {# Populated by JS from SECTOR_TEACHERS_JS #}
               </div>
-              <div class="col-md-2">
-                <label class="form-label small">{{ _('Intervalo (min)') }}</label>
-                {{ day.break_minutes(class="form-control form-control-sm") }}
-              </div>
-            </div>
-            <div class="mt-2 slot-preview text-muted small"></div>
+            </div>{# /ev-sector-body #}
+          </div>{# /ev-sector-item #}
+          {% else %}
+          <div class="px-3 py-4 text-muted small text-center">
+            {{ _('Nenhum setor cadastrado. Adicione setores em Configurações → Setores.') }}
           </div>
           {% endfor %}
+
+        </div>{# /sectorsContainer #}
+      </div>
+
+      {# ── Validation error ─────────────────────────────────────────────── #}
+      <div id="evFormError" class="alert alert-danger d-none d-flex align-items-center gap-2 mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+        <span id="evFormErrorMsg"></span>
+      </div>
+
+      {# ── Save ─────────────────────────────────────────────────────────── #}
+      <div class="d-flex gap-2 mb-4">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+        </button>
+        <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary">
+          {{ _('Cancelar') }}
+        </a>
+      </div>
+
+    </div>{# /col-lg-8 #}
+
+    {# ══════════════════════════════════════════════════════ RIGHT COLUMN #}
+    <div class="col-lg-4">
+
+      {# ── Slot preview ────────────────────────────────────────────────── #}
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold small">
+          <i class="bi bi-clock me-2"></i>{{ _('Prévia de horários') }}
+        </div>
+        <div class="card-body" id="globalPreview">
+          <p class="text-muted small mb-0">
+            {{ _('Configure um setor com dias e horários para ver a prévia.') }}
+          </p>
         </div>
       </div>
 
-      <input type="hidden" name="conflict_action" id="conflictAction" value="keep">
-      <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">{{ _('Salvar') }}</button>
-        <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
-      </div>
-    </form>
-  </div>
-
-  <div class="col-lg-5">
-    {# Slot preview card #}
-    <div class="card shadow-sm mb-3">
-      <div class="card-header fw-semibold">{{ _('Prévia dos horários') }}</div>
-      <div class="card-body" id="globalPreview">
-        <p class="text-muted small">{{ _('Preencha um dia para ver a prévia.') }}</p>
-      </div>
-    </div>
-
-    {# ── Teacher attendance ─────────────────────────────── #}
-    {% if event and event.days %}
-    <div class="card shadow-sm mt-3">
-      <div class="card-header fw-semibold">
-        <i class="bi bi-people me-2"></i>{{ _('Presença de professores') }}
-      </div>
-      {% if all_teachers %}
-      <div class="list-group list-group-flush">
-        {% for day in event.days %}
-        {% set abs_count = namespace(n=0) %}
-        {% for t in all_teachers %}{% if (day.id, t.id) in absent_set %}{% set abs_count.n = abs_count.n + 1 %}{% endif %}{% endfor %}
-        <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
-          <div>
-            <span class="small fw-semibold">{{ day.date.strftime('%d/%m/%Y') }}</span>
-            {% if abs_count.n > 0 %}
-            <span class="badge bg-danger ms-2" style="font-size:.65rem" id="absBadge_{{ day.id }}">{{ abs_count.n }} {{ _('ausente(s)') }}</span>
-            {% else %}
-            <span class="badge bg-success ms-2" style="font-size:.65rem" id="absBadge_{{ day.id }}">{{ _('todos presentes') }}</span>
-            {% endif %}
+      {# ── Teacher attendance (only existing events with days) ──────────── #}
+      {% if event and event.days %}
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold small">
+          <i class="bi bi-people me-2"></i>{{ _('Presença de professores') }}
+        </div>
+        {% if all_teachers %}
+        <div class="list-group list-group-flush">
+          {% for day in event.days | sort(attribute='date') %}
+          {% set abs_count = namespace(n=0) %}
+          {% for t in all_teachers %}
+            {% if (day.id, t.id) in absent_set %}{% set abs_count.n = abs_count.n + 1 %}{% endif %}
+          {% endfor %}
+          <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
+            <div>
+              <span class="small fw-semibold">{{ day.date.strftime('%d/%m/%Y') }}</span>
+              {% if day.division %}
+              <span class="badge bg-light text-secondary ms-1" style="font-size:.65rem">
+                {{ day.division.name }}
+              </span>
+              {% endif %}
+              {% if abs_count.n > 0 %}
+              <span class="badge bg-danger ms-1" style="font-size:.65rem" id="absBadge_{{ day.id }}">
+                {{ abs_count.n }} {{ _('ausente(s)') }}
+              </span>
+              {% else %}
+              <span class="badge bg-success ms-1" style="font-size:.65rem" id="absBadge_{{ day.id }}">
+                {{ _('todos presentes') }}
+              </span>
+              {% endif %}
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm"
+                    onclick="openAttendanceModal({{ day.id }}, '{{ day.date.strftime('%d/%m/%Y') }}')">
+              <i class="bi bi-pencil me-1"></i>{{ _('Gerenciar') }}
+            </button>
           </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="card-body text-muted small">
+          {{ _('Nenhum professor cadastrado ainda.') }}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# ── Reminders ───────────────────────────────────────────────────── #}
+      {% if event %}
+      <div class="card shadow-sm mb-3">
+        <div class="card-header fw-semibold small d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-bell me-2"></i>{{ _('Lembretes para responsáveis') }}</span>
           <button type="button" class="btn btn-outline-primary btn-sm"
-                  onclick="openAttendanceModal({{ day.id }}, '{{ day.date.strftime('%d/%m/%Y') }}')">
-            <i class="bi bi-pencil me-1"></i>{{ _('Gerenciar') }}
+                  data-bs-toggle="modal" data-bs-target="#addReminderModal">
+            <i class="bi bi-plus-lg"></i>
           </button>
         </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="card-body text-muted small">{{ _('Nenhum professor cadastrado ainda.') }}</div>
-      {% endif %}
-    </div>
-    {% endif %}
-
-    {# ── Lembretes automáticos ──────────────────────────── #}
-    {% if event %}
-    <div class="card shadow-sm mt-3">
-      <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-bell me-2"></i>{{ _('Lembretes para responsáveis') }}</span>
-        <button type="button" class="btn btn-outline-primary btn-sm"
-                data-bs-toggle="modal" data-bs-target="#addReminderModal">
-          <i class="bi bi-plus-lg"></i>
-        </button>
-      </div>
-      <div class="card-body p-0">
-        <p class="text-muted small px-3 pt-3 mb-2" style="font-size:.8rem">
-          {{ _('Enviar resumo de agendamentos X horas antes de cada dia da conferência.') }}
-        </p>
-        <div id="remindersList">
-          {% for reminder in event.reminders %}
-          <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top reminder-row" data-id="{{ reminder.id }}">
-            <span class="small"><i class="bi bi-clock me-1 text-muted"></i><strong>{{ reminder.hours_before }}h</strong> {{ _('antes') }}</span>
-            <div class="d-flex gap-1">
-              <button type="button" class="btn btn-outline-secondary btn-sm send-reminder-btn"
-                      data-url="{{ url_for('admin.send_reminder_now', event_id=event.id, reminder_id=reminder.id) }}"
-                      title="{{ _('Enviar agora') }}">
-                <i class="bi bi-send"></i>
-              </button>
-              <button type="button" class="btn btn-outline-danger btn-sm delete-reminder-btn"
-                      data-url="{{ url_for('admin.delete_reminder', event_id=event.id, reminder_id=reminder.id) }}"
-                      title="{{ _('Remover') }}">
-                <i class="bi bi-trash"></i>
-              </button>
+        <div class="card-body p-0">
+          <p class="text-muted small px-3 pt-3 mb-2" style="font-size:.8rem">
+            {{ _('Enviar resumo de agendamentos X horas antes de cada dia da conferência.') }}
+          </p>
+          <div id="remindersList">
+            {% for reminder in event.reminders %}
+            <div class="d-flex align-items-center justify-content-between px-3 py-2 border-top reminder-row"
+                 data-id="{{ reminder.id }}">
+              <span class="small">
+                <i class="bi bi-clock me-1 text-muted"></i>
+                <strong>{{ reminder.hours_before }}h</strong> {{ _('antes') }}
+              </span>
+              <div class="d-flex gap-1">
+                <button type="button" class="btn btn-outline-secondary btn-sm send-reminder-btn"
+                        data-url="{{ url_for('admin.send_reminder_now', event_id=event.id, reminder_id=reminder.id) }}"
+                        title="{{ _('Enviar agora') }}">
+                  <i class="bi bi-send"></i>
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm delete-reminder-btn"
+                        data-url="{{ url_for('admin.delete_reminder', event_id=event.id, reminder_id=reminder.id) }}"
+                        title="{{ _('Remover') }}">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
             </div>
+            {% else %}
+            <p class="text-muted small px-3 pb-3 mb-0" id="noReminders">
+              {{ _('Nenhum lembrete configurado.') }}
+            </p>
+            {% endfor %}
           </div>
-          {% else %}
-          <p class="text-muted small px-3 pb-3 mb-0" id="noReminders">{{ _('Nenhum lembrete configurado.') }}</p>
-          {% endfor %}
         </div>
       </div>
-    </div>
-    {% endif %}
-  </div>
-</div>
+      {% endif %}
+
+    </div>{# /col-lg-4 #}
+  </div>{# /row #}
+</form>
 {% endblock %}
+
 {% block scripts %}
-{% if event and all_teachers %}
 {# ── Attendance modal ─────────────────────────────────────────────────────── #}
+{% if event and all_teachers %}
 <div class="modal fade" id="attendanceModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
     <div class="modal-content">
@@ -204,13 +380,13 @@
         <div id="attList" style="max-height:360px;overflow-y:auto"></div>
       </div>
       <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">{{ _('Fechar') }}</button>
+        <button type="button" class="btn btn-secondary btn-sm"
+                data-bs-dismiss="modal">{{ _('Fechar') }}</button>
       </div>
     </div>
   </div>
 </div>
 
-{# ── Absence notification confirm modal ──────────────────────────────────── #}
 <div class="modal fade" id="absentNotifyModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
     <div class="modal-content">
@@ -229,9 +405,8 @@
         <p style="font-size:.875rem;color:var(--pan-text-muted)" id="absentNotifyText"></p>
       </div>
       <div class="modal-footer border-0 pt-0 gap-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">
-          {{ _('Não enviar') }}
-        </button>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                data-bs-dismiss="modal">{{ _('Não enviar') }}</button>
         <button type="button" class="btn btn-primary btn-sm" id="absentNotifyConfirmBtn">
           <i class="bi bi-envelope-arrow-up me-1"></i>{{ _('Enviar aviso') }}
         </button>
@@ -241,25 +416,30 @@
 </div>
 {% endif %}
 
+{# ── Reminders modal ──────────────────────────────────────────────────────── #}
 {% if event %}
-{# ── Add reminder modal ───────────────────────────────────────────────────── #}
 <div class="modal fade" id="addReminderModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-sm">
     <div class="modal-content">
       <div class="modal-header py-2">
-        <h6 class="modal-title fw-semibold"><i class="bi bi-bell me-2"></i>{{ _('Novo lembrete') }}</h6>
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-bell me-2"></i>{{ _('Novo lembrete') }}
+        </h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <label class="form-label small fw-semibold">{{ _('Enviar quantas horas antes de cada dia?') }}</label>
+        <label class="form-label small fw-semibold">
+          {{ _('Enviar quantas horas antes de cada dia?') }}
+        </label>
         <div class="input-group input-group-sm">
           <input type="number" id="reminderHoursInput" class="form-control" min="0" value="24">
           <span class="input-group-text">h</span>
         </div>
-        <div class="form-text">{{ _('Ex: 24 = envia 1 dia antes; 2 = envia 2h antes') }}</div>
+        <div class="form-text">{{ _('Ex: 24 = 1 dia antes; 2 = 2h antes') }}</div>
       </div>
       <div class="modal-footer py-2 gap-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
         <button type="button" class="btn btn-primary btn-sm" id="saveReminderBtn">
           <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar') }}
         </button>
@@ -267,9 +447,11 @@
     </div>
   </div>
 </div>
+{% endif %}
 
-{# ── Conflict modal — must come BEFORE the <script> so getElementById can find the buttons ── #}
-<div class="modal fade" id="conflictModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+{# ── Conflict modal ───────────────────────────────────────────────────────── #}
+<div class="modal fade" id="conflictModal" tabindex="-1" aria-hidden="true"
+     data-bs-backdrop="static">
   <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
     <div class="modal-content">
       <div class="modal-header border-0 pb-0">
@@ -289,14 +471,16 @@
         </p>
       </div>
       <div class="modal-footer border-0 pt-0 flex-column align-items-stretch gap-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm text-start" id="conflictKeepBtn">
+        <button type="button" class="btn btn-outline-secondary btn-sm text-start"
+                id="conflictKeepBtn">
           <i class="bi bi-bookmark-check me-2" style="color:var(--pan-green)"></i>
           <strong>{{ _('Apagar o dia e manter os agendamentos') }}</strong><br>
           <span class="text-muted ms-4" style="font-size:.78rem">
             {{ _('Os agendamentos já confirmados continuam válidos.') }}
           </span>
         </button>
-        <button type="button" class="btn btn-outline-danger btn-sm text-start" id="conflictRemoveBtn">
+        <button type="button" class="btn btn-outline-danger btn-sm text-start"
+                id="conflictRemoveBtn">
           <i class="bi bi-trash me-2"></i>
           <strong>{{ _('Apagar o dia e remover todos os agendamentos') }}</strong><br>
           <span class="text-muted ms-4" style="font-size:.78rem">
@@ -311,51 +495,456 @@
     </div>
   </div>
 </div>
-{% endif %}
 
 <script>
 const CSRF = "{{ csrf_token() }}";
+const IS_NEW_EVENT = {{ 'true' if not event else 'false' }};
+const EVENT_ID_FORM = {{ event.id if event else 'null' }};
 
-// ── Day active/inactive toggles (AJAX) ───────────────────────────────────────
-document.querySelectorAll('.day-toggle-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    const url = this.dataset.toggleUrl;
-    const el  = this;
-    fetch(url, {
-      method: 'POST',
-      headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' }
-    })
-    .then(r => r.json())
-    .then(data => {
-      const active = data.is_active;
-      el.dataset.isActive = active ? 'true' : 'false';
-      el.title = active ? '{{ _('Desativar dia') }}' : '{{ _('Ativar dia') }}';
-      el.className = `btn btn-sm day-toggle-btn ${active ? 'btn-outline-success' : 'btn-outline-secondary'}`;
-      el.innerHTML = `<i class="bi ${active ? 'bi-calendar-check' : 'bi-calendar-x'}"></i>`;
-      // update the badge inside the same .day-row
-      const row = el.closest('.day-row');
-      let badge = row.querySelector('.badge.bg-secondary');
-      if (!active) {
-        if (!badge) {
-          badge = document.createElement('span');
-          badge.className = 'badge bg-secondary';
-          badge.style.fontSize = '.68rem';
-          badge.textContent = '{{ _('Desativado') }}';
-          row.querySelector('.day-label').insertAdjacentElement('afterend', badge);
-        }
-      } else {
-        if (badge) badge.remove();
-      }
-    })
-    .catch(() => { /* silently ignore */ });
+// ── Sector / teacher data injected from server ────────────────────────────────
+const SECTOR_TEACHERS_JS = {{ sector_teachers_js | tojson }};
+const EXISTING_SECTORS   = {{ existing_sectors   | tojson }};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTOR ACCORDION
+// ─────────────────────────────────────────────────────────────────────────────
+function toggleEvSector(divId) {
+  document.getElementById(`evSector_${divId}`)?.classList.toggle('open');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SLOT PREVIEW
+// ─────────────────────────────────────────────────────────────────────────────
+function computeSlots(start, end, dur, brk) {
+  const slots  = [];
+  const durMin = parseInt(dur);
+  const brkMin = parseInt(brk) || 0;
+  if (!durMin || durMin <= 0 || !isFinite(durMin)) return slots;
+  const durMs  = durMin * 60000;
+  const brkMs  = brkMin * 60000;
+  let cur      = new Date(`2000-01-01T${start}`);
+  const endT   = new Date(`2000-01-01T${end}`);
+  let guard    = 500;
+  while (cur.getTime() + durMs <= endT.getTime() && guard-- > 0) {
+    const s = cur.toTimeString().slice(0, 5);
+    cur = new Date(cur.getTime() + durMs);
+    slots.push(`${s}–${cur.toTimeString().slice(0, 5)}`);
+    cur = new Date(cur.getTime() + brkMs);
+  }
+  return slots;
+}
+
+function updateSlotPreview(divId) {
+  const dur     = document.querySelector(`[name="sector_${divId}_slot_duration"]`)?.value;
+  const brk     = document.querySelector(`[name="sector_${divId}_break"]`)?.value;
+  const preview = document.getElementById(`evSlotPreview_${divId}`);
+  if (!preview) return;
+
+  const durVal = parseInt(dur);
+  if (!durVal || durVal <= 0) { preview.textContent = ''; updateGlobalPreview(); return; }
+
+  // Build per-day previews using each row's own start/end
+  const rows = document.querySelectorAll(`#evDaysList_${divId} .ev-day-row`);
+  const parts = [];
+  rows.forEach(row => {
+    const dateV  = row.querySelector(`[name="sector_${divId}_day_dates[]"]`)?.value;
+    const startV = row.querySelector(`[name="sector_${divId}_day_starts[]"]`)?.value;
+    const endV   = row.querySelector(`[name="sector_${divId}_day_ends[]"]`)?.value;
+    if (startV && endV) {
+      const slots = computeSlots(startV, endV, durVal, brk);
+      const label = dateV
+        ? new Date(dateV + 'T12:00').toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'})
+        : '—';
+      parts.push(`${label}: ${slots.length} {{ _('horários') }}`);
+    }
+  });
+
+  if (parts.length) {
+    const sample = parts.slice(0, 2).join(' · ') + (parts.length > 2 ? ` + ${parts.length - 2} …` : '');
+    // First complete row → show sample times
+    const firstRow = [...rows].find(r =>
+      r.querySelector(`[name="sector_${divId}_day_starts[]"]`)?.value &&
+      r.querySelector(`[name="sector_${divId}_day_ends[]"]`)?.value);
+    let sampleTimes = '';
+    if (firstRow) {
+      const s = firstRow.querySelector(`[name="sector_${divId}_day_starts[]"]`).value;
+      const e = firstRow.querySelector(`[name="sector_${divId}_day_ends[]"]`).value;
+      const sl = computeSlots(s, e, durVal, brk);
+      sampleTimes = sl.length ? ' (' + sl.slice(0,2).join(', ') + (sl.length > 2 ? '…' : '') + ')' : '';
+    }
+    preview.textContent = sample + sampleTimes;
+  } else if (rows.length > 0) {
+    preview.textContent = '{{ _('Preencha o horário de início e fim de cada dia.') }}';
+  } else {
+    preview.textContent = '';
+  }
+  updateGlobalPreview();
+}
+
+function updateGlobalPreview() {
+  const lines = [];
+  document.querySelectorAll('.ev-sector-item').forEach(item => {
+    const divId    = item.dataset.divId;
+    const preview  = document.getElementById(`evSlotPreview_${divId}`);
+    const name     = item.querySelector('.fw-semibold.small')?.textContent?.trim();
+    const days     = document.querySelectorAll(`#evDaysList_${divId} .ev-day-row`).length;
+    const teachers = document.querySelectorAll(`#evTeacherList_${divId} .ev-teacher-check:checked`).length;
+    if (preview?.textContent && days > 0) {
+      lines.push(`<div class="mb-1"><span class="fw-semibold">${name}:</span> ${preview.textContent}
+        <span class="text-muted ms-1">(${teachers} {{ _('prof.') }})</span></div>`);
+    }
+  });
+  const gp = document.getElementById('globalPreview');
+  if (gp) {
+    gp.innerHTML = lines.length
+      ? lines.join('')
+      : '<p class="text-muted small mb-0">{{ _('Configure um setor com dias e horários para ver a prévia.') }}</p>';
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BADGES
+// ─────────────────────────────────────────────────────────────────────────────
+function updateDayBadge(divId) {
+  const count = document.querySelectorAll(`#evDaysList_${divId} .ev-day-row`).length;
+  const badge = document.getElementById(`evDayBadge_${divId}`);
+  if (badge) badge.textContent = `${count} {{ _('dia(s)') }}`;
+  updateActiveSectorsBadge();
+}
+
+function updateTeacherBadge(divId) {
+  const count = document.querySelectorAll(
+    `#evTeacherList_${divId} .ev-teacher-check:checked`).length;
+  const badge = document.getElementById(`evTeacherBadge_${divId}`);
+  if (badge) badge.textContent = `${count} {{ _('prof.') }}`;
+  updateGlobalPreview();
+}
+
+function updateActiveSectorsBadge() {
+  let active = 0;
+  document.querySelectorAll('.ev-sector-item').forEach(item => {
+    const divId = item.dataset.divId;
+    if (document.querySelectorAll(`#evDaysList_${divId} .ev-day-row`).length > 0) active++;
+  });
+  const badge = document.getElementById('activeSectorsBadge');
+  if (badge) badge.textContent = `${active} {{ _('setor(es) ativo(s)') }}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEACHER LIST RENDERING
+// ─────────────────────────────────────────────────────────────────────────────
+function renderTeacherList(divId) {
+  const container = document.getElementById(`evTeacherList_${divId}`);
+  if (!container) return;
+
+  const key      = String(divId);
+  const teachers = SECTOR_TEACHERS_JS[key] || [];
+  const esect    = EXISTING_SECTORS[key]   || {};
+  const selMap   = {};   // teacher_id → duration_override
+  (esect.teachers || []).forEach(t => { selMap[t.id] = t.duration; });
+
+  // For new events: auto-select in_sector teachers
+  const autoSelect = IS_NEW_EVENT
+    ? new Set(teachers.filter(t => t.in_sector).map(t => t.id))
+    : new Set(Object.keys(selMap).map(Number));
+
+  container.innerHTML = '';
+  if (!teachers.length) {
+    container.innerHTML = '<p class="text-muted small py-2 mb-0">{{ _('Nenhum professor cadastrado.') }}</p>';
+    return;
+  }
+
+  // Sort: in_sector first, then alphabetical
+  const sorted = [...teachers].sort((a, b) => {
+    if (a.in_sector !== b.in_sector) return a.in_sector ? -1 : 1;
+    return a.name.localeCompare(b.name, 'pt');
+  });
+
+  sorted.forEach(t => {
+    const checked  = autoSelect.has(t.id);
+    const duration = selMap[t.id] ?? '';
+    const row = document.createElement('div');
+    row.className   = 'ev-teacher-row d-flex align-items-center gap-2 py-2 border-bottom t-visible';
+    row.dataset.name = t.name.toLowerCase();
+    row.innerHTML   = `
+      <input type="checkbox"
+             name="sector_${divId}_teachers[]"
+             value="${t.id}"
+             id="evT_${divId}_${t.id}"
+             class="form-check-input flex-shrink-0 ev-teacher-check"
+             data-div="${divId}"
+             ${checked ? 'checked' : ''}>
+      <label for="evT_${divId}_${t.id}" class="small mb-0 flex-grow-1 d-flex align-items-center gap-1">
+        ${t.name}
+        ${t.in_sector ? `<span class="in-sector-tag">{{ _('setor') }}</span>` : ''}
+      </label>
+      <div class="d-flex align-items-center gap-1 ev-dur-wrap ${checked ? '' : 'd-none'}"
+           id="evDur_${divId}_${t.id}">
+        <input type="number"
+               name="sector_${divId}_teacher_${t.id}_duration"
+               class="form-control form-control-sm ev-dur-inp"
+               min="1" value="${duration}"
+               placeholder="{{ _('padrão') }}"
+               title="{{ _('Duração personalizada (deixe vazio para herdar do setor)') }}">
+        <span class="small text-muted">min</span>
+      </div>`;
+
+    row.querySelector('.ev-teacher-check').addEventListener('change', function () {
+      const wrap = document.getElementById(`evDur_${divId}_${t.id}`);
+      if (wrap) wrap.classList.toggle('d-none', !this.checked);
+      updateTeacherBadge(divId);
+    });
+    container.appendChild(row);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DAY MANAGEMENT
+// ─────────────────────────────────────────────────────────────────────────────
+function openDatePicker(btn) {
+  const inp = btn.closest('.ev-day-group')?.querySelector('input[type="date"]');
+  if (!inp) return;
+  // Use showPicker() when available (Chrome/Edge/Firefox 101+); fall back to focus()
+  if (typeof inp.showPicker === 'function') {
+    inp.showPicker();
+  } else {
+    inp.focus();
+    inp.click();
+  }
+}
+
+function bindDayRow(row, divId) {
+  row.querySelector('.ev-remove-day')?.addEventListener('click', () => {
+    row.remove();
+    updateDayBadge(divId);
+    updateSlotPreview(divId);
+  });
+  row.querySelector('.ev-cal-btn')?.addEventListener('click', function () {
+    openDatePicker(this);
+  });
+  // Any input change in the row triggers preview update
+  row.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => updateSlotPreview(divId));
+  });
+}
+
+document.querySelectorAll('.ev-add-day').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const divId = this.dataset.div;
+    const list  = document.getElementById(`evDaysList_${divId}`);
+
+    // Copy start/end from the last existing row as a convenience default
+    const existingRows = list.querySelectorAll('.ev-day-row');
+    const lastRow = existingRows[existingRows.length - 1];
+    const defStart = lastRow?.querySelector(`[name="sector_${divId}_day_starts[]"]`)?.value || '';
+    const defEnd   = lastRow?.querySelector(`[name="sector_${divId}_day_ends[]"]`)?.value   || '';
+
+    const row = document.createElement('div');
+    row.className = 'ev-day-row d-flex align-items-center gap-2 mb-2';
+    row.innerHTML = `
+      <div class="input-group input-group-sm ev-day-group">
+        <input type="date" name="sector_${divId}_day_dates[]"
+               class="form-control form-control-sm ev-timing"
+               data-div="${divId}">
+        <button type="button" class="btn btn-outline-secondary ev-cal-btn"
+                tabindex="-1" title="{{ _('Abrir calendário') }}">
+          <i class="bi bi-calendar3"></i>
+        </button>
+      </div>
+      <input type="time" name="sector_${divId}_day_starts[]"
+             class="form-control form-control-sm ev-timing ev-day-time"
+             value="${defStart}" data-div="${divId}"
+             style="max-width:108px" placeholder="{{ _('Início') }}">
+      <span class="text-muted small flex-shrink-0">→</span>
+      <input type="time" name="sector_${divId}_day_ends[]"
+             class="form-control form-control-sm ev-timing ev-day-time"
+             value="${defEnd}" data-div="${divId}"
+             style="max-width:108px" placeholder="{{ _('Fim') }}">
+      <button type="button"
+              class="btn btn-sm btn-outline-danger ev-remove-day flex-shrink-0"
+              title="{{ _('Remover dia') }}">
+        <i class="bi bi-trash"></i>
+      </button>`;
+    bindDayRow(row, divId);
+    list.appendChild(row);
+    updateDayBadge(divId);
+    // Auto-open date picker
+    const inp = row.querySelector('input[type="date"]');
+    if (inp) {
+      if (typeof inp.showPicker === 'function') inp.showPicker();
+      else inp.focus();
+    }
   });
 });
 
-// ── Teacher attendance modal ──────────────────────────────────────────────────
+// Bind existing day rows (server-rendered)
+document.querySelectorAll('.ev-day-row').forEach(row => {
+  const divId = row.querySelector('input[type="date"]')?.dataset?.div;
+  if (divId) bindDayRow(row, divId);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEACHER SEARCH & QUICK-SELECT
+// ─────────────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.ev-teacher-search').forEach(inp => {
+  inp.addEventListener('input', function () {
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll(`#evTeacherList_${this.dataset.div} .ev-teacher-row`)
+      .forEach(row => row.classList.toggle('t-visible', !q || row.dataset.name.includes(q)));
+  });
+});
+
+document.querySelectorAll('.ev-select-sector').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const divId    = this.dataset.div;
+    const key      = String(divId);
+    const teachers = SECTOR_TEACHERS_JS[key] || [];
+    teachers.filter(t => t.in_sector).forEach(t => {
+      const cb   = document.getElementById(`evT_${divId}_${t.id}`);
+      const wrap = document.getElementById(`evDur_${divId}_${t.id}`);
+      if (cb) { cb.checked = true; }
+      if (wrap) wrap.classList.remove('d-none');
+    });
+    updateTeacherBadge(divId);
+  });
+});
+
+document.querySelectorAll('.ev-deselect-all').forEach(btn => {
+  btn.addEventListener('click', function () {
+    const divId = this.dataset.div;
+    document.querySelectorAll(`#evTeacherList_${divId} .ev-teacher-check`)
+      .forEach(cb => { cb.checked = false; });
+    document.querySelectorAll(`#evTeacherList_${divId} .ev-dur-wrap`)
+      .forEach(w => w.classList.add('d-none'));
+    updateTeacherBadge(divId);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TIMING CHANGE → UPDATE PREVIEWS
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('ev-timing')) {
+    const divId = e.target.dataset.div;
+    if (divId) updateSlotPreview(parseInt(divId));
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FORM VALIDATION + CONFLICT CHECK BEFORE SAVE
+// ─────────────────────────────────────────────────────────────────────────────
+{% if event %}
+const CHECK_URL = "{{ url_for('admin.event_check_conflicts', id=event.id) }}";
+{% endif %}
+const EVENT_FORM = document.getElementById('eventForm');
+let conflictChecked = false;
+
+function showFormError(msg) {
+  const el  = document.getElementById('evFormError');
+  const txt = document.getElementById('evFormErrorMsg');
+  if (!el || !txt) return;
+  txt.textContent = msg;
+  el.classList.remove('d-none');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function hideFormError() {
+  document.getElementById('evFormError')?.classList.add('d-none');
+}
+
+/** Returns true if at least one complete day row exists (date + start + end). */
+function hasAtLeastOneDay() {
+  let found = false;
+  document.querySelectorAll('.ev-sector-item').forEach(item => {
+    if (found) return;
+    const divId = item.dataset.divId;
+    document.querySelectorAll(`#evDaysList_${divId} .ev-day-row`).forEach(row => {
+      if (found) return;
+      const d = row.querySelector(`[name="sector_${divId}_day_dates[]"]`)?.value?.trim();
+      const s = row.querySelector(`[name="sector_${divId}_day_starts[]"]`)?.value?.trim();
+      const e = row.querySelector(`[name="sector_${divId}_day_ends[]"]`)?.value?.trim();
+      if (d && s && e) found = true;
+    });
+  });
+  return found;
+}
+
+EVENT_FORM.addEventListener('submit', async function (e) {
+  if (conflictChecked) return;
+  e.preventDefault();
+
+  // ── 1. Validate name ──────────────────────────────────────────────────────
+  const nameVal = document.querySelector('[name="name"]')?.value?.trim();
+  if (!nameVal) {
+    showFormError('{{ _('O nome da conferência é obrigatório.') }}');
+    document.querySelector('[name="name"]')?.focus();
+    return;
+  }
+
+  // ── 2. Validate at least one day ──────────────────────────────────────────
+  if (!hasAtLeastOneDay()) {
+    showFormError('{{ _('Adicione pelo menos 1 dia de reunião (com data, início e fim) em qualquer setor.') }}');
+    // Open the first sector accordion to help the user
+    const firstSector = document.querySelector('.ev-sector-item:not(.open)');
+    if (firstSector) firstSector.classList.add('open');
+    return;
+  }
+
+  hideFormError();
+
+  {% if event %}
+  // ── 3. Check for bookings conflict (edit only) ────────────────────────────
+  const params = new URLSearchParams();
+  document.querySelectorAll('.ev-sector-item').forEach(item => {
+    const divId = item.dataset.divId;
+    document.querySelectorAll(`[name="sector_${divId}_day_dates[]"]`).forEach(inp => {
+      if (inp.value) params.append(`sector_${divId}_day_dates[]`, inp.value);
+    });
+  });
+
+  let conflicts = [];
+  try {
+    const resp = await fetch(`${CHECK_URL}?${params}`);
+    if (resp.ok) conflicts = (await resp.json()).conflicts || [];
+  } catch { /* network error – proceed */ }
+
+  if (conflicts.length) {
+    const list = conflicts
+      .map(c => `<strong>${c.date}</strong> (${c.bookings} ${c.bookings === 1 ? '{{ _('agendamento') }}' : '{{ _('agendamentos') }}'})`)
+      .join(', ');
+    document.getElementById('conflictDaysList').innerHTML = list;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('conflictModal')).show();
+    return;
+  }
+  {% endif %}
+
+  conflictChecked = true;
+  EVENT_FORM.submit();
+});
+
+{% if event %}
+document.getElementById('conflictKeepBtn').addEventListener('click', () => {
+  document.getElementById('conflictAction').value = 'keep';
+  bootstrap.Modal.getInstance(document.getElementById('conflictModal')).hide();
+  conflictChecked = true;
+  EVENT_FORM.submit();
+});
+document.getElementById('conflictRemoveBtn').addEventListener('click', () => {
+  document.getElementById('conflictAction').value = 'remove_all';
+  bootstrap.Modal.getInstance(document.getElementById('conflictModal')).hide();
+  conflictChecked = true;
+  EVENT_FORM.submit();
+});
+{% endif %}
+
+// Hide error whenever user starts filling in the name
+document.querySelector('[name="name"]')?.addEventListener('input', hideFormError);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEACHER ATTENDANCE MODAL
+// ─────────────────────────────────────────────────────────────────────────────
 {% if event and all_teachers %}
 const ALL_TEACHERS_DATA = {{ all_teachers_data | tojson }};
 const absentPairs = new Set({{ absent_set_list | tojson }}.map(([d,t]) => `${d}_${t}`));
-const EVENT_ID_FORM = {{ event.id }};
 
 let currentAttDayId = null;
 let pendingNotifyUrl = null;
@@ -368,7 +957,7 @@ function openAttendanceModal(dayId, dateStr) {
   bootstrap.Modal.getOrCreateInstance(document.getElementById('attendanceModal')).show();
 }
 
-document.getElementById('attSearch').addEventListener('input', function() {
+document.getElementById('attSearch').addEventListener('input', function () {
   renderAttList(this.value.toLowerCase().trim());
 });
 
@@ -381,13 +970,14 @@ function renderAttList(query) {
     return;
   }
   filtered.forEach(t => {
-    const key = `${currentAttDayId}_${t.id}`;
-    const absent = absentPairs.has(key);
-    const div = document.createElement('div');
+    const absent = absentPairs.has(`${currentAttDayId}_${t.id}`);
+    const div    = document.createElement('div');
     div.className = 'd-flex align-items-center justify-content-between py-2 border-bottom';
     div.innerHTML = `
       <div class="d-flex align-items-center gap-2">
-        <span class="pan-avatar" style="background:var(--pan-blue);width:32px;height:32px;font-size:.7rem;flex-shrink:0">${t.initials}</span>
+        <span class="pan-avatar" style="background:var(--pan-blue);width:32px;height:32px;font-size:.7rem;flex-shrink:0">
+          ${t.initials}
+        </span>
         <span class="small fw-semibold">${t.name}</span>
       </div>
       <button type="button"
@@ -396,7 +986,7 @@ function renderAttList(query) {
         <i class="bi ${absent ? 'bi-x-circle' : 'bi-check-circle'} me-1"></i>
         ${absent ? '{{ _('Ausente') }}' : '{{ _('Presente') }}'}
       </button>`;
-    div.querySelector('.att-toggle-btn').addEventListener('click', function() {
+    div.querySelector('.att-toggle-btn').addEventListener('click', function () {
       toggleAttendance(currentAttDayId, t.id, t.name, this);
     });
     container.appendChild(div);
@@ -407,32 +997,22 @@ async function toggleAttendance(dayId, teacherId, teacherName, btn) {
   const url = `/admin/events/${EVENT_ID_FORM}/days/${dayId}/absence/${teacherId}/toggle`;
   btn.disabled = true;
   try {
-    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' } });
+    const res  = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' } });
     const data = await res.json();
     const nowAbsent = data.is_absent;
     const key = `${dayId}_${teacherId}`;
-    if (nowAbsent) {
-      absentPairs.add(key);
-    } else {
-      absentPairs.delete(key);
-    }
-    // Update button
+    nowAbsent ? absentPairs.add(key) : absentPairs.delete(key);
     btn.className = `btn btn-sm ${nowAbsent ? 'btn-outline-danger' : 'btn-outline-success'} att-toggle-btn`;
     btn.innerHTML = `<i class="bi ${nowAbsent ? 'bi-x-circle' : 'bi-check-circle'} me-1"></i>${nowAbsent ? '{{ _('Ausente') }}' : '{{ _('Presente') }}'}`;
     btn.disabled = false;
-    // Update badge on the main list
     updateAbsBadge(dayId);
-    // If marking absent and there are bookings → offer to notify
     if (nowAbsent && data.affected_bookings > 0) {
       pendingNotifyUrl = `/admin/events/${EVENT_ID_FORM}/days/${dayId}/absence/${teacherId}/notify`;
-      const n = data.affected_bookings;
       document.getElementById('absentNotifyText').textContent =
-        `${teacherName} tem ${n} reunião(ões) agendada(s) neste dia. Deseja enviar um aviso aos responsáveis afetados?`;
+        `${teacherName} tem ${data.affected_bookings} reunião(ões) agendada(s) neste dia. Deseja enviar um aviso aos responsáveis afetados?`;
       bootstrap.Modal.getOrCreateInstance(document.getElementById('absentNotifyModal')).show();
     }
-  } catch(e) {
-    btn.disabled = false;
-  }
+  } catch { btn.disabled = false; }
 }
 
 function updateAbsBadge(dayId) {
@@ -440,54 +1020,53 @@ function updateAbsBadge(dayId) {
   if (!badge) return;
   const count = [...absentPairs].filter(k => k.startsWith(`${dayId}_`)).length;
   if (count > 0) {
-    badge.className = 'badge bg-danger ms-2';
+    badge.className = 'badge bg-danger ms-1';
     badge.style.fontSize = '.65rem';
     badge.textContent = `${count} {{ _('ausente(s)') }}`;
   } else {
-    badge.className = 'badge bg-success ms-2';
+    badge.className = 'badge bg-success ms-1';
     badge.style.fontSize = '.65rem';
     badge.textContent = '{{ _('todos presentes') }}';
   }
 }
 
-document.getElementById('absentNotifyConfirmBtn').addEventListener('click', async function() {
+document.getElementById('absentNotifyConfirmBtn').addEventListener('click', async function () {
   bootstrap.Modal.getInstance(document.getElementById('absentNotifyModal')).hide();
   if (!pendingNotifyUrl) return;
-  const btn = this;
-  btn.disabled = true;
+  this.disabled = true;
   try {
-    const res = await fetch(pendingNotifyUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+    const res  = await fetch(pendingNotifyUrl, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
     const data = await res.json();
     await panAlert({ body: `${data.sent} e-mail(s) enviado(s).`, type: 'success' });
-  } catch(e) {
-    await panAlert({ body: '{{ _('Erro ao enviar emails.') }}', type: 'danger' });
-  }
-  btn.disabled = false;
+  } catch { await panAlert({ body: '{{ _('Erro ao enviar emails.') }}', type: 'danger' }); }
+  this.disabled = false;
   pendingNotifyUrl = null;
 });
 {% endif %}
 
-// ── Lembretes ─────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// REMINDERS
+// ─────────────────────────────────────────────────────────────────────────────
 {% if event %}
-const ADD_REMINDER_URL    = "{{ url_for('admin.add_reminder', event_id=event.id) }}";
-const REMINDER_SAVE_BTN   = document.getElementById('saveReminderBtn');
-const REMINDER_HOURS_INP  = document.getElementById('reminderHoursInput');
+const ADD_REMINDER_URL  = "{{ url_for('admin.add_reminder', event_id=event.id) }}";
+const REMINDER_SAVE_BTN = document.getElementById('saveReminderBtn');
+const REMINDER_HOURS    = document.getElementById('reminderHoursInput');
 
-REMINDER_SAVE_BTN.addEventListener('click', async function() {
-  const hours = parseInt(REMINDER_HOURS_INP.value);
+REMINDER_SAVE_BTN.addEventListener('click', async function () {
+  const hours = parseInt(REMINDER_HOURS.value);
   if (isNaN(hours) || hours < 0) return;
   REMINDER_SAVE_BTN.disabled = true;
-  const res = await fetch(ADD_REMINDER_URL, {
+  const res  = await fetch(ADD_REMINDER_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-    body: JSON.stringify({ hours_before: hours })
+    body: JSON.stringify({ hours_before: hours }),
   });
   const data = await res.json();
   if (res.ok) {
     addReminderRow(data.id, data.hours_before);
     document.getElementById('noReminders')?.remove();
     bootstrap.Modal.getInstance(document.getElementById('addReminderModal')).hide();
-    REMINDER_HOURS_INP.value = '24';
+    REMINDER_HOURS.value = '24';
   }
   REMINDER_SAVE_BTN.disabled = false;
 });
@@ -495,16 +1074,18 @@ REMINDER_SAVE_BTN.addEventListener('click', async function() {
 function addReminderRow(id, hours) {
   const delUrl  = `/admin/events/${EVENT_ID_FORM}/reminders/${id}/delete`;
   const sendUrl = `/admin/events/${EVENT_ID_FORM}/reminders/${id}/send`;
-  const div = document.createElement('div');
+  const div     = document.createElement('div');
   div.className = 'd-flex align-items-center justify-content-between px-3 py-2 border-top reminder-row';
   div.dataset.id = id;
-  div.innerHTML = `
+  div.innerHTML  = `
     <span class="small"><i class="bi bi-clock me-1 text-muted"></i><strong>${hours}h</strong> {{ _('antes') }}</span>
     <div class="d-flex gap-1">
-      <button type="button" class="btn btn-outline-secondary btn-sm send-reminder-btn" data-url="${sendUrl}" title="{{ _('Enviar agora') }}">
+      <button type="button" class="btn btn-outline-secondary btn-sm send-reminder-btn"
+              data-url="${sendUrl}" title="{{ _('Enviar agora') }}">
         <i class="bi bi-send"></i>
       </button>
-      <button type="button" class="btn btn-outline-danger btn-sm delete-reminder-btn" data-url="${delUrl}" title="{{ _('Remover') }}">
+      <button type="button" class="btn btn-outline-danger btn-sm delete-reminder-btn"
+              data-url="${delUrl}" title="{{ _('Remover') }}">
         <i class="bi bi-trash"></i>
       </button>
     </div>`;
@@ -513,166 +1094,48 @@ function addReminderRow(id, hours) {
 }
 
 function bindReminderRow(row) {
-  row.querySelector('.send-reminder-btn').addEventListener('click', async function() {
-    const url = this.dataset.url;
+  row.querySelector('.send-reminder-btn')?.addEventListener('click', async function () {
     this.disabled = true;
-    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+    const res  = await fetch(this.dataset.url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
     const data = await res.json();
     this.disabled = false;
     await panAlert({ body: `${data.sent} e-mail(s) enviado(s)${data.errors ? `, ${data.errors} erro(s)` : ''}.`, type: data.errors ? 'warning' : 'success' });
   });
-  row.querySelector('.delete-reminder-btn').addEventListener('click', async function() {
-    const url = this.dataset.url;
+  row.querySelector('.delete-reminder-btn')?.addEventListener('click', async function () {
     const ok = await panConfirm({ title: '{{ _('Remover lembrete?') }}', body: '{{ _('Esta ação não pode ser desfeita.') }}', warning: true, confirmText: '{{ _('Remover') }}', cancelText: '{{ _('Cancelar') }}' });
     if (!ok) return;
-    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+    const res = await fetch(this.dataset.url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
     if (res.ok) row.remove();
   });
 }
-
 document.querySelectorAll('.reminder-row').forEach(bindReminderRow);
 {% endif %}
 
-// ── Day builder ───────────────────────────────────────────────────────────────
-let dayCount = document.querySelectorAll('.day-row').length;
-const labelDay = "{{ _('Dia') }}";
-
-document.getElementById('addDay').addEventListener('click', () => {
-  const idx = dayCount;
-  const tpl = document.querySelector('.day-row').cloneNode(true);
-  tpl.querySelectorAll('input').forEach(inp => {
-    inp.name = inp.name.replace(/days-\d+/, `days-${idx}`);
-    inp.id = inp.id.replace(/days-\d+/, `days-${idx}`);
-    inp.value = '';
+// ─────────────────────────────────────────────────────────────────────────────
+// DAY ACTIVE / INACTIVE TOGGLE (per-day toggle button, kept for existing days)
+// ─────────────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.day-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', function () {
+    fetch(this.dataset.toggleUrl, {
+      method: 'POST', headers: { 'X-CSRFToken': CSRF, 'Content-Type': 'application/json' }
+    }).then(r => r.json()).then(data => {
+      const active = data.is_active;
+      this.className = `btn btn-sm day-toggle-btn ${active ? 'btn-outline-success' : 'btn-outline-secondary'}`;
+      this.innerHTML = `<i class="bi ${active ? 'bi-calendar-check' : 'bi-calendar-x'}"></i>`;
+    });
   });
-  tpl.querySelectorAll('label').forEach(lbl => {
-    lbl.htmlFor = lbl.htmlFor.replace(/days-\d+/, `days-${idx}`);
-  });
-  tpl.querySelector('.fw-semibold.small').textContent = `${labelDay} ${idx + 1}`;
-  tpl.querySelector('.slot-preview').textContent = '';
-  document.getElementById('daysContainer').appendChild(tpl);
-  dayCount++;
-  bindDayEvents(tpl);
 });
 
-document.addEventListener('click', e => {
-  if (e.target.closest('.remove-day')) e.target.closest('.day-row').remove();
+// ─────────────────────────────────────────────────────────────────────────────
+// INITIALISE ALL SECTORS
+// ─────────────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.ev-sector-item').forEach(item => {
+  const divId = parseInt(item.dataset.divId);
+  renderTeacherList(divId);
+  updateSlotPreview(divId);
+  updateDayBadge(divId);
+  updateTeacherBadge(divId);
 });
-
-function computeSlots(start, end, dur, brk) {
-  const slots  = [];
-  const durMin = parseInt(dur);
-  const brkMin = parseInt(brk) || 0;
-
-  // Guard: duration must be a positive integer; prevent infinite loop on 0 or NaN
-  if (!durMin || durMin <= 0 || !isFinite(durMin)) return slots;
-
-  const durMs = durMin * 60000;
-  const brkMs = brkMin * 60000;
-
-  let cur  = new Date(`2000-01-01T${start}`);
-  const endT = new Date(`2000-01-01T${end}`);
-
-  // Safety cap: never generate more than 500 slots (prevents browser hang)
-  let guard = 500;
-  while (cur.getTime() + durMs <= endT.getTime() && guard-- > 0) {
-    const s = cur.toTimeString().slice(0, 5);
-    cur = new Date(cur.getTime() + durMs);
-    slots.push(`${s}–${cur.toTimeString().slice(0, 5)}`);
-    cur = new Date(cur.getTime() + brkMs);
-  }
-  return slots;
-}
-
-function bindDayEvents(row) {
-  // Time fields: atualiza ao digitar (input)
-  row.querySelectorAll('input[type="time"]').forEach(inp =>
-    inp.addEventListener('input', () => updatePreview(row))
-  );
-  // Number fields: atualiza só ao sair do campo (change) — evita loop com tipo=number
-  row.querySelectorAll('input[type="number"]').forEach(inp =>
-    inp.addEventListener('change', () => updatePreview(row))
-  );
-}
-
-function updatePreview(row) {
-  const start = row.querySelector('[name$="start_time"]')?.value;
-  const end   = row.querySelector('[name$="end_time"]')?.value;
-  const dur   = row.querySelector('[name$="slot_duration_minutes"]')?.value;
-  const brk   = row.querySelector('[name$="break_minutes"]')?.value;
-  const preview = row.querySelector('.slot-preview');
-  if (!preview) return;
-
-  const durVal = parseInt(dur);
-  if (start && end && durVal > 0) {
-    const slots = computeSlots(start, end, dur, brk);
-    preview.textContent = slots.length
-      ? `${slots.length} horários: ${slots.slice(0, 3).join(', ')}${slots.length > 3 ? ' …' : ''}`
-      : '{{ _('Nenhum horário gerado com esses parâmetros.') }}';
-  } else {
-    preview.textContent = '';
-  }
-}
-
-document.querySelectorAll('.day-row').forEach(bindDayEvents);
-
-{% if event %}
-// ── Conflict check before save ─────────────────────────────────────────────
-const CHECK_URL    = "{{ url_for('admin.event_check_conflicts', id=event.id) }}";
-const EVENT_FORM   = document.getElementById('eventForm');
-let   conflictDays    = [];
-let   conflictChecked = false;  // flag: already cleared, just submit
-
-EVENT_FORM.addEventListener('submit', async function(e) {
-  // If we already ran the check and found no conflicts, let the submit through
-  if (conflictChecked) return;
-
-  // Always prevent immediately — async handlers can't rely on late preventDefault
-  e.preventDefault();
-
-  // Collect dates currently in the form
-  const dates = [...document.querySelectorAll('[name$="-date"]')]
-    .map(i => i.value).filter(Boolean);
-
-  const params = new URLSearchParams();
-  dates.forEach(d => params.append('dates[]', d));
-
-  try {
-    const resp = await fetch(`${CHECK_URL}?${params}`);
-    if (resp.ok) {
-      const data = await resp.json();
-      conflictDays = data.conflicts || [];
-    }
-  } catch { /* network error — proceed with save */ }
-
-  if (!conflictDays.length) {
-    // No conflicts — submit for real
-    conflictChecked = true;
-    EVENT_FORM.submit();
-    return;
-  }
-
-  // Conflicts found — show modal
-  const datesList = conflictDays
-    .map(c => `<strong>${c.date}</strong> (${c.bookings} ${c.bookings === 1 ? '{{ _('agendamento') }}' : '{{ _('agendamentos') }}'})`)
-    .join(', ');
-  document.getElementById('conflictDaysList').innerHTML = datesList;
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('conflictModal')).show();
-});
-
-document.getElementById('conflictKeepBtn').addEventListener('click', () => {
-  document.getElementById('conflictAction').value = 'keep';
-  bootstrap.Modal.getInstance(document.getElementById('conflictModal')).hide();
-  conflictChecked = true;
-  EVENT_FORM.submit();
-});
-
-document.getElementById('conflictRemoveBtn').addEventListener('click', () => {
-  document.getElementById('conflictAction').value = 'remove_all';
-  bootstrap.Modal.getInstance(document.getElementById('conflictModal')).hide();
-  conflictChecked = true;
-  EVENT_FORM.submit();
-});
-{% endif %}
+updateActiveSectorsBadge();
 </script>
 {% endblock %}

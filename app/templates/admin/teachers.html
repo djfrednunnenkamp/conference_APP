@@ -1,19 +1,97 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Professores') }} – Conferensia{% endblock %}
+
+{% block head %}
+<style>
+/* ── Sector accordion inside modal ── */
+.tf-sector-item {
+  border: 1px solid #e2e8f0; border-radius: 10px;
+  margin-bottom: .4rem; overflow: hidden; background: #fff;
+}
+.tf-sector-header {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .6rem .9rem; cursor: pointer; user-select: none;
+  transition: background .12s;
+}
+.tf-sector-header:hover { background: #f8fafc; }
+.tf-sector-chevron {
+  color: #94a3b8; font-size: .82rem; flex-shrink: 0;
+  transition: transform .2s;
+}
+.tf-sector-item.open .tf-sector-chevron { transform: rotate(90deg); }
+.tf-sector-name  { font-weight: 600; font-size: .87rem; color: #1e293b; flex: 1; }
+.tf-sector-meta  { font-size: .7rem; color: #94a3b8; }
+.tf-sector-badge {
+  font-size: .65rem; font-weight: 700; padding: .1rem .42rem;
+  border-radius: 20px; background: #eff6ff; color: #3b82f6;
+  border: 1px solid #bfdbfe;
+}
+.tf-sector-body { display: none; border-top: 1px solid #f1f5f9; }
+.tf-sector-item.open .tf-sector-body { display: block; }
+
+/* ── Grade rows ── */
+.tf-grade-row {
+  display: flex; align-items: flex-start; gap: .6rem;
+  padding: .5rem .9rem .5rem 2.2rem;
+  border-bottom: 1px solid #f8fafc;
+}
+.tf-grade-row:last-child { border-bottom: none; }
+.tf-grade-label {
+  font-weight: 700; font-size: .79rem; color: #1e293b;
+  min-width: 44px; padding-top: .18rem; flex-shrink: 0;
+}
+.tf-pills { display: flex; flex-wrap: wrap; gap: .22rem; flex: 1; min-width: 0; }
+
+/* ── Subject pill chips ── */
+.sg-pill {
+  display: inline-flex; align-items: center; gap: .22rem;
+  border-radius: 20px; padding: .15rem .55rem;
+  font-size: .69rem; font-weight: 500; cursor: pointer; user-select: none;
+  transition: background .1s, border-color .1s, color .1s;
+  border: 1px solid #e2e8f0; background: #f8fafc; color: #64748b;
+  white-space: nowrap;
+}
+.sg-pill:hover:not(.active) { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+.sg-pill.active { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+.sg-pill .sg-check { font-size: .58rem; display: none; }
+.sg-pill.active .sg-check { display: inline; }
+
+/* ── "Todos" button ── */
+.tf-all-btn {
+  font-size: .65rem; padding: .14rem .38rem; line-height: 1.4;
+  border: 1px solid #e2e8f0; background: #fff; color: #64748b;
+  border-radius: 6px; cursor: pointer; flex-shrink: 0; white-space: nowrap;
+  margin-top: .15rem; transition: background .1s, border-color .1s;
+}
+.tf-all-btn:hover  { background: #f1f5f9; border-color: #cbd5e1; }
+.tf-all-btn.all-on { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+
+/* ── Subject pills in table ── */
+.tbl-pill {
+  display: inline-block; font-size: .68rem; font-weight: 500;
+  background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d;
+  border-radius: 20px; padding: .08rem .45rem; white-space: nowrap;
+  margin: .05rem;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="fw-bold mb-0">{{ _('Professores') }}</h4>
   <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#exportModal">
+    <button class="btn btn-outline-secondary btn-sm"
+            data-bs-toggle="modal" data-bs-target="#exportModal">
       <i class="bi bi-download me-1"></i>{{ _('Exportar') }}
     </button>
-    <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
+    <button class="btn btn-outline-secondary btn-sm"
+            data-bs-toggle="modal" data-bs-target="#importModal">
       <i class="bi bi-upload me-1"></i>{{ _('Importar') }}
     </button>
-    <a href="{{ url_for('admin.new_teacher') }}" class="btn btn-primary btn-sm">
+    <button class="btn btn-primary btn-sm" id="newTeacherBtn">
       <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar Professor') }}
-    </a>
+    </button>
   </div>
 </div>
 
@@ -25,7 +103,8 @@
            placeholder="{{ _('Buscar por nome...') }}" autocomplete="off">
   </div>
   <form method="GET" class="d-flex m-0">
-    <select name="grade_id" class="form-select form-select-sm w-auto" onchange="this.form.submit()">
+    <select name="grade_id" class="form-select form-select-sm w-auto"
+            onchange="this.form.submit()">
       <option value="">{{ _('Todas as turmas') }}</option>
       {% for g in grades %}
       <option value="{{ g.id }}" {% if grade_filter == g.id %}selected{% endif %}>{{ g.name }}</option>
@@ -45,6 +124,7 @@
   </div>
 </div>
 
+{# ── Table ── #}
 <div class="card shadow-sm">
   <div class="card-body p-0">
     <table class="table table-hover mb-0 align-middle">
@@ -70,9 +150,20 @@
           <td class="text-muted small">{{ t.email }}</td>
           <td>
             {% if t.teacher_profile %}
-              {% for tsg in t.teacher_profile.subject_grades %}
-                <span class="badge bg-light text-dark border">{{ tsg.subject.name }} / {{ tsg.grade_group.name }}</span>
-              {% endfor %}
+              {% set sgs = t.teacher_profile.subject_grades %}
+              {% if sgs %}
+                {# Group by grade, show up to 4 pills then "+N" #}
+                {% set seen = namespace(n=0) %}
+                {% for tsg in sgs[:4] %}
+                  <span class="tbl-pill">{{ tsg.subject.name }} · {{ tsg.grade_group.name }}</span>
+                  {% set seen.n = seen.n + 1 %}
+                {% endfor %}
+                {% if sgs|length > 4 %}
+                  <span class="tbl-pill" style="background:#f1f5f9;border-color:#e2e8f0;color:#64748b">
+                    +{{ sgs|length - 4 }}
+                  </span>
+                {% endif %}
+              {% endif %}
             {% endif %}
           </td>
           <td>
@@ -84,25 +175,36 @@
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1">
-              <a href="{{ url_for('admin.edit_teacher', id=t.id) }}"
-                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
+              {# Edit — opens popup pre-filled #}
+              <button class="btn btn-outline-secondary btn-sm edit-teacher-btn"
+                      title="{{ _('Editar') }}"
+                      data-id="{{ t.id }}"
+                      data-first="{{ t.first_name }}"
+                      data-last="{{ t.last_name }}"
+                      data-email="{{ t.email }}"
+                      data-sgs='{{ teacher_sgs[t.id] | tojson }}'>
                 <i class="bi bi-pencil"></i>
-              </a>
-              <form method="POST" action="{{ url_for('admin.send_user_reset', user_id=t.id) }}" class="d-inline">
+              </button>
+              <form method="POST"
+                    action="{{ url_for('admin.send_user_reset', user_id=t.id) }}"
+                    class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="redirect_to" value="admin.teachers">
-                <button class="btn btn-outline-primary btn-sm" title="{{ _('Redefinir senha') }}">
+                <button class="btn btn-outline-primary btn-sm"
+                        title="{{ _('Redefinir senha') }}">
                   <i class="bi bi-envelope-arrow-up"></i>
                 </button>
               </form>
-              <form method="POST" action="{{ url_for('admin.delete_teacher', id=t.id) }}"
+              <form method="POST"
+                    action="{{ url_for('admin.delete_teacher', id=t.id) }}"
                     class="d-inline"
                     data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
                     data-pan-title="{{ _('Excluir') }} {{ t.full_name }}"
                     data-pan-danger="1"
                     data-pan-confirm-text="{{ _('Excluir') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="btn btn-outline-danger btn-sm" title="{{ _('Excluir') }}">
+                <button class="btn btn-outline-danger btn-sm"
+                        title="{{ _('Excluir') }}">
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
@@ -110,12 +212,145 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-muted text-center py-3">{{ _('Nenhum professor encontrado.') }}</td></tr>
+        <tr>
+          <td colspan="6" class="text-muted text-center py-3">
+            {{ _('Nenhum professor encontrado.') }}
+          </td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+
+
+{# ════════════════════════════════════════════════════════════════
+   TEACHER MODAL — used for both new and edit
+   The <form> is INSIDE the modal so checkboxes submit correctly.
+   ════════════════════════════════════════════════════════════════ #}
+<div class="modal fade" id="teacherModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered"
+       style="max-width: 560px">
+    <div class="modal-content" style="max-height:90vh;display:flex;flex-direction:column">
+      {# form fills the modal-content flex column so the body can scroll #}
+      <form method="POST" id="teacherForm" novalidate
+            style="display:flex;flex-direction:column;flex:1 1 auto;min-height:0;overflow:hidden">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        {# ── Header ── #}
+        <div class="modal-header border-0 pb-0" style="flex-shrink:0">
+          <h6 class="modal-title fw-bold" id="teacherModalTitle">
+            <i class="bi bi-person-plus me-2 text-primary"></i>{{ _('Novo Professor') }}
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        {# ── Body ── scrolls when content is taller than the viewport #}
+        <div class="modal-body pt-3 pb-2" style="overflow-y:auto;flex:1 1 auto;min-height:0">
+
+          {# Personal fields #}
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold" style="font-size:.82rem">{{ _('Nome') }}</label>
+              <input type="text" name="first_name" id="tf-first"
+                     class="form-control form-control-sm" required autocomplete="off">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold" style="font-size:.82rem">{{ _('Sobrenome') }}</label>
+              <input type="text" name="last_name" id="tf-last"
+                     class="form-control form-control-sm" required autocomplete="off">
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold" style="font-size:.82rem">{{ _('E-mail') }}</label>
+              <input type="email" name="email" id="tf-email"
+                     class="form-control form-control-sm" required autocomplete="off">
+            </div>
+          </div>
+
+          <hr class="my-2" style="border-color:#f1f5f9">
+
+          {# Grade / subject section #}
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <span class="fw-semibold" style="font-size:.82rem; color:#1e293b">
+              {{ _('Turma e Matérias') }}
+            </span>
+            <span class="text-muted" style="font-size:.71rem">
+              <span id="tf-count">0</span> {{ _('selecionada(s)') }}
+            </span>
+          </div>
+
+          {% if not grade_subjects_by_sector %}
+          <div class="text-center py-3 text-muted" style="font-size:.82rem">
+            <i class="bi bi-journal-x d-block mb-1" style="font-size:1.4rem"></i>
+            {{ _('Nenhuma matéria configurada.') }}
+            <a href="{{ url_for('admin.divisions') }}">{{ _('Configurar →') }}</a>
+          </div>
+
+          {% else %}
+          {# One accordion card per sector — closed by default, JS opens as needed #}
+          {% for div, grade_list in grade_subjects_by_sector %}
+          <div class="tf-sector-item"
+               id="tf-sector-{{ div.id if div else 0 }}">
+            <div class="tf-sector-header"
+                 onclick="toggleTfSector({{ div.id if div else 0 }})">
+              <i class="bi bi-chevron-right tf-sector-chevron"></i>
+              <span class="tf-sector-name">{{ div.name if div else _('Sem setor') }}</span>
+              <span class="tf-sector-meta tf-sbadge"
+                    id="tf-sbadge-{{ div.id if div else 0 }}"
+                    data-grades="{{ grade_list|length }}">
+                {{ grade_list|length }} {{ _('turma(s)') }}
+              </span>
+            </div>
+            <div class="tf-sector-body">
+              {% for grade, subjects in grade_list %}
+              <div class="tf-grade-row">
+                <span class="tf-grade-label">{{ grade.name }}</span>
+                <div class="tf-pills"
+                     id="tf-pills-{{ grade.id }}"
+                     data-div-id="{{ div.id if div else 0 }}"
+                     data-total="{{ subjects|length }}">
+                  {% for s in subjects %}
+                  <label class="sg-pill"
+                         for="sg_{{ s.id }}_{{ grade.id }}">
+                    <i class="bi bi-check2 sg-check"></i>
+                    <input type="checkbox"
+                           id="sg_{{ s.id }}_{{ grade.id }}"
+                           name="sg_{{ s.id }}_{{ grade.id }}"
+                           value="1"
+                           style="position:absolute;opacity:0;width:0;height:0;pointer-events:none">
+                    {{ s.name }}
+                  </label>
+                  {% endfor %}
+                </div>
+                <button type="button"
+                        class="tf-all-btn"
+                        id="tf-all-{{ grade.id }}"
+                        onclick="toggleAllGrade({{ grade.id }})">
+                  {{ _('todos') }}
+                </button>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+          {% endif %}
+
+        </div>{# /modal-body #}
+
+        {# ── Footer ── #}
+        <div class="modal-footer border-0 pt-1" style="flex-shrink:0">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm px-4">
+            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</div>
+
 
 {# ── Export modal ── #}
 <div class="modal fade" id="exportModal" tabindex="-1">
@@ -151,7 +386,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
         <button type="button" id="doExport" class="btn btn-primary btn-sm">
           <i class="bi bi-download me-1"></i>{{ _('Baixar CSV') }}
         </button>
@@ -164,7 +400,8 @@
 <div class="modal fade" id="importModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
     <div class="modal-content">
-      <form method="POST" action="{{ url_for('admin.import_teachers') }}" enctype="multipart/form-data" id="importForm">
+      <form method="POST" action="{{ url_for('admin.import_teachers') }}"
+            enctype="multipart/form-data" id="importForm">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="cols" id="importCols" value="email,first_name,last_name">
         <div class="modal-header">
@@ -173,81 +410,104 @@
         </div>
         <div class="modal-body">
           <div class="row g-3">
-
-            {# Left: column selection #}
             <div class="col-md-5">
               <p class="fw-semibold small mb-2">{{ _('Colunas presentes no arquivo:') }}</p>
               <div class="list-group list-group-flush border rounded">
                 <label class="list-group-item d-flex gap-2 align-items-center py-2">
-                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="email" checked disabled>
-                  <span><strong>email</strong> <span class="text-muted small">— {{ _('obrigatório') }}</span></span>
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox"
+                         value="email" checked disabled>
+                  <span><strong>email</strong>
+                    <span class="text-muted small">— {{ _('obrigatório') }}</span></span>
                 </label>
                 <label class="list-group-item d-flex gap-2 align-items-center py-2">
-                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="first_name" checked>
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox"
+                         value="first_name" checked>
                   <span>first_name <span class="text-muted small">— {{ _('Nome') }}</span></span>
                 </label>
                 <label class="list-group-item d-flex gap-2 align-items-center py-2">
-                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="last_name" checked>
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox"
+                         value="last_name" checked>
                   <span>last_name <span class="text-muted small">— {{ _('Sobrenome') }}</span></span>
                 </label>
                 <label class="list-group-item d-flex gap-2 align-items-center py-2">
-                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="subjects_grades">
-                  <span>subjects_grades <span class="text-muted small">— {{ _('Matérias/Turmas') }}</span></span>
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox"
+                         value="subjects_grades">
+                  <span>subjects_grades
+                    <span class="text-muted small">— {{ _('Matérias/Turmas') }}</span></span>
                 </label>
               </div>
-              <button type="button" id="doTemplate" class="btn btn-outline-secondary btn-sm w-100 mt-2">
+              <button type="button" id="doTemplate"
+                      class="btn btn-outline-secondary btn-sm w-100 mt-2">
                 <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ _('Baixar modelo') }}
               </button>
             </div>
-
-            {# Right: file + mode #}
             <div class="col-md-7">
               <div class="mb-3">
                 <label class="form-label fw-semibold small">{{ _('Arquivo CSV') }}</label>
-                <input type="file" name="csv_file" accept=".csv" class="form-control form-control-sm" required>
+                <input type="file" name="csv_file" accept=".csv"
+                       class="form-control form-control-sm" required>
               </div>
               <p class="fw-semibold small mb-2">{{ _('Modo de importação:') }}</p>
               <div class="form-check mb-2">
-                <input class="form-check-input" type="radio" name="mode" id="modeAdd" value="add" checked>
+                <input class="form-check-input" type="radio" name="mode"
+                       id="modeAdd" value="add" checked>
                 <label class="form-check-label" for="modeAdd">
                   <strong>{{ _('Somente adicionar') }}</strong>
-                  <span class="text-muted d-block" style="font-size:.8rem">{{ _('Mantém os existentes, insere apenas os novos.') }}</span>
+                  <span class="text-muted d-block" style="font-size:.8rem">
+                    {{ _('Mantém os existentes, insere apenas os novos.') }}
+                  </span>
                 </label>
               </div>
               <div class="form-check mb-2">
-                <input class="form-check-input" type="radio" name="mode" id="modeReplace" value="replace">
+                <input class="form-check-input" type="radio" name="mode"
+                       id="modeReplace" value="replace">
                 <label class="form-check-label" for="modeReplace">
                   <strong>{{ _('Substituir lista') }}</strong>
-                  <span class="text-muted d-block" style="font-size:.8rem">{{ _('Apaga quem não está no arquivo e insere os novos.') }}</span>
+                  <span class="text-muted d-block" style="font-size:.8rem">
+                    {{ _('Apaga quem não está no arquivo e insere os novos.') }}
+                  </span>
                 </label>
               </div>
               <div class="form-check">
-                <input class="form-check-input" type="radio" name="mode" id="modeDelete" value="delete">
+                <input class="form-check-input" type="radio" name="mode"
+                       id="modeDelete" value="delete">
                 <label class="form-check-label" for="modeDelete">
                   <strong>{{ _('Apagar os importados') }}</strong>
-                  <span class="text-muted d-block" style="font-size:.8rem">{{ _('Apaga exatamente os registros listados no arquivo.') }}</span>
+                  <span class="text-muted d-block" style="font-size:.8rem">
+                    {{ _('Apaga exatamente os registros listados no arquivo.') }}
+                  </span>
                 </label>
               </div>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
           <button type="submit" class="btn btn-primary btn-sm">{{ _('Importar') }}</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
 {% endblock %}
+
 {% block scripts %}
 <script>
-const BULK_DELETE_URL  = "{{ url_for('admin.bulk_delete') }}";
-const BULK_EMAIL_URL   = "{{ url_for('admin.bulk_email') }}";
-const EXPORT_BASE_URL  = "{{ url_for('admin.export_teachers') }}";
+const BULK_DELETE_URL   = "{{ url_for('admin.bulk_delete') }}";
+const BULK_EMAIL_URL    = "{{ url_for('admin.bulk_email') }}";
+const EXPORT_BASE_URL   = "{{ url_for('admin.export_teachers') }}";
 const TEMPLATE_BASE_URL = "{{ url_for('admin.template_teachers') }}";
-const REDIRECT_TO      = "admin.teachers";
-const CSRF             = "{{ csrf_token() }}";
+const REDIRECT_TO       = "admin.teachers";
+const CSRF              = "{{ csrf_token() }}";
+const NEW_TEACHER_URL   = "{{ url_for('admin.new_teacher') }}";
+
+// Per-teacher subject-grade assignments (for restoring state on modal open)
+const TEACHER_SGS = {{ teacher_sgs | tojson }};
+
+// Full sector/grade/subject structure (for badge sync)
+const SG_DATA = {{ sg_data_js | tojson }};
 
 // ── Search ────────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', function () {
@@ -268,11 +528,13 @@ document.querySelectorAll('.row-check').forEach(cb =>
   cb.addEventListener('change', () => { syncSelectAll(); updateBulkBar(); })
 );
 function visibleRows() {
-  return [...document.querySelectorAll('tbody tr.data-row')].filter(r => r.style.display !== 'none');
+  return [...document.querySelectorAll('tbody tr.data-row')]
+    .filter(r => r.style.display !== 'none');
 }
 function checkedIds() {
-  return visibleRows().filter(r => r.querySelector('.row-check').checked)
-                      .map(r => r.querySelector('.row-check').value);
+  return visibleRows()
+    .filter(r => r.querySelector('.row-check').checked)
+    .map(r => r.querySelector('.row-check').value);
 }
 function syncSelectAll() {
   const vis = visibleRows(), chk = vis.filter(r => r.querySelector('.row-check').checked);
@@ -314,27 +576,177 @@ document.getElementById('bulkEmailBtn').addEventListener('click', async () => {
   postBulk(BULK_EMAIL_URL, ids);
 });
 
-// ── Export modal ──────────────────────────────────────────────────────────────
-function getCheckedCols(selector) {
-  return [...document.querySelectorAll(selector + ':checked')].map(c => c.value);
+// ── Export ────────────────────────────────────────────────────────────────────
+function getCheckedCols(sel) {
+  return [...document.querySelectorAll(sel + ':checked')].map(c => c.value);
 }
-document.getElementById('doExport').addEventListener('click', function() {
-  const cols = getCheckedCols('.exp-col');
-  window.location.href = EXPORT_BASE_URL + '?cols=' + encodeURIComponent(cols.join(','));
+document.getElementById('doExport').addEventListener('click', () => {
+  window.location.href = EXPORT_BASE_URL + '?cols=' +
+    encodeURIComponent(getCheckedCols('.exp-col').join(','));
   bootstrap.Modal.getInstance(document.getElementById('exportModal')).hide();
 });
-
-// ── Import modal: sync hidden cols input before submit ────────────────────────
-document.getElementById('importForm').addEventListener('submit', function() {
-  const cols = getCheckedCols('.imp-col');
-  document.getElementById('importCols').value = cols.join(',');
+document.getElementById('importForm').addEventListener('submit', function () {
+  document.getElementById('importCols').value = getCheckedCols('.imp-col').join(',');
 });
-
-// ── Template download ─────────────────────────────────────────────────────────
-document.getElementById('doTemplate').addEventListener('click', function() {
-  // template never includes "status"
+document.getElementById('doTemplate').addEventListener('click', () => {
   const cols = getCheckedCols('.imp-col').filter(c => c !== 'status');
   window.location.href = TEMPLATE_BASE_URL + '?cols=' + encodeURIComponent(cols.join(','));
 });
+
+// ═══════════════════════════════════════════════════════════════
+//  TEACHER MODAL
+// ═══════════════════════════════════════════════════════════════
+const teacherModal = document.getElementById('teacherModal');
+const teacherForm  = document.getElementById('teacherForm');
+
+// ── Sector accordion ──────────────────────────────────────────
+function toggleTfSector(divId) {
+  document.getElementById(`tf-sector-${divId}`)?.classList.toggle('open');
+}
+
+// ── Clear all pill selections and collapse all sectors ───────
+function clearAllPills() {
+  document.querySelectorAll('#teacherModal .sg-pill').forEach(pill => {
+    pill.classList.remove('active');
+    const cb = pill.querySelector('input[type=checkbox]');
+    if (cb) cb.checked = false;
+  });
+  document.querySelectorAll('#teacherModal .tf-all-btn').forEach(btn => {
+    btn.classList.remove('all-on');
+  });
+  // Collapse every sector and reset badges
+  SG_DATA.forEach(sec => {
+    document.getElementById(`tf-sector-${sec.div_id}`)?.classList.remove('open');
+    updateSectorBadge(sec.div_id);
+  });
+  updateCount();
+}
+
+// ── Activate a specific set of [grade_id, subject_id] pairs ──
+// Opens only sectors that end up with at least one active pill.
+function applySelections(sgs) {
+  sgs.forEach(([gradeId, subjectId]) => {
+    const cb = document.getElementById(`sg_${subjectId}_${gradeId}`);
+    if (!cb) return;
+    cb.checked = true;
+    cb.closest('.sg-pill')?.classList.add('active');
+  });
+  // Sync "todos" buttons, badges, and open/close sectors
+  SG_DATA.forEach(sec => {
+    sec.grades.forEach(g => syncAllBtn(g.grade_id));
+    updateSectorBadge(sec.div_id);
+    const hasActive = sec.grades.some(g => {
+      const c = document.getElementById(`tf-pills-${g.grade_id}`);
+      return c && c.querySelectorAll('.sg-pill.active').length > 0;
+    });
+    document.getElementById(`tf-sector-${sec.div_id}`)
+            ?.classList.toggle('open', hasActive);
+  });
+  updateCount();
+}
+
+// ── Open for NEW teacher ──────────────────────────────────────
+document.getElementById('newTeacherBtn').addEventListener('click', () => {
+  document.getElementById('teacherModalTitle').innerHTML =
+    '<i class="bi bi-person-plus me-2 text-primary"></i>{{ _("Novo Professor") }}';
+  teacherForm.action = NEW_TEACHER_URL;
+  document.getElementById('tf-first').value = '';
+  document.getElementById('tf-last').value  = '';
+  document.getElementById('tf-email').value = '';
+  clearAllPills();
+  bootstrap.Modal.getOrCreateInstance(teacherModal).show();
+  teacherModal.addEventListener('shown.bs.modal', () => {
+    document.getElementById('tf-first').focus();
+  }, { once: true });
+});
+
+// ── Open for EDIT teacher ─────────────────────────────────────
+document.querySelectorAll('.edit-teacher-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id    = btn.dataset.id;
+    const first = btn.dataset.first;
+    const last  = btn.dataset.last;
+    const email = btn.dataset.email;
+    const sgs   = JSON.parse(btn.dataset.sgs || '[]');
+
+    document.getElementById('teacherModalTitle').innerHTML =
+      `<i class="bi bi-pencil me-2 text-primary"></i>${first} ${last}`;
+    teacherForm.action = `/admin/teachers/${id}/edit`;
+    document.getElementById('tf-first').value = first;
+    document.getElementById('tf-last').value  = last;
+    document.getElementById('tf-email').value = email;
+    clearAllPills();
+    applySelections(sgs);
+    bootstrap.Modal.getOrCreateInstance(teacherModal).show();
+  });
+});
+
+// ── Pill click: checkbox already toggled by label — just sync CSS ─
+document.querySelectorAll('#teacherModal .sg-pill').forEach(pill => {
+  const cb = pill.querySelector('input[type=checkbox]');
+  if (!cb) return;
+  cb.addEventListener('change', () => {
+    pill.classList.toggle('active', cb.checked);
+    const pillsDiv = pill.closest('.tf-pills');
+    if (pillsDiv) {
+      syncAllBtn(pillsDiv.id.replace('tf-pills-', ''));
+      updateSectorBadge(pillsDiv.dataset.divId);
+    }
+    updateCount();
+  });
+});
+
+// ── "Todos" per grade ─────────────────────────────────────────
+function toggleAllGrade(gradeId) {
+  const container = document.getElementById(`tf-pills-${gradeId}`);
+  const pills     = [...container.querySelectorAll('.sg-pill')];
+  const allOn     = pills.every(p => p.classList.contains('active'));
+  const target    = !allOn;
+  pills.forEach(pill => {
+    const cb = pill.querySelector('input[type=checkbox]');
+    if (!cb) return;
+    cb.checked = target;
+    pill.classList.toggle('active', target);
+  });
+  syncAllBtn(gradeId);
+  updateSectorBadge(container.dataset.divId);
+  updateCount();
+}
+
+function syncAllBtn(gradeId) {
+  const container = document.getElementById(`tf-pills-${gradeId}`);
+  if (!container) return;
+  const pills = [...container.querySelectorAll('.sg-pill')];
+  const allOn = pills.length > 0 && pills.every(p => p.classList.contains('active'));
+  document.getElementById(`tf-all-${gradeId}`)?.classList.toggle('all-on', allOn);
+}
+
+// ── Sector badge ──────────────────────────────────────────────
+function updateSectorBadge(divId) {
+  const badge  = document.getElementById(`tf-sbadge-${divId}`);
+  if (!badge) return;
+  const sector = SG_DATA.find(s => s.div_id == divId);
+  if (!sector) return;
+
+  let active = 0;
+  sector.grades.forEach(g => {
+    const c = document.getElementById(`tf-pills-${g.grade_id}`);
+    if (c) active += c.querySelectorAll('.sg-pill.active').length;
+  });
+
+  if (active > 0) {
+    badge.className = 'tf-sector-badge';
+    badge.textContent = `${active} {{ _('selecionada(s)') }}`;
+  } else {
+    badge.className = 'tf-sector-meta tf-sbadge';
+    badge.textContent = `${sector.grades.length} {{ _('turma(s)') }}`;
+  }
+}
+
+// ── Total count in header ─────────────────────────────────────
+function updateCount() {
+  const n = document.querySelectorAll('#teacherModal .sg-pill.active').length;
+  document.getElementById('tf-count').textContent = n;
+}
 </script>
 {% endblock %}

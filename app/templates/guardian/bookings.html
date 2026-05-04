@@ -1,5 +1,41 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Minhas Reuniões') }} – Conferensia{% endblock %}
+{% block head %}
+<style>
+.pan-empty-state {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  max-width: 440px;
+  margin: 0 auto;
+}
+.pan-empty-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: #eff6ff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1.8rem; color: #93c5fd;
+  margin-bottom: 1rem;
+}
+.pan-empty-icon.amber { background:#fffbeb; color:#fcd34d; }
+.pan-empty-title { font-weight:700; font-size:1rem; color:#1e293b; margin-bottom:.4rem; }
+.pan-empty-body  { color:#64748b; font-size:.85rem; line-height:1.6; margin-bottom:1.25rem; }
+/* inline per-event empty */
+.event-no-bookings {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: 1.1rem 1.25rem;
+  background: #f8fafc;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  color: #64748b;
+  font-size: .875rem;
+}
+.event-no-bookings i { font-size: 1.2rem; color: #cbd5e1; flex-shrink:0; }
+</style>
+{% endblock %}
 {% block content %}
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -67,14 +103,29 @@
   </div>
 </div>
 {% else %}
-<p class="text-muted mb-4">
-  {{ _('Nenhuma reunião agendada ainda.') }}
-  <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}">{{ _('Agendar agora') }}</a>.
-</p>
+<div class="event-no-bookings">
+  <i class="bi bi-calendar2-x"></i>
+  <div>
+    <span>{{ _('Nenhuma reunião agendada ainda.') }}</span>
+    <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
+       class="d-inline ms-2" style="font-size:.82rem">
+      <i class="bi bi-grid me-1"></i>{{ _('Agendar agora') }}
+    </a>
+  </div>
+</div>
 {% endif %}
 {% endfor %}
 {% else %}
-<div class="alert alert-info">{{ _('Nenhum filho vinculado à sua conta.') }}</div>
+<div class="pan-empty-state mt-4">
+  <div class="pan-empty-icon amber">
+    <i class="bi bi-person-x"></i>
+  </div>
+  <h5 class="pan-empty-title">{{ _('Nenhum filho vinculado') }}</h5>
+  <p class="pan-empty-body">
+    {{ _('Sua conta ainda não está vinculada a nenhum aluno.') }}<br>
+    {{ _('Entre em contato com a secretaria para fazer a vinculação.') }}
+  </p>
+</div>
 {% endfor %}
 
 {# ── Child picker modal (only rendered when there are multiple children) ── #}

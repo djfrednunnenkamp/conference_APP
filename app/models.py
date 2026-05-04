@@ -49,11 +49,15 @@ class TeacherProfile(db.Model):
 class Subject(db.Model):
     __tablename__ = "subject"
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
+    id          = db.Column(db.Integer, primary_key=True)
+    name        = db.Column(db.String(100), nullable=False)
+    division_id = db.Column(db.Integer, db.ForeignKey("division.id", ondelete="SET NULL"), nullable=True)
 
+    division               = db.relationship("Division", back_populates="subjects")
     teacher_subject_grades = db.relationship("TeacherSubjectGrade", back_populates="subject")
-    grade_subjects = db.relationship("GradeGroupSubject", back_populates="subject", cascade="all, delete-orphan")
+    grade_subjects         = db.relationship("GradeGroupSubject", back_populates="subject", cascade="all, delete-orphan")
+
+    __table_args__ = (db.UniqueConstraint("name", "division_id", name="uq_subject_name_division"),)
 
 
 class Division(db.Model):
@@ -64,8 +68,9 @@ class Division(db.Model):
     name  = db.Column(db.String(100), nullable=False, unique=True)
     order = db.Column(db.Integer, default=0, nullable=False)
 
-    grade_groups   = db.relationship("GradeGroup",      back_populates="division")
-    conference_days = db.relationship("ConferenceDay",   back_populates="division")
+    grade_groups    = db.relationship("GradeGroup",   back_populates="division")
+    subjects        = db.relationship("Subject",      back_populates="division")
+    conference_days = db.relationship("ConferenceDay", back_populates="division")
 
 
 class GradeGroup(db.Model):
@@ -74,6 +79,7 @@ class GradeGroup(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
     name        = db.Column(db.String(100), nullable=False, unique=True)
     division_id = db.Column(db.Integer, db.ForeignKey("division.id", ondelete="SET NULL"), nullable=True)
+    order       = db.Column(db.Integer, default=0, nullable=False)
 
     division             = db.relationship("Division", back_populates="grade_groups")
     student_profiles     = db.relationship("StudentProfile",      back_populates="grade_group")
@@ -159,6 +165,7 @@ class ConferenceEvent(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     days = db.relationship("ConferenceDay", back_populates="event", cascade="all, delete-orphan", order_by="ConferenceDay.date")
+    sectors = db.relationship("EventSector", back_populates="event", cascade="all, delete-orphan")
     email_notifications = db.relationship("EmailNotification", back_populates="event", cascade="all, delete-orphan")
 
 
@@ -261,10 +268,46 @@ class EmailNotification(db.Model):
     __tablename__ = "email_notification"
 
     id = db.Column(db.Integer, primary_key=True)
-    event_id = db.Column(db.Integer, db.ForeignKey("conference_event.id"), nullable=False)
+    # event_id is optional — emails like invites and resets are not tied to an event
+    event_id = db.Column(db.Integer, db.ForeignKey("conference_event.id", ondelete="SET NULL"), nullable=True)
     recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    type = db.Column(db.Enum("invite", "conference_info", "reminder", "reset_password"), nullable=False)
+    type = db.Column(db.String(32), nullable=False)   # invite | conference_info | reminder | reset_password | teacher_absent
 
     event = db.relationship("ConferenceEvent", back_populates="email_notifications")
     recipient = db.relationship("User", back_populates="email_notifications")
+
+
+class EventSector(db.Model):
+    """Per-sector schedule configuration (timing defaults + teacher list) for a conference event."""
+    __tablename__ = "event_sector"
+
+    id                    = db.Column(db.Integer, primary_key=True)
+    event_id              = db.Column(db.Integer, db.ForeignKey("conference_event.id", ondelete="CASCADE"), nullable=False)
+    division_id           = db.Column(db.Integer, db.ForeignKey("division.id", ondelete="SET NULL"), nullable=True)
+    start_time            = db.Column(db.Time, nullable=True)
+    end_time              = db.Column(db.Time, nullable=True)
+    slot_duration_minutes = db.Column(db.Integer, nullable=True)
+    break_minutes         = db.Column(db.Integer, default=0, nullable=True)
+
+    event           = db.relationship("ConferenceEvent", back_populates="sectors")
+    division        = db.relationship("Division")
+    teacher_configs = db.relationship("EventSectorTeacher", back_populates="sector",
+                                      cascade="all, delete-orphan")
+
+    __table_args__ = (db.UniqueConstraint("event_id", "division_id", name="uq_event_sector"),)
+
+
+class EventSectorTeacher(db.Model):
+    """Teacher assignment + optional slot-duration override within a sector for a conference event."""
+    __tablename__ = "event_sector_teacher"
+
+    id                    = db.Column(db.Integer, primary_key=True)
+    sector_id             = db.Column(db.Integer, db.ForeignKey("event_sector.id", ondelete="CASCADE"), nullable=False)
+    teacher_id            = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    slot_duration_minutes = db.Column(db.Integer, nullable=True)   # NULL = inherit from sector
+
+    sector  = db.relationship("EventSector", back_populates="teacher_configs")
+    teacher = db.relationship("User")
+
+    __table_args__ = (db.UniqueConstraint("sector_id", "teacher_id", name="uq_sector_teacher"),)

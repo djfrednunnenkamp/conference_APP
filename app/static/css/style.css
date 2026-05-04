@@ -584,12 +584,28 @@ body.login-page .pan-public {
   border-color: var(--pan-blue);
 }
 
-/* ── Alerts ── */
-.alert { border-radius: var(--pan-radius-sm); font-size: .875rem; border: none; }
+/* ── Alerts / Flash messages ── */
+.alert { border-radius: var(--pan-radius-sm); font-size: .875rem; border: none; position: relative; overflow: hidden; }
 .alert-success  { background: var(--pan-green-light); color: #1a6b40; }
 .alert-danger   { background: #fef0f0; color: #b91c1c; }
 .alert-warning  { background: #fffbeb; color: #92400e; }
 .alert-info     { background: var(--pan-blue-light); color: var(--pan-blue); }
+
+/* Progress bar at the bottom of timed flash alerts */
+.pan-flash-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  border-radius: 0 0 var(--pan-radius-sm) var(--pan-radius-sm);
+  transform-origin: left center;
+  transform: scaleX(1);
+  transition: transform linear;    /* duration set by JS */
+}
+.alert-success .pan-flash-bar  { background: #16a34a; }
+.alert-warning .pan-flash-bar  { background: #d97706; }
+.alert-info    .pan-flash-bar  { background: var(--pan-blue); }
 
 /* ── Modals ── */
 .modal-content {

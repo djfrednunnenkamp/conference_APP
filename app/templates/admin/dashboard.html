@@ -141,13 +141,29 @@
         <i class="bi bi-envelope me-2"></i>{{ _('E-mails recentes') }}
       </div>
       <ul class="list-group list-group-flush">
+        {% set email_labels = {
+            'invite':           (_('Convite'),            'bi-person-plus-fill',        'text-primary'),
+            'conference_info':  (_('Info da conferência'),'bi-calendar-event-fill',     'text-success'),
+            'reminder':         (_('Lembrete'),           'bi-bell-fill',               'text-warning'),
+            'reset_password':   (_('Redefinição de senha'),'bi-key-fill',               'text-secondary'),
+            'teacher_absent':   (_('Ausência de prof.'),  'bi-person-dash-fill',        'text-danger'),
+        } %}
         {% for n in recent_emails %}
-        <li class="list-group-item d-flex justify-content-between align-items-center py-3">
-          <div>
-            <div class="fw-semibold" style="font-size:.875rem">{{ n.recipient.full_name }}</div>
-            <span class="badge-grade" style="font-size:.7rem">{{ n.type }}</span>
+        {% set lbl = email_labels.get(n.type, (n.type, 'bi-envelope-fill', 'text-muted')) %}
+        <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="{{ lbl[2] }}" style="font-size:.9rem">
+              <i class="bi {{ lbl[1] }}"></i>
+            </span>
+            <div>
+              <div class="fw-semibold" style="font-size:.85rem;line-height:1.2">{{ n.recipient.full_name }}</div>
+              <div style="font-size:.75rem;color:#64748b">
+                {{ lbl[0] }}
+                {% if n.event %} · {{ n.event.name }}{% endif %}
+              </div>
+            </div>
           </div>
-          <small class="text-muted">{{ n.sent_at.strftime('%d/%m %H:%M') }}</small>
+          <small class="text-muted flex-shrink-0 ms-2">{{ n.sent_at.strftime('%d/%m %H:%M') }}</small>
         </li>
         {% else %}
         <li class="list-group-item py-3 text-muted" style="font-size:.875rem">

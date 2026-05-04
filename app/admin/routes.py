@@ -3,6 +3,7 @@ from datetime import datetime
 import csv
 import io
 import json
+import re
 from flask import Blueprint, render_template, redirect, url_for, flash, request, abort, jsonify, Response
 from flask_login import login_required, current_user
 from flask_babel import _
@@ -11,11 +12,13 @@ from app.models import (User, TeacherProfile, Subject, GradeGroup, GradeGroupSub
                         TeacherSubjectGrade, StudentProfile, GuardianStudent,
                         ConferenceEvent, ConferenceDay, Slot, Booking, EmailNotification,
                         TeacherDayAbsence, StudentSubjectExclusion, EventReminder,
-                        Division, TeacherDayOverride)
+                        Division, TeacherDayOverride, EventSector, EventSectorTeacher)
 from app.admin.forms import (GradeGroupForm, SubjectForm, TeacherForm, StudentForm,
-                              GuardianForm, AdminForm, ConferenceEventForm, NotifyForm)
+                              GuardianForm, AdminForm, ConferenceEventForm,
+                              ConferenceEventSimpleForm, NotifyForm)
 from app.utils import (generate_token, send_invite_email, send_conference_info_email,
                        send_reset_email, generate_slots_for_day,
+                       generate_slots_for_sector_day,
                        send_teacher_absent_email, send_booking_reminder_email)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -39,7 +42,7 @@ def dashboard():
     total_students = User.query.filter_by(role="student").count()
     total_teachers = User.query.filter_by(role="teacher").count()
     total_guardians = User.query.filter_by(role="guardian").count()
-    active_events = ConferenceEvent.query.filter_by(status="published").order_by(ConferenceEvent.created_at.desc()).all()
+    active_events = ConferenceEvent.query.filter_by(status="published").order_by(ConferenceEvent.name).all()
     events_stats = []
     for ev in active_events:
         total_slots = Slot.query.join(ConferenceDay).filter(ConferenceDay.event_id == ev.id).count()
@@ -61,10 +64,34 @@ def dashboard():
 @login_required
 @admin_required
 def divisions():
+    from app import _natsort_key
     all_divisions = Division.query.order_by(Division.order, Division.name).all()
-    unassigned    = GradeGroup.query.filter_by(division_id=None).order_by(GradeGroup.name).all()
+    active_pairs  = {(gs.grade_group_id, gs.subject_id)
+                     for gs in GradeGroupSubject.query.all()}
+
+    # Build JS-serialisable data for the subject panel modal
+    sectors_js = []
+    for div in all_divisions:
+        subjects_sorted = sorted(div.subjects, key=lambda s: _natsort_key(s.name))
+        # Grades sorted by explicit order field, then name as tiebreaker
+        grades_ordered = sorted(div.grade_groups, key=lambda g: (g.order, g.name))
+        grades_js = {}
+        for g in grades_ordered:
+            grades_js[str(g.id)] = {
+                "name": g.name,
+                "active": [s.id for s in div.subjects if (g.id, s.id) in active_pairs],
+            }
+        sectors_js.append({
+            "id": div.id,
+            "name": div.name,
+            "subjects": [{"id": s.id, "name": s.name} for s in subjects_sorted],
+            "grades": grades_js,
+        })
+
     return render_template("admin/divisions.html",
-                           divisions=all_divisions, unassigned=unassigned)
+                           divisions=all_divisions,
+                           active_pairs=active_pairs,
+                           sectors_js=sectors_js)
 
 
 @admin_bp.route("/divisions/new", methods=["POST"])
@@ -126,6 +153,46 @@ def reorder_divisions():
     return jsonify({"ok": True})
 
 
+@admin_bp.route("/divisions/<int:id>/move/<direction>", methods=["POST"])
+@login_required
+@admin_required
+def move_division(id, direction):
+    """Swap order values with the adjacent division (up or down)."""
+    all_divs = Division.query.order_by(Division.order, Division.id).all()
+    idx = next((i for i, d in enumerate(all_divs) if d.id == id), None)
+    if idx is None:
+        return redirect(url_for("admin.divisions"))
+    swap_idx = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap_idx < len(all_divs):
+        a, b = all_divs[idx], all_divs[swap_idx]
+        a.order, b.order = b.order, a.order
+        db.session.commit()
+    return redirect(url_for("admin.divisions"))
+
+
+@admin_bp.route("/grades/<int:grade_id>/move/<direction>", methods=["POST"])
+@login_required
+@admin_required
+def move_grade(grade_id, direction):
+    """Swap order values with the adjacent grade within the same division."""
+    grade = GradeGroup.query.get_or_404(grade_id)
+    if grade.division_id is None:
+        return redirect(url_for("admin.divisions"))
+    siblings = (GradeGroup.query
+                .filter_by(division_id=grade.division_id)
+                .order_by(GradeGroup.order, GradeGroup.id)
+                .all())
+    idx = next((i for i, g in enumerate(siblings) if g.id == grade_id), None)
+    if idx is None:
+        return redirect(url_for("admin.divisions"))
+    swap_idx = idx - 1 if direction == "up" else idx + 1
+    if 0 <= swap_idx < len(siblings):
+        a, b = siblings[idx], siblings[swap_idx]
+        a.order, b.order = b.order, a.order
+        db.session.commit()
+    return redirect(url_for("admin.divisions"))
+
+
 @admin_bp.route("/grades/<int:grade_id>/set-division", methods=["POST"])
 @login_required
 @admin_required
@@ -138,12 +205,112 @@ def set_grade_division(grade_id):
     return jsonify({"ok": True, "division_id": grade.division_id})
 
 
+@admin_bp.route("/grades/<int:id>/rename", methods=["POST"])
+@login_required
+@admin_required
+def rename_grade(id):
+    grade = GradeGroup.query.get_or_404(id)
+    data  = request.get_json(silent=True) or {}
+    name  = data.get("name", "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "Nome obrigatório"}), 400
+    if GradeGroup.query.filter(GradeGroup.name == name, GradeGroup.id != id).first():
+        return jsonify({"ok": False, "error": "Já existe uma turma com esse nome"}), 409
+    grade.name = name
+    db.session.commit()
+    return jsonify({"ok": True, "name": grade.name})
+
+
+@admin_bp.route("/subjects/<int:id>/rename", methods=["POST"])
+@login_required
+@admin_required
+def rename_subject(id):
+    subject     = Subject.query.get_or_404(id)
+    data        = request.get_json(silent=True) or {}
+    name        = data.get("name", "").strip()
+    if not name:
+        return jsonify({"ok": False, "error": "Nome obrigatório"}), 400
+    if Subject.query.filter(Subject.name == name,
+                            Subject.division_id == subject.division_id,
+                            Subject.id != id).first():
+        return jsonify({"ok": False, "error": "Já existe uma matéria com esse nome neste setor"}), 409
+    subject.name = name
+    db.session.commit()
+    return jsonify({"ok": True, "name": subject.name})
+
+
+@admin_bp.route("/divisions/<int:division_id>/grades/new", methods=["POST"])
+@login_required
+@admin_required
+def new_division_grade(division_id):
+    """Create a new grade group and assign it directly to this division."""
+    Division.query.get_or_404(division_id)
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash(_("Nome obrigatório."), "warning")
+    elif GradeGroup.query.filter_by(name=name).first():
+        flash(_("Turma já existe."), "warning")
+    else:
+        max_order = (db.session.query(db.func.max(GradeGroup.order))
+                     .filter_by(division_id=division_id).scalar() or 0)
+        db.session.add(GradeGroup(name=name, division_id=division_id,
+                                  order=max_order + 1))
+        db.session.commit()
+        flash(_("Turma adicionada."), "success")
+    return redirect(url_for("admin.divisions"))
+
+
+@admin_bp.route("/divisions/<int:division_id>/subjects/new", methods=["POST"])
+@login_required
+@admin_required
+def new_division_subject(division_id):
+    """Create a new subject inside a division."""
+    Division.query.get_or_404(division_id)
+    is_ajax = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    payload  = request.get_json(silent=True) or {}
+    name     = (payload.get("name") or request.form.get("name", "")).strip()
+    if not name:
+        if is_ajax:
+            return jsonify({"error": _("Nome obrigatório.")}), 400
+        flash(_("Nome obrigatório."), "warning")
+    elif Subject.query.filter_by(name=name, division_id=division_id).first():
+        if is_ajax:
+            return jsonify({"error": _("Matéria já existe neste setor.")}), 409
+        flash(_("Matéria já existe neste setor."), "warning")
+    else:
+        subject = Subject(name=name, division_id=division_id)
+        db.session.add(subject)
+        db.session.commit()
+        if is_ajax:
+            return jsonify({"id": subject.id, "name": subject.name})
+        flash(_("Matéria adicionada."), "success")
+    return redirect(url_for("admin.divisions"))
+
+
+@admin_bp.route("/subjects/<int:id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_subject_by_id(id):
+    """Delete a subject (called from divisions page)."""
+    is_ajax = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
+    subject = Subject.query.get_or_404(id)
+    GradeGroupSubject.query.filter_by(subject_id=id).delete()
+    db.session.delete(subject)
+    db.session.commit()
+    if is_ajax:
+        return jsonify({"ok": True})
+    flash(_("Matéria excluída."), "success")
+    return redirect(url_for("admin.divisions"))
+
+
 # ── Grade Groups ───────────────────────────────────────────────────────────────
 
 @admin_bp.route("/grades", methods=["GET", "POST"])
 @login_required
 @admin_required
 def grades():
+    # Unified page is now at /divisions
+    return redirect(url_for("admin.divisions"))
     grade_form   = GradeGroupForm(prefix="grade")
     subject_form = SubjectForm(prefix="subject")
 
@@ -166,13 +333,47 @@ def grades():
         return redirect(url_for("admin.grades"))
 
     all_divisions = Division.query.order_by(Division.order, Division.name).all()
-    all_grades   = GradeGroup.query.order_by(GradeGroup.name).all()
-    all_subjects = Subject.query.order_by(Subject.name).all()
-    active = {(gs.grade_group_id, gs.subject_id) for gs in GradeGroupSubject.query.all()}
+
+    # Division filter from query param
+    # "0" = items with no division; None = show all
+    raw_div = request.args.get("division_id")
+    if raw_div == "0":
+        selected_division_id = 0
+        grades_q   = GradeGroup.query.filter_by(division_id=None)
+        subjects_q = Subject.query.filter_by(division_id=None)
+    elif raw_div and raw_div.isdigit():
+        selected_division_id = int(raw_div)
+        grades_q   = GradeGroup.query.filter_by(division_id=selected_division_id)
+        subjects_q = Subject.query.filter_by(division_id=selected_division_id)
+    else:
+        selected_division_id = None
+        grades_q   = GradeGroup.query
+        subjects_q = Subject.query
+
+    from app import _natsort_key
+    all_grades   = sorted(grades_q.all(),   key=lambda g: _natsort_key(g.name), reverse=True)
+    all_subjects = sorted(subjects_q.all(), key=lambda s: _natsort_key(s.name))
+
+    # Only load active pairs for the visible grades & subjects
+    visible_grade_ids   = {g.id for g in all_grades}
+    visible_subject_ids = {s.id for s in all_subjects}
+    active = {
+        (gs.grade_group_id, gs.subject_id)
+        for gs in GradeGroupSubject.query.all()
+        if gs.grade_group_id in visible_grade_ids
+        and gs.subject_id in visible_subject_ids
+    }
+
+    total_grade_count = GradeGroup.query.count()
+    unassigned_count  = GradeGroup.query.filter_by(division_id=None).count()
+
     return render_template("admin/grades.html",
                            grade_form=grade_form, subject_form=subject_form,
                            grades=all_grades, all_subjects=all_subjects,
-                           active=active, divisions=all_divisions)
+                           active=active, divisions=all_divisions,
+                           selected_division_id=selected_division_id,
+                           total_grade_count=total_grade_count,
+                           unassigned_count=unassigned_count)
 
 
 @admin_bp.route("/grades/<int:grade_id>/subjects/<int:subject_id>/toggle", methods=["POST"])
@@ -189,10 +390,19 @@ def toggle_grade_subject(grade_id, subject_id):
         TeacherSubjectGrade.query.filter_by(
             grade_group_id=grade_id, subject_id=subject_id
         ).delete(synchronize_session=False)
+        active = False
     else:
         db.session.add(GradeGroupSubject(grade_group_id=grade_id, subject_id=subject_id))
+        active = True
     db.session.commit()
-    return redirect(url_for("admin.grades"))
+    # JSON for the new AJAX-based unified page
+    if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"active": active})
+    # Legacy form-POST redirect (grades matrix page still works if accessed directly)
+    division_id = request.form.get("division_id")
+    if division_id:
+        return redirect(url_for("admin.divisions"))
+    return redirect(url_for("admin.divisions"))
 
 
 @admin_bp.route("/grades/<int:id>/delete", methods=["POST"])
@@ -200,10 +410,27 @@ def toggle_grade_subject(grade_id, subject_id):
 @admin_required
 def delete_grade(id):
     grade = GradeGroup.query.get_or_404(id)
+
+    # Block if students are assigned — grade_group_id is NOT NULL on student_profile
+    student_count = len(grade.student_profiles)
+    if student_count:
+        flash(
+            _('Não é possível excluir a turma "%(name)s" pois há %(n)s aluno(s) vinculado(s).'
+              ' Reatribua os alunos antes de excluir.',
+              name=grade.name, n=student_count),
+            "warning",
+        )
+        return redirect(url_for("admin.divisions"))
+
+    # Remove teacher–subject–grade assignments first (NOT NULL FK, no cascade)
+    TeacherSubjectGrade.query.filter_by(grade_group_id=id).delete(synchronize_session=False)
+
+    # GradeGroupSubject has cascade="all, delete-orphan" on the relationship,
+    # so those are handled automatically when we delete the grade.
     db.session.delete(grade)
     db.session.commit()
     flash(_("Turma excluída."), "success")
-    return redirect(url_for("admin.grades"))
+    return redirect(url_for("admin.divisions"))
 
 
 # ── Subjects (kept for URL compatibility – all logic now lives in grades()) ───
@@ -238,9 +465,23 @@ def teachers():
         query = query.join(TeacherProfile).join(TeacherSubjectGrade,
             TeacherSubjectGrade.teacher_id == User.id).filter(
             TeacherSubjectGrade.grade_group_id == grade_filter)
-    teachers = query.order_by(User.last_name).all()
-    grades = GradeGroup.query.order_by(GradeGroup.name).all()
-    return render_template("admin/teachers.html", teachers=teachers, grades=grades, grade_filter=grade_filter)
+    teachers_list = query.order_by(User.last_name, User.first_name).all()
+    from app import _natsort_key
+    grades = sorted(GradeGroup.query.all(), key=lambda g: _natsort_key(g.name), reverse=True)
+    grade_subjects_by_sector = _get_grade_subjects_by_sector()
+    # Per-teacher current assignments as [[grade_id, subject_id], ...] for JS
+    teacher_sgs = {
+        t.id: [[sg.grade_group_id, sg.subject_id] for sg in t.teacher_profile.subject_grades]
+        if t.teacher_profile else []
+        for t in teachers_list
+    }
+    return render_template("admin/teachers.html",
+                           teachers=teachers_list,
+                           grades=grades,
+                           grade_filter=grade_filter,
+                           grade_subjects_by_sector=grade_subjects_by_sector,
+                           sg_data_js=_sg_data_js(grade_subjects_by_sector),
+                           teacher_sgs=teacher_sgs)
 
 
 @admin_bp.route("/teachers/new", methods=["GET", "POST"])
@@ -248,7 +489,7 @@ def teachers():
 @admin_required
 def new_teacher():
     form = TeacherForm()
-    grade_subjects = _get_grade_subjects_map()
+    grade_subjects_by_sector = _get_grade_subjects_by_sector()
     if form.validate_on_submit():
         email = form.email.data.lower().strip()
         if User.query.filter_by(email=email).first():
@@ -276,7 +517,12 @@ def new_teacher():
             except Exception as e:
                 flash(_("Professor criado, mas falha no e-mail: %(err)s", err=str(e)), "warning")
             return redirect(url_for("admin.teachers"))
-    return render_template("admin/teacher_form.html", form=form, grade_subjects=grade_subjects, teacher=None)
+    return render_template("admin/teacher_form.html",
+                           form=form,
+                           grade_subjects_by_sector=grade_subjects_by_sector,
+                           sg_data_js=_sg_data_js(grade_subjects_by_sector),
+                           existing_sgs=set(),
+                           teacher=None)
 
 
 @admin_bp.route("/teachers/<int:id>/edit", methods=["GET", "POST"])
@@ -285,7 +531,9 @@ def new_teacher():
 def edit_teacher(id):
     user = User.query.filter_by(id=id, role="teacher").first_or_404()
     form = TeacherForm(obj=user)
-    grade_subjects = _get_grade_subjects_map()
+    grade_subjects_by_sector = _get_grade_subjects_by_sector()
+    existing_sgs = {(t.grade_group_id, t.subject_id)
+                    for t in TeacherSubjectGrade.query.filter_by(teacher_id=user.id).all()}
     if form.validate_on_submit():
         user.first_name = form.first_name.data
         user.last_name = form.last_name.data
@@ -295,10 +543,12 @@ def edit_teacher(id):
         db.session.commit()
         flash(_("Professor atualizado."), "success")
         return redirect(url_for("admin.teachers"))
-    existing_sgs = {(t.grade_group_id, t.subject_id)
-                    for t in TeacherSubjectGrade.query.filter_by(teacher_id=user.id).all()}
-    return render_template("admin/teacher_form.html", form=form, grade_subjects=grade_subjects,
-                           teacher=user, existing_sgs=existing_sgs)
+    return render_template("admin/teacher_form.html",
+                           form=form,
+                           grade_subjects_by_sector=grade_subjects_by_sector,
+                           sg_data_js=_sg_data_js(grade_subjects_by_sector),
+                           existing_sgs=existing_sgs,
+                           teacher=user)
 
 
 @admin_bp.route("/teachers/<int:id>/resend-invite", methods=["POST"])
@@ -352,12 +602,18 @@ def delete_teacher(id):
 def delete_student(id):
     user = User.query.filter_by(id=id, role="student").first_or_404()
     try:
-        # Delete bookings where this student is the student or the booker
+        # 1. Collect slot IDs booked by/for this student so we can free them
+        booked_slot_ids = [b.slot_id for b in Booking.query.filter(
+            (Booking.student_id == user.id) | (Booking.booked_by_id == user.id)
+        ).all()]
+        # 2. Delete the bookings
         Booking.query.filter(
             (Booking.student_id == user.id) | (Booking.booked_by_id == user.id)
         ).delete(synchronize_session=False)
-        # Free up any slots that were booked for this student
-        Slot.query.filter_by(teacher_id=user.id).delete(synchronize_session=False)
+        # 3. Mark those slots as available again
+        if booked_slot_ids:
+            Slot.query.filter(Slot.id.in_(booked_slot_ids)).update(
+                {"is_booked": False}, synchronize_session=False)
         db.session.delete(user)
         db.session.commit()
         flash(_("Aluno excluído."), "success")
@@ -596,14 +852,21 @@ _GUARDIAN_COLS = ["email", "first_name", "last_name", "student1", "student2", "s
 
 
 def _csv_response(rows, headers, filename):
+    """Build a CSV HTTP response.
+
+    Format: UTF-8 with BOM (Excel-compatible), comma delimiter, RFC 4180 quoting.
+    The BOM (﻿) tells Excel to open as UTF-8 so accented characters (ã, ç, é…)
+    display correctly without any manual import wizard.
+    """
     buf = io.StringIO()
-    w = csv.writer(buf)
+    buf.write('﻿')                          # UTF-8 BOM – Excel compatibility
+    w = csv.writer(buf, quoting=csv.QUOTE_ALL)   # always quote → safe for commas/newlines in values
     w.writerow(headers)
     w.writerows(rows)
     return Response(
         buf.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -617,11 +880,28 @@ def _parse_cols(param, allowed, always=("email",)):
     return requested
 
 
-def _parse_csv_upload():
-    f = request.files.get("csv_file")
+_CSV_MAX_BYTES = 5 * 1024 * 1024   # 5 MB – protects against DoS via huge upload
+_CSV_MIME_OK   = {"text/csv", "application/csv", "application/vnd.ms-excel",
+                  "text/plain", "application/octet-stream"}
+
+
+def _validate_csv_file(f):
+    """Raise ValueError if file is missing, wrong type or too large."""
     if not f or not f.filename:
         raise ValueError(_("Nenhum arquivo enviado."))
-    stream = io.StringIO(f.stream.read().decode("utf-8-sig"))
+    if not f.filename.lower().endswith(".csv"):
+        raise ValueError(_("O arquivo deve ter extensão .csv."))
+    # Read into memory with size guard
+    data = f.stream.read(_CSV_MAX_BYTES + 1)
+    if len(data) > _CSV_MAX_BYTES:
+        raise ValueError(_("Arquivo muito grande (máximo 5 MB)."))
+    return data
+
+
+def _parse_csv_upload():
+    f = request.files.get("csv_file")
+    data = _validate_csv_file(f)
+    stream = io.StringIO(data.decode("utf-8-sig"))
     reader = csv.DictReader(stream)
     rows = list(reader)
     if not rows:
@@ -637,24 +917,21 @@ def _teacher_row(t, cols):
         elif c == "last_name":    row.append(t.last_name)
         elif c == "subjects_grades":
             sgs = t.teacher_profile.subject_grades if t.teacher_profile else []
-            items = [f"{sg.subject.name}/{sg.grade_group.name}" for sg in sgs]
-            # Always use JSON array so multiple entries are unambiguous
-            row.append(json.dumps(items, ensure_ascii=False))
+            # Standard: pipe-separated list of "Subject/Grade" pairs
+            row.append("|".join(f"{sg.subject.name}/{sg.grade_group.name}" for sg in sgs))
         elif c == "status":       row.append("Ativo" if t.has_password() else "Pendente")
     return row
 
 
 def _guardian_obj(g):
-    """Compact JSON object for a guardian embedded in a student row."""
-    return json.dumps({"email": g.email, "first_name": g.first_name, "last_name": g.last_name},
-                      ensure_ascii=False)
+    """Serialize a guardian as semicolon-separated fields: email;first_name;last_name"""
+    return f"{g.email};{g.first_name};{g.last_name}"
 
 
 def _student_obj(s):
-    """Compact JSON object for a student embedded in a guardian row."""
+    """Serialize a student as semicolon-separated fields: email;first_name;last_name;grade"""
     grade = s.student_profile.grade_group.name if s.student_profile else ""
-    return json.dumps({"email": s.email, "first_name": s.first_name,
-                       "last_name": s.last_name, "grade": grade}, ensure_ascii=False)
+    return f"{s.email};{s.first_name};{s.last_name};{grade}"
 
 
 def _student_active_subjects(s):
@@ -677,7 +954,8 @@ def _student_row(s, cols):
         elif c == "first_name": row.append(s.first_name)
         elif c == "last_name":  row.append(s.last_name)
         elif c == "grade":      row.append(s.student_profile.grade_group.name if s.student_profile else "")
-        elif c == "subjects":   row.append(json.dumps(_student_active_subjects(s), ensure_ascii=False))
+        # Standard: pipe-separated list of subject names
+        elif c == "subjects":   row.append("|".join(_student_active_subjects(s)))
         elif c == "status":     row.append("Ativo" if s.has_password() else "Pendente")
         elif c == "guardian1":  row.append(_guardian_obj(guardians[0]) if len(guardians) > 0 else "")
         elif c == "guardian2":  row.append(_guardian_obj(guardians[1]) if len(guardians) > 1 else "")
@@ -685,7 +963,7 @@ def _student_row(s, cols):
 
 
 def _guardian_row(g, cols):
-    """One row per guardian; students are embedded as JSON objects in student1/student2 cells."""
+    """One row per guardian; linked students serialized as email;first_name;last_name;grade"""
     students = [gs.student for gs in g.guardian_students]
     row = []
     for c in cols:
@@ -718,7 +996,7 @@ def template_teachers():
     cols = _parse_cols(request.args.get("cols", "email,first_name,last_name"), all_import_cols)
     example = {"email": "joao.silva@escola.com", "first_name": "João",
                 "last_name": "Silva",
-                "subjects_grades": json.dumps(["Matemática/9º Ano A", "Português/9º Ano B"], ensure_ascii=False)}
+                "subjects_grades": "Matemática/G9|Português/G10"}
     return _csv_response([[example.get(c, "") for c in cols]], cols, "modelo_professores.csv")
 
 
@@ -737,12 +1015,11 @@ def export_students():
 def template_students():
     all_import_cols = [c for c in _STUDENT_COLS if c != "status"]
     cols = _parse_cols(request.args.get("cols", "email,first_name,last_name,grade"), all_import_cols)
-    g_ex = json.dumps({"email": "carlos@email.com", "first_name": "Carlos", "last_name": "Oliveira"},
-                      ensure_ascii=False)
     example = {"email": "maria.santos@escola.com", "first_name": "Maria",
-               "last_name": "Santos", "grade": "9º Ano A",
-               "subjects": json.dumps(["Matemática", "Português", "História"], ensure_ascii=False),
-               "guardian1": g_ex, "guardian2": ""}
+               "last_name": "Santos", "grade": "G9",
+               "subjects": "Matemática|Português|História",
+               "guardian1": "carlos@email.com;Carlos;Oliveira",
+               "guardian2": ""}
     return _csv_response([[example.get(c, "") for c in cols]], cols, "modelo_alunos.csv")
 
 
@@ -761,24 +1038,249 @@ def export_guardians():
 def template_guardians():
     all_import_cols = [c for c in _GUARDIAN_COLS if c != "status"]
     cols = _parse_cols(request.args.get("cols", "email,first_name,last_name,student1"), all_import_cols)
-    s_ex = json.dumps({"email": "maria.santos@escola.com", "first_name": "Maria",
-                       "last_name": "Santos", "grade": "9º Ano A"}, ensure_ascii=False)
     example = {"email": "carlos@email.com", "first_name": "Carlos",
-               "last_name": "Oliveira", "student1": s_ex, "student2": ""}
+               "last_name": "Oliveira",
+               "student1": "maria.santos@escola.com;Maria;Santos;G9",
+               "student2": ""}
     return _csv_response([[example.get(c, "") for c in cols]], cols, "modelo_responsaveis.csv")
+
+
+@admin_bp.route("/divisions/export.csv")
+@login_required
+@admin_required
+def export_divisions():
+    """Export sectors/grades/subject-assignments.
+    Format: one row per grade.
+      setor   – sector name
+      turma   – grade name
+      materias – pipe-separated subjects ASSIGNED to that grade (GradeGroupSubject)
+    A sector with no grades gets a single row with an empty 'turma' column so
+    it still appears in the file. Round-trip safe with import_divisions.
+    """
+    from app import _natsort_key
+    divisions = Division.query.order_by(Division.order, Division.name).all()
+    headers = ["setor", "turma", "materias"]
+    rows = []
+    for div in divisions:
+        grades = sorted(div.grade_groups,
+                        key=lambda g: (g.order, _natsort_key(g.name)))
+        if not grades:
+            # Sector exists but has no grades – export its subject pool anyway
+            subjects_str = "|".join(
+                sorted((s.name for s in div.subjects), key=_natsort_key))
+            rows.append([div.name, "", subjects_str])
+        else:
+            for g in grades:
+                assigned = sorted(
+                    (gs.subject.name for gs in g.grade_subjects),
+                    key=_natsort_key)
+                rows.append([div.name, g.name, "|".join(assigned)])
+    return _csv_response(rows, headers, "setores.csv")
+
+
+@admin_bp.route("/divisions/template.csv")
+@login_required
+@admin_required
+def template_divisions():
+    """Return a minimal CSV template for divisions (one row per grade)."""
+    headers = ["setor", "turma", "materias"]
+    rows = [
+        ["High School",   "G9",  "Mathematics|Science|English"],
+        ["High School",   "G10", "Mathematics|Science|English"],
+        ["High School",   "G11", "Mathematics|Science"],
+        ["Middle School", "G6",  "Mathematics|Science|Portuguese"],
+        ["Middle School", "G7",  "Mathematics|Science|Portuguese"],
+    ]
+    return _csv_response(rows, headers, "setores_modelo.csv")
+
+
+@admin_bp.route("/divisions/import", methods=["POST"])
+@login_required
+@admin_required
+def import_divisions():
+    """Import sectors, grades and per-grade subject assignments from CSV.
+
+    CSV format (one row per grade):
+        setor    – sector name (created if missing)
+        turma    – grade name (created if missing, assigned to sector)
+        materias – pipe-separated subject names assigned to this grade
+
+    A row with an empty 'turma' column is used to seed a sector's subject pool
+    without creating a grade (e.g. from a sector-only export).
+
+    Modes:
+        add     – create/assign missing items, never delete anything
+        replace – rebuild: remove grades/subjects NOT in the file (skips grades
+                  that still have students)
+        delete  – remove the sectors listed in the file
+    """
+    import csv, io
+
+    file = request.files.get("csv_file")
+    mode = request.form.get("mode", "add")
+
+    try:
+        raw = _validate_csv_file(file)
+        stream = io.StringIO(raw.decode("utf-8-sig"))
+        reader = csv.DictReader(stream)
+        rows = list(reader)
+    except Exception:
+        flash(_("Erro ao ler o arquivo CSV."), "danger")
+        return redirect(url_for("admin.divisions"))
+
+    if not rows or "setor" not in (rows[0].keys() if rows else []):
+        flash(_("Formato inválido. O arquivo deve ter a coluna 'setor'."), "danger")
+        return redirect(url_for("admin.divisions"))
+
+    created = updated = deleted = 0
+
+    # ── Delete mode ───────────────────────────────────────────────────────────
+    if mode == "delete":
+        seen = set()
+        for row in rows:
+            div_name = row.get("setor", "").strip()
+            if not div_name or div_name in seen:
+                continue
+            seen.add(div_name)
+            div = Division.query.filter_by(name=div_name).first()
+            if div:
+                db.session.delete(div)
+                deleted += 1
+        db.session.commit()
+        flash(_("%(n)s setor(es) removido(s).", n=deleted), "success")
+        return redirect(url_for("admin.divisions"))
+
+    # ── Build in-memory structure from CSV ────────────────────────────────────
+    # csv_map[div_name] = {
+    #   "grades": { grade_name: set(subject_names) },   ← per-grade subjects
+    #   "pool":   set(subject_names),                   ← all subjects seen
+    # }
+    csv_map = {}
+    for row in rows:
+        div_name     = row.get("setor",    "").strip()
+        grade_name   = row.get("turma",    "").strip()
+        subjects_raw = row.get("materias", "").strip()
+        if not div_name:
+            continue
+        subject_names = {s.strip() for s in subjects_raw.split("|")
+                         if s.strip()} if subjects_raw else set()
+        if div_name not in csv_map:
+            csv_map[div_name] = {"grades": {}, "pool": set()}
+        csv_map[div_name]["pool"].update(subject_names)
+        if grade_name:
+            if grade_name not in csv_map[div_name]["grades"]:
+                csv_map[div_name]["grades"][grade_name] = set()
+            csv_map[div_name]["grades"][grade_name].update(subject_names)
+
+    # ── Process each sector ───────────────────────────────────────────────────
+    for div_name, csv_data in csv_map.items():
+        div = Division.query.filter_by(name=div_name).first()
+        if not div:
+            div = Division(name=div_name, order=0)
+            db.session.add(div)
+            db.session.flush()
+            created += 1
+
+        # ── Ensure all subjects in pool exist at sector level ──────────────
+        existing_subject_names = {s.name for s in div.subjects}
+        for sname in csv_data["pool"]:
+            if sname not in existing_subject_names:
+                db.session.add(Subject(name=sname, division_id=div.id))
+
+        # ── Ensure all grades exist and belong to this sector ──────────────
+        existing_grade_names = {g.name for g in div.grade_groups}
+        for gname in csv_data["grades"]:
+            if gname not in existing_grade_names:
+                g = GradeGroup.query.filter_by(name=gname).first()
+                if g:
+                    g.division_id = div.id
+                else:
+                    db.session.add(GradeGroup(name=gname, division_id=div.id))
+
+        # ── Replace mode: remove items absent from CSV ─────────────────────
+        if mode == "replace":
+            for g in list(div.grade_groups):
+                if g.name not in csv_data["grades"]:
+                    if g.student_profiles:
+                        pass  # skip – students still assigned
+                    else:
+                        TeacherSubjectGrade.query.filter_by(
+                            grade_group_id=g.id).delete(synchronize_session=False)
+                        db.session.delete(g)
+                        deleted += 1
+            for s in list(div.subjects):
+                if s.name not in csv_data["pool"]:
+                    db.session.delete(s)
+                    deleted += 1
+
+        # ── Flush so all IDs are resolved ──────────────────────────────────
+        db.session.flush()
+
+        # ── Create per-grade subject assignments ───────────────────────────
+        # Build lookup maps (name → object) after flush
+        grade_map   = {g.name: g for g in div.grade_groups}
+        subject_map = {s.name: s for s in div.subjects}
+
+        for gname, snames in csv_data["grades"].items():
+            g = grade_map.get(gname)
+            if not g:
+                continue
+            for sname in snames:
+                s = subject_map.get(sname)
+                if not s:
+                    continue
+                already = GradeGroupSubject.query.filter_by(
+                    grade_group_id=g.id, subject_id=s.id).first()
+                if not already:
+                    db.session.add(GradeGroupSubject(
+                        grade_group_id=g.id, subject_id=s.id))
+
+            # Replace mode: remove subject assignments absent from this grade's list
+            if mode == "replace":
+                for gs in list(g.grade_subjects):
+                    if gs.subject.name not in snames:
+                        db.session.delete(gs)
+
+        updated += 1
+
+    db.session.commit()
+
+    if mode == "replace":
+        flash(_("Importação concluída: %(c)s setor(es) processado(s), %(d)s item(ns) removido(s).",
+                c=updated, d=deleted), "success")
+    else:
+        flash(_("Importação concluída: %(c)s setor(es) criado(s), %(u)s atualizado(s).",
+                c=created, u=updated - created), "success")
+
+    return redirect(url_for("admin.divisions"))
 
 
 @admin_bp.route("/grades/matrix/export.csv")
 @login_required
 @admin_required
 def export_grades_matrix():
-    """Export grade × subject matrix: rows = grades, columns = subjects, cells = 1/0."""
-    grades   = GradeGroup.query.order_by(GradeGroup.name).all()
-    subjects = Subject.query.order_by(Subject.name).all()
+    """Export grade × subject matrix with setor column."""
+    from app import _natsort_key
+    raw_div = request.args.get("division_id")
+
+    if raw_div == "0":
+        grades_q   = GradeGroup.query.filter_by(division_id=None)
+        subjects_q = Subject.query.filter_by(division_id=None)
+    elif raw_div and raw_div.isdigit():
+        did = int(raw_div)
+        grades_q   = GradeGroup.query.filter_by(division_id=did)
+        subjects_q = Subject.query.filter_by(division_id=did)
+    else:
+        grades_q   = GradeGroup.query
+        subjects_q = Subject.query
+
+    grades   = sorted(grades_q.all(),   key=lambda g: _natsort_key(g.name), reverse=True)
+    subjects = sorted(subjects_q.all(), key=lambda s: _natsort_key(s.name))
     active   = {(gs.grade_group_id, gs.subject_id) for gs in GradeGroupSubject.query.all()}
-    headers  = ["grade"] + [s.name for s in subjects]
+    headers  = ["setor", "turma"] + [s.name for s in subjects]
     rows = [
-        [g.name] + ["1" if (g.id, s.id) in active else "0" for s in subjects]
+        [(g.division.name if g.division else ""), g.name]
+        + ["1" if (g.id, s.id) in active else "0" for s in subjects]
         for g in grades
     ]
     return _csv_response(rows, headers, "turmas_materias.csv")
@@ -791,26 +1293,51 @@ def template_grades_matrix():
     """Return a minimal template with two example rows."""
     subjects = Subject.query.order_by(Subject.name).all()
     if subjects:
-        headers = ["grade"] + [s.name for s in subjects]
+        headers = ["setor", "turma"] + [s.name for s in subjects]
         rows = [
-            ["9º Ano A"] + ["1"] * len(subjects),
-            ["9º Ano B"] + ["0"] * len(subjects),
+            ["High School", "G9"]  + ["1"] * len(subjects),
+            ["High School", "G10"] + ["0"] * len(subjects),
         ]
     else:
-        headers = ["grade", "Matemática", "Português"]
-        rows = [["9º Ano A", "1", "1"], ["9º Ano B", "1", "0"]]
+        headers = ["setor", "turma", "Matemática", "Português"]
+        rows = [["High School", "G9", "1", "1"], ["High School", "G10", "1", "0"]]
     return _csv_response(rows, headers, "modelo_turmas_materias.csv")
 
 
 # ── CSV import ─────────────────────────────────────────────────────────────────
 
-def _link_guardian_to_student(student_id, g_json_str):
-    """Parse a guardian JSON object string and find-or-create the guardian, then link to student."""
-    if not g_json_str:
-        return
-    try:
-        data = json.loads(g_json_str)
-    except (json.JSONDecodeError, ValueError):
+def _parse_person_cell(cell):
+    """Parse a person cell into a dict with keys: email, first_name, last_name[, grade].
+
+    Accepted formats:
+      semicolon-sep  →  email;first_name;last_name[;grade]   (current standard)
+      JSON object    →  {"email":...,"first_name":...,...}    (legacy)
+    Returns dict or None if cell is empty/unparseable.
+    """
+    cell = cell.strip()
+    if not cell:
+        return None
+    if cell.startswith("{"):
+        # Legacy JSON object
+        try:
+            return json.loads(cell)
+        except (json.JSONDecodeError, ValueError):
+            return None
+    # Standard semicolon-separated: email;first_name;last_name[;grade]
+    parts = [p.strip() for p in cell.split(";")]
+    if len(parts) < 1 or not parts[0]:
+        return None
+    data = {"email": parts[0].lower()}
+    if len(parts) > 1: data["first_name"] = parts[1]
+    if len(parts) > 2: data["last_name"]  = parts[2]
+    if len(parts) > 3: data["grade"]      = parts[3]
+    return data
+
+
+def _link_guardian_to_student(student_id, g_str):
+    """Parse a guardian cell and find-or-create the guardian, then link to student."""
+    data = _parse_person_cell(g_str)
+    if not data:
         return
     em = data.get("email", "").strip().lower()
     fn = data.get("first_name", "").strip()
@@ -828,13 +1355,10 @@ def _link_guardian_to_student(student_id, g_json_str):
         db.session.add(GuardianStudent(guardian_id=guardian.id, student_id=student_id))
 
 
-def _link_student_to_guardian(guardian_id, s_json_str):
-    """Parse a student JSON object string and link the (existing) student to the guardian."""
-    if not s_json_str:
-        return
-    try:
-        data = json.loads(s_json_str)
-    except (json.JSONDecodeError, ValueError):
+def _link_student_to_guardian(guardian_id, s_str):
+    """Parse a student cell and link the (existing) student to the guardian."""
+    data = _parse_person_cell(s_str)
+    if not data:
         return
     em = data.get("email", "").strip().lower()
     if not em:
@@ -846,18 +1370,28 @@ def _link_student_to_guardian(guardian_id, s_json_str):
 
 
 def _import_teacher_subjects(teacher_id, subjects_grades_str):
-    """Parse subjects_grades cell (JSON array or legacy semicolon string) and create records."""
-    # Try JSON array first: ["Subject/Grade", ...]
+    """Parse subjects_grades cell and create TeacherSubjectGrade records.
+
+    Accepted formats (in order of preference):
+      pipe-separated  →  Matemática/G9|Português/G10        (current standard)
+      JSON array      →  ["Matemática/G9", "Português/G10"] (legacy, kept for backward compat)
+      semicolon-sep   →  Matemática/G9; Português/G10       (old legacy)
+    Each item must be "SubjectName/GradeName".
+    """
     pairs = []
     stripped = subjects_grades_str.strip()
+    if not stripped:
+        return
     if stripped.startswith("["):
+        # Legacy JSON array
         try:
             pairs = [p.strip() for p in json.loads(stripped) if isinstance(p, str) and p.strip()]
         except (json.JSONDecodeError, ValueError):
             pass
     if not pairs:
-        # Fallback: legacy semicolon-separated "Subject/Grade; Subject2/Grade2"
-        pairs = [p.strip() for p in stripped.split(";") if p.strip()]
+        # Standard pipe-separated (or legacy semicolon)
+        sep = "|" if "|" in stripped else ";"
+        pairs = [p.strip() for p in stripped.split(sep) if p.strip()]
 
     for pair in pairs:
         if "/" not in pair:
@@ -1113,30 +1647,43 @@ def import_guardians():
 @admin_required
 def import_grades_matrix():
     """Import the grade × subject matrix CSV.
-    Header row: grade, Subject1, Subject2, ...
-    Data rows:  GradeName, 1, 0, ...
-    Modes: add (create missing), replace (rebuild entire matrix), delete (delete listed grades).
+    New format:  setor, turma, Subject1, Subject2, ...
+    Legacy format: grade, Subject1, Subject2, ...  (no setor column)
+    Modes: add (create missing), replace (rebuild), delete (delete listed grades).
     """
     mode = request.form.get("mode", "add")
     f = request.files.get("csv_file")
-    if not f or not f.filename:
-        flash(_("Nenhum arquivo enviado."), "danger")
-        return redirect(url_for("admin.grades"))
     try:
-        reader = csv.reader(io.StringIO(f.stream.read().decode("utf-8-sig")))
-        all_rows = [r for r in reader if any(c.strip() for c in r)]
+        raw = _validate_csv_file(f)
+        stream = io.StringIO(raw.decode("utf-8-sig"))
+        reader = csv.DictReader(stream)
+        data_rows = [r for r in reader if any(v.strip() for v in r.values())]
+        header = [c.strip() for c in (reader.fieldnames or [])]
     except Exception as e:
         flash(_("Erro ao ler arquivo: %(err)s", err=str(e)), "danger")
         return redirect(url_for("admin.grades"))
 
-    if not all_rows:
-        flash(_("Arquivo vazio."), "danger")
+    if not header:
+        flash(_("Arquivo vazio ou sem cabeçalho."), "danger")
         return redirect(url_for("admin.grades"))
 
-    header       = [c.strip() for c in all_rows[0]]   # ["grade", "Matemática", ...]
-    subject_names = header[1:]                          # skip the "grade" column
-    data_rows     = all_rows[1:]
-    grade_names_in_file = {r[0].strip() for r in data_rows if r and r[0].strip()}
+    # Normalise header keys (strip whitespace from dict keys in each row)
+    data_rows = [{k.strip(): v.strip() for k, v in row.items()} for row in data_rows]
+
+    # Detect format: new → first cols are "setor" and "turma"; legacy → first col is "grade"
+    has_setor = (len(header) >= 2
+                 and header[0].lower() == "setor"
+                 and header[1].lower() == "turma")
+    if has_setor:
+        grade_key    = "turma"
+        setor_key    = "setor"
+        subject_names = [h for h in header if h.lower() not in ("setor", "turma")]
+    else:
+        grade_key    = header[0]   # "grade" or first column
+        setor_key    = None
+        subject_names = header[1:]
+
+    grade_names_in_file = {r[grade_key] for r in data_rows if r.get(grade_key)}
 
     if mode == "delete":
         deleted = 0
@@ -1146,11 +1693,10 @@ def import_grades_matrix():
                 db.session.delete(grade)
                 deleted += 1
         db.session.commit()
-        flash(_("%(deleted)d turma(s) apagada(s).", deleted=deleted), "success")
+        flash(_("%(n)d turma(s) apagada(s).", n=deleted), "success")
         return redirect(url_for("admin.grades"))
 
     if mode == "replace":
-        # Remove all grade-subject links and teacher assignments, then prune obsolete rows
         GradeGroupSubject.query.delete(synchronize_session=False)
         TeacherSubjectGrade.query.delete(synchronize_session=False)
         for g in GradeGroup.query.filter(~GradeGroup.name.in_(grade_names_in_file)).all():
@@ -1159,36 +1705,65 @@ def import_grades_matrix():
             db.session.delete(s)
         db.session.flush()
 
-    # Ensure subjects exist
-    subject_objs = {}
-    for name in subject_names:
+    # Division lookup/create cache
+    div_cache = {}
+    def get_or_create_division(name):
+        name = name.strip()
         if not name:
-            continue
-        s = Subject.query.filter_by(name=name).first()
-        if not s:
-            s = Subject(name=name)
-            db.session.add(s)
-            db.session.flush()
-        subject_objs[name] = s
+            return None
+        if name not in div_cache:
+            d = Division.query.filter_by(name=name).first()
+            if not d:
+                max_o = db.session.query(db.func.max(Division.order)).scalar() or 0
+                d = Division(name=name, order=max_o + 1)
+                db.session.add(d)
+                db.session.flush()
+            div_cache[name] = d
+        return div_cache[name]
+
+    # Ensure all subjects exist (once per division)
+    subject_objs = {}  # (name, div_id) → Subject
+    for row in data_rows:
+        div = get_or_create_division(row[setor_key]) if setor_key else None
+        div_id = div.id if div else None
+        for sname in subject_names:
+            if not sname:
+                continue
+            key = (sname, div_id)
+            if key not in subject_objs:
+                s = Subject.query.filter_by(name=sname, division_id=div_id).first()
+                if not s:
+                    s = Subject(name=sname, division_id=div_id)
+                    db.session.add(s)
+                    db.session.flush()
+                subject_objs[key] = s
 
     added_grades = added_links = 0
     for row in data_rows:
-        grade_name = row[0].strip() if row else ""
+        grade_name = row.get(grade_key, "").strip()
         if not grade_name:
             continue
+
+        div = get_or_create_division(row[setor_key]) if setor_key else None
+        div_id = div.id if div else None
+
         grade = GradeGroup.query.filter_by(name=grade_name).first()
         if not grade:
-            grade = GradeGroup(name=grade_name)
+            grade = GradeGroup(name=grade_name, division_id=div_id)
             db.session.add(grade)
             db.session.flush()
             added_grades += 1
+        elif div_id and not grade.division_id:
+            grade.division_id = div_id
 
-        for i, subject_name in enumerate(subject_names):
-            if not subject_name or subject_name not in subject_objs:
+        for sname in subject_names:
+            if not sname:
                 continue
-            cell = row[i + 1].strip() if i + 1 < len(row) else "0"
-            is_active = cell in ("1", "true", "True", "TRUE", "yes", "Yes", "YES")
-            subject = subject_objs[subject_name]
+            subject = subject_objs.get((sname, div_id))
+            if not subject:
+                continue
+            cell = row.get(sname, "0").strip()
+            is_active = cell in ("1", "true", "True", "TRUE", "yes", "YES")
             existing = GradeGroupSubject.query.filter_by(
                 grade_group_id=grade.id, subject_id=subject.id).first()
             if is_active and not existing:
@@ -1339,10 +1914,11 @@ def toggle_day_active(event_id, day_id):
 
 def _get_grade_subjects_map():
     """Returns list of (GradeGroup, Subject) pairs defined via GradeGroupSubject."""
+    from app import _natsort_key
     rows = (GradeGroupSubject.query
             .join(GradeGroup, GradeGroupSubject.grade_group_id == GradeGroup.id)
             .join(Subject, GradeGroupSubject.subject_id == Subject.id)
-            .order_by(GradeGroup.name, Subject.name)
+            .order_by(Subject.name)
             .all())
     # Group by grade for easy template iteration: {grade: [subject, ...]}
     from collections import defaultdict
@@ -1351,7 +1927,57 @@ def _get_grade_subjects_map():
     for gs in rows:
         grouped[gs.grade_group_id].append(gs.subject)
         grade_objs[gs.grade_group_id] = gs.grade_group
-    return [(grade_objs[gid], subjects) for gid, subjects in grouped.items()]
+    # Sort grades descending (G12 → G11 → G10 …)
+    sorted_gids = sorted(grade_objs.keys(),
+                         key=lambda gid: _natsort_key(grade_objs[gid].name),
+                         reverse=True)
+    return [(grade_objs[gid], grouped[gid]) for gid in sorted_gids]
+
+
+def _sg_data_js(grade_subjects_by_sector):
+    """Serialisable list for JS — mirrors grade_subjects_by_sector structure."""
+    result = []
+    for div, grade_list in grade_subjects_by_sector:
+        result.append({
+            "div_id":   div.id   if div else 0,
+            "div_name": div.name if div else "Sem setor",
+            "grades": [
+                {"grade_id":   g.id,
+                 "grade_name": g.name,
+                 "subjects":   [{"id": s.id, "name": s.name} for s in subs]}
+                for g, subs in grade_list
+            ],
+        })
+    return result
+
+
+def _get_grade_subjects_by_sector():
+    """Returns sector-grouped structure for the teacher form.
+
+    Returns:
+        [(Division, [(GradeGroup, [Subject, ...])])]
+    Includes ALL grades in ALL sectors, even those with no subject assignments.
+    Ordered: sectors by (order, name); grades by (order, name); subjects by name.
+    """
+    from app import _natsort_key
+    from collections import defaultdict
+
+    # Pre-load every subject assignment once (grade_id → sorted subjects)
+    grade_subjects: dict = defaultdict(list)
+    for gs in (GradeGroupSubject.query
+               .join(Subject, GradeGroupSubject.subject_id == Subject.id)
+               .order_by(Subject.name)
+               .all()):
+        grade_subjects[gs.grade_group_id].append(gs.subject)
+
+    # Walk every Division (in display order) and include all its grades
+    result = []
+    for div in Division.query.order_by(Division.order, Division.name).all():
+        grades = sorted(div.grade_groups,
+                        key=lambda g: (g.order, _natsort_key(g.name)))
+        if grades:          # skip sectors that have no grades at all
+            result.append((div, [(g, grade_subjects[g.id]) for g in grades]))
+    return result
 
 
 def _save_teacher_subject_grades(teacher_id, form_data):
@@ -1394,7 +2020,8 @@ def students():
     if grade_filter:
         query = query.join(StudentProfile).filter(StudentProfile.grade_group_id == grade_filter)
     students = query.order_by(User.last_name).all()
-    grades = GradeGroup.query.order_by(GradeGroup.name).all()
+    from app import _natsort_key
+    grades = sorted(GradeGroup.query.all(), key=lambda g: _natsort_key(g.name), reverse=True)
     return render_template("admin/students.html", students=students, grades=grades, grade_filter=grade_filter)
 
 
@@ -1605,62 +2232,85 @@ def update_guardian_from_student(student_id, guardian_id):
 @login_required
 @admin_required
 def events():
-    all_events = ConferenceEvent.query.order_by(ConferenceEvent.created_at.desc()).all()
+    all_events = ConferenceEvent.query.order_by(ConferenceEvent.name).all()
     return render_template("admin/events.html", events=all_events)
+
+
+def _has_at_least_one_day():
+    """Return True if the submitted form contains at least one complete day row
+    (date + start_time + end_time) in any sector."""
+    for key in request.form:
+        m = re.match(r'^sector_(\d+)_slot_duration$', key)
+        if not m:
+            continue
+        dk = m.group(1)
+        dates  = request.form.getlist(f"sector_{dk}_day_dates[]")
+        starts = request.form.getlist(f"sector_{dk}_day_starts[]")
+        ends   = request.form.getlist(f"sector_{dk}_day_ends[]")
+        for d, s, e in zip(dates, starts, ends):
+            if d.strip() and s.strip() and e.strip():
+                return True
+    return False
 
 
 @admin_bp.route("/events/new", methods=["GET", "POST"])
 @login_required
 @admin_required
 def new_event():
-    form = ConferenceEventForm()
+    form = ConferenceEventSimpleForm()
+    divisions = Division.query.order_by(Division.order, Division.name).all()
     if form.validate_on_submit():
-        event = ConferenceEvent(
-            name=form.name.data,
-            student_booking_allowed=form.student_booking_allowed.data,
-            cancel_deadline_hours=form.cancel_deadline_hours.data,
-        )
-        db.session.add(event)
-        db.session.flush()
-        _save_event_days_and_slots(event, form)
-        db.session.commit()
-        flash(_("Evento criado e horários gerados."), "success")
-        return redirect(url_for("admin.events"))
-    return render_template("admin/event_form.html", form=form, event=None)
+        if not _has_at_least_one_day():
+            flash(_("Adicione pelo menos 1 dia de reunião (com data, início e fim) em qualquer setor."), "warning")
+        else:
+            event = ConferenceEvent(
+                name=form.name.data,
+                student_booking_allowed=form.student_booking_allowed.data,
+                cancel_deadline_hours=form.cancel_deadline_hours.data,
+            )
+            db.session.add(event)
+            db.session.flush()
+            _save_event_sectors(event, conflict_action='keep')
+            db.session.commit()
+            flash(_("Evento criado e horários gerados."), "success")
+            return redirect(url_for("admin.edit_event", id=event.id))
+    sector_teachers_js = _build_sector_teachers_js(divisions)
+    # Preserve submitted form data on validation error
+    existing_sectors = {}
+    if request.method == 'POST':
+        existing_sectors = _build_existing_sectors_from_post()
+    return render_template("admin/event_form.html",
+                           form=form, event=None,
+                           divisions=divisions,
+                           sector_teachers_js=sector_teachers_js,
+                           existing_sectors=existing_sectors,
+                           all_teachers_data=[], absent_set_list=[], absent_set=set())
 
 
 @admin_bp.route("/events/<int:id>/check-conflicts")
 @login_required
 @admin_required
 def event_check_conflicts(id):
-    """Return days that have bookings and are about to be removed from the event."""
-    from datetime import date as date_type
+    """Return days that have bookings and are about to be removed from the event (used by JS modal)."""
     event = ConferenceEvent.query.get_or_404(id)
+    # Collect all dates still in the form (sent as sector_{divId}_day_dates[] query params)
     form_dates = set()
-    for d in request.args.getlist('dates[]'):
-        try:
-            from datetime import datetime as dt
-            form_dates.add(dt.strptime(d, '%Y-%m-%d').date())
-        except (ValueError, TypeError):
-            pass
-
+    for key, val in request.args.items(multi=True):
+        if re.match(r'^sector_\d+_day_dates\[\]$', key) and val:
+            try:
+                form_dates.add(datetime.strptime(val, '%Y-%m-%d').date())
+            except ValueError:
+                pass
     conflicts = []
     for day in event.days:
         if day.date in form_dates:
-            continue  # day is staying — no conflict
-        has_bookings = db.session.query(Booking).join(Slot).filter(
+            continue
+        count = db.session.query(Booking).join(Slot).filter(
             Slot.day_id == day.id,
             Booking.cancelled_at == None
-        ).first() is not None
-        if has_bookings:
-            count = db.session.query(Booking).join(Slot).filter(
-                Slot.day_id == day.id,
-                Booking.cancelled_at == None
-            ).count()
-            conflicts.append({
-                'date': day.date.strftime('%d/%m/%Y'),
-                'bookings': count,
-            })
+        ).count()
+        if count:
+            conflicts.append({'date': day.date.strftime('%d/%m/%Y'), 'bookings': count})
     return jsonify({'conflicts': conflicts})
 
 
@@ -1669,107 +2319,50 @@ def event_check_conflicts(id):
 @admin_required
 def edit_event(id):
     event = ConferenceEvent.query.get_or_404(id)
-    form = ConferenceEventForm(obj=event)
+    form  = ConferenceEventSimpleForm(obj=event)
+    divisions = Division.query.order_by(Division.order, Division.name).all()
+
     if form.validate_on_submit():
-        event.name = form.name.data
-        event.student_booking_allowed = form.student_booking_allowed.data
-        event.cancel_deadline_hours = form.cancel_deadline_hours.data
-
-        # Map existing days by date
-        existing_by_date = {day.date: day for day in event.days}
-        form_dates = {fd.date.data for fd in form.days if fd.date.data}
-        teachers = User.query.filter_by(role="teacher", is_active=True).all()
-        protected = []  # days with bookings that cannot be removed
-
-        # conflict_action: 'keep' = preserve bookings, 'remove_all' = force delete
-        conflict_action = request.form.get('conflict_action', 'keep')
-
-        # ── Remove days that disappeared from the form ──────────────────
-        for date, day in list(existing_by_date.items()):
-            if date not in form_dates:
-                has_bookings = db.session.query(Booking).join(Slot).filter(
-                    Slot.day_id == day.id,
-                    Booking.cancelled_at == None
-                ).first() is not None
-
-                if has_bookings and conflict_action == 'keep':
-                    protected.append(day.date.strftime('%d/%m/%Y'))
-                else:
-                    # 'remove_all': manually delete bookings first to bypass cascade check
-                    if has_bookings:
-                        for slot in day.slots:
-                            if slot.booking:
-                                db.session.delete(slot.booking)
-                    db.session.delete(day)
-
-        db.session.flush()
-
-        # ── Update existing days / add new ones ─────────────────────────
-        for fd in form.days:
-            if not fd.date.data:
-                continue
-            date = fd.date.data
-
-            if date in existing_by_date:
-                # Update metadata
-                day = existing_by_date[date]
-                day.start_time            = fd.start_time.data
-                day.end_time              = fd.end_time.data
-                day.slot_duration_minutes = fd.slot_duration_minutes.data
-                day.break_minutes         = fd.break_minutes.data or 0
-
-                # Regenerate slots only when no bookings exist for this day
-                has_bookings = db.session.query(Booking).join(Slot).filter(
-                    Slot.day_id == day.id,
-                    Booking.cancelled_at == None
-                ).first() is not None
-                if not has_bookings:
-                    for s in list(day.slots):
-                        db.session.delete(s)
-                    db.session.flush()
-                    db.session.add_all(generate_slots_for_day(day, teachers))
-            else:
-                # Brand-new day
-                day = ConferenceDay(
-                    event_id=event.id,
-                    date=date,
-                    start_time=fd.start_time.data,
-                    end_time=fd.end_time.data,
-                    slot_duration_minutes=fd.slot_duration_minutes.data,
-                    break_minutes=fd.break_minutes.data or 0,
-                )
-                db.session.add(day)
-                db.session.flush()
-                db.session.add_all(generate_slots_for_day(day, teachers))
-
-        db.session.commit()
-
-        if protected:
-            flash(
-                _("Evento atualizado. O(s) dia(s) %(dates)s não foram removidos pois têm agendamentos confirmados.",
-                  dates=', '.join(protected)),
-                "warning"
-            )
+        if not _has_at_least_one_day():
+            flash(_("Adicione pelo menos 1 dia de reunião (com data, início e fim) em qualquer setor."), "warning")
         else:
-            flash(_("Evento atualizado."), "success")
-        return redirect(url_for("admin.events"))
+            event.name                    = form.name.data
+            event.student_booking_allowed = form.student_booking_allowed.data
+            event.cancel_deadline_hours   = form.cancel_deadline_hours.data
+            conflict_action = request.form.get('conflict_action', 'keep')
+            protected = _save_event_sectors(event, conflict_action=conflict_action)
+            db.session.commit()
+            if protected:
+                flash(_("Evento atualizado. Dia(s) %(d)s não removido(s) por terem agendamentos.",
+                        d=', '.join(protected)), "warning")
+            else:
+                flash(_("Evento atualizado."), "success")
+            return redirect(url_for("admin.events"))
+
+    # ── Build template context ────────────────────────────────────────────────
+    sector_teachers_js = _build_sector_teachers_js(divisions)
+    existing_sectors   = _build_existing_sectors(event)
     all_teachers = (User.query.filter_by(role="teacher", is_active=True)
                     .order_by(User.last_name, User.first_name).all())
     absent_set = {(a.day_id, a.teacher_id)
                   for a in TeacherDayAbsence.query
                   .join(ConferenceDay, TeacherDayAbsence.day_id == ConferenceDay.id)
                   .filter(ConferenceDay.event_id == id).all()}
-    # Serialised for JS
     all_teachers_data = [
         {"id": t.id, "name": t.full_name,
          "initials": (t.first_name[0] + t.last_name[0]).upper()}
         for t in all_teachers
     ]
     absent_set_list = [[d, t] for d, t in absent_set]
-    return render_template("admin/event_form.html", form=form, event=event,
-                           all_teachers=all_teachers, absent_set=absent_set,
+    return render_template("admin/event_form.html",
+                           form=form, event=event,
+                           divisions=divisions,
+                           sector_teachers_js=sector_teachers_js,
+                           existing_sectors=existing_sectors,
+                           all_teachers=all_teachers,
                            all_teachers_data=all_teachers_data,
-                           absent_set_list=absent_set_list)
+                           absent_set_list=absent_set_list,
+                           absent_set=absent_set)
 
 
 @admin_bp.route("/events/<int:id>/publish", methods=["POST"])
@@ -1873,7 +2466,8 @@ def print_schedule(id):
 
 
 def _save_event_days_and_slots(event, form):
-    teachers = User.query.filter_by(role="teacher", is_active=True).all()
+    """Legacy helper kept for compatibility — new code uses _save_event_sectors."""
+    teachers = User.query.filter_by(role="teacher", is_active=True).order_by(User.last_name, User.first_name).all()
     for day_data in form.days:
         if not day_data.date.data:
             continue
@@ -1889,6 +2483,311 @@ def _save_event_days_and_slots(event, form):
         db.session.flush()
         slots = generate_slots_for_day(day, teachers)
         db.session.add_all(slots)
+
+
+def _build_sector_teachers_js(divisions):
+    """
+    For each division return a list of all active teachers annotated with
+    whether they naturally belong to that sector (via TeacherSubjectGrade).
+    Returns {str(div_id): [{id, name, in_sector}, ...], ...}
+    """
+    from collections import defaultdict
+    grade_to_div = {g.id: g.division_id for g in GradeGroup.query.all() if g.division_id}
+    teacher_divs = defaultdict(set)
+    for tsg in TeacherSubjectGrade.query.all():
+        div_id = grade_to_div.get(tsg.grade_group_id)
+        if div_id:
+            teacher_divs[tsg.teacher_id].add(div_id)
+
+    all_teachers = (User.query.filter_by(role="teacher", is_active=True)
+                    .order_by(User.last_name, User.first_name).all())
+    result = {}
+    for div in divisions:
+        result[str(div.id)] = [
+            {"id": t.id, "name": t.full_name,
+             "in_sector": div.id in teacher_divs[t.id]}
+            for t in all_teachers
+        ]
+    return result
+
+
+def _build_existing_sectors(event):
+    """
+    Return existing_sectors dict for the template:
+    {str(div_id): {start_time, end_time, slot_duration, break, dates[], teachers[]}}
+
+    Also handles legacy events that have ConferenceDay records but no EventSector records.
+    """
+    existing = {}
+
+    def _day_entry(day):
+        return {
+            "date":  day.date.strftime('%Y-%m-%d'),
+            "start": day.start_time.strftime('%H:%M'),
+            "end":   day.end_time.strftime('%H:%M'),
+        }
+
+    # ── From EventSector records (new system) ─────────────────────────────────
+    for sector in event.sectors:
+        div_key = str(sector.division_id) if sector.division_id is not None else "0"
+        days = (ConferenceDay.query
+                .filter_by(event_id=event.id, division_id=sector.division_id)
+                .order_by(ConferenceDay.date).all())
+        existing[div_key] = {
+            "slot_duration": sector.slot_duration_minutes or 10,
+            "break":         sector.break_minutes or 0,
+            "days":          [_day_entry(d) for d in days],
+            "teachers": [
+                {"id": etc.teacher_id, "duration": etc.slot_duration_minutes}
+                for etc in sector.teacher_configs
+            ],
+        }
+
+    # ── Legacy orphaned days (old system, no EventSector) ─────────────────────
+    seen_dates = {k: {e["date"] for e in v["days"]} for k, v in existing.items()}
+    for day in event.days:
+        div_key  = str(day.division_id) if day.division_id is not None else "0"
+        date_str = day.date.strftime('%Y-%m-%d')
+        if div_key in existing:
+            if date_str not in seen_dates.get(div_key, set()):
+                existing[div_key]["days"].append(_day_entry(day))
+                seen_dates.setdefault(div_key, set()).add(date_str)
+        else:
+            existing[div_key] = {
+                "slot_duration": day.slot_duration_minutes,
+                "break":         day.break_minutes,
+                "days":          [_day_entry(day)],
+                "teachers":      [],
+            }
+            seen_dates[div_key] = {date_str}
+
+    # Sort days by date within each sector
+    for key in existing:
+        existing[key]["days"].sort(key=lambda d: d["date"])
+    return existing
+
+
+def _build_existing_sectors_from_post():
+    """
+    Reconstruct existing_sectors from POST data so the form keeps user input
+    when the server rejects the submission (e.g. missing day validation).
+    """
+    result = {}
+    for key in request.form:
+        m = re.match(r'^sector_(\d+)_slot_duration$', key)
+        if not m:
+            continue
+        dk = m.group(1)
+        dates  = request.form.getlist(f"sector_{dk}_day_dates[]")
+        starts = request.form.getlist(f"sector_{dk}_day_starts[]")
+        ends   = request.form.getlist(f"sector_{dk}_day_ends[]")
+        days = []
+        for d, s, e in zip(dates, starts, ends):
+            if d.strip():
+                days.append({"date": d.strip(), "start": s.strip(), "end": e.strip()})
+        # Parse teachers
+        teachers = []
+        for tid_str in request.form.getlist(f"sector_{dk}_teachers[]"):
+            try:
+                tid = int(tid_str)
+                dur_raw = request.form.get(f"sector_{dk}_teacher_{tid}_duration", "").strip()
+                teachers.append({"id": tid, "duration": int(dur_raw) if dur_raw else None})
+            except ValueError:
+                pass
+        result[dk] = {
+            "slot_duration": int(request.form.get(f"sector_{dk}_slot_duration", 10) or 10),
+            "break":         int(request.form.get(f"sector_{dk}_break", 0) or 0),
+            "days":          days,
+            "teachers":      teachers,
+        }
+    return result
+
+
+def _save_event_sectors(event, conflict_action='keep'):
+    """
+    Parse per-sector form data (sector_{divId}_*) and persist:
+      EventSector, EventSectorTeacher, ConferenceDay, Slot
+
+    Returns a list of protected day dates (string, had bookings → not removed).
+    """
+    from datetime import time as time_type
+
+    # ── Discover which division IDs are in the form ───────────────────────────
+    div_ids_in_form = set()
+    for key in request.form:
+        m = re.match(r'^sector_(\d+)_slot_duration$', key)
+        if m:
+            div_ids_in_form.add(int(m.group(1)))
+
+    # ── Remove sectors no longer present ─────────────────────────────────────
+    for sector in list(event.sectors):
+        sid = sector.division_id if sector.division_id is not None else 0
+        if sid not in div_ids_in_form:
+            for day in list(ConferenceDay.query.filter_by(
+                    event_id=event.id, division_id=sector.division_id).all()):
+                db.session.delete(day)
+            db.session.delete(sector)
+    db.session.flush()
+
+    protected = []
+
+    for div_id_key in div_ids_in_form:
+        div_id = div_id_key if div_id_key != 0 else None  # 0 → NULL in DB
+
+        # ── Parse sector constants (duration + break) ────────────────────────
+        dur_raw = request.form.get(f"sector_{div_id_key}_slot_duration", "").strip()
+        brk_raw = request.form.get(f"sector_{div_id_key}_break", "0").strip()
+        try:
+            slot_dur  = max(1, int(dur_raw) if dur_raw else 10)
+            break_min = max(0, int(brk_raw) if brk_raw else 0)
+        except (ValueError, TypeError):
+            continue
+
+        # ── Parse per-day times (date + start + end) ─────────────────────────
+        dates_raw  = request.form.getlist(f"sector_{div_id_key}_day_dates[]")
+        starts_raw = request.form.getlist(f"sector_{div_id_key}_day_starts[]")
+        ends_raw   = request.form.getlist(f"sector_{div_id_key}_day_ends[]")
+
+        # form_days: {date → (start_time, end_time)}
+        form_days = {}
+        for d_str, s_str, e_str in zip(dates_raw, starts_raw, ends_raw):
+            d_str = (d_str or "").strip()
+            s_str = (s_str or "").strip()
+            e_str = (e_str or "").strip()
+            if not (d_str and s_str and e_str):
+                continue
+            try:
+                date  = datetime.strptime(d_str, '%Y-%m-%d').date()
+                sh, sm = map(int, s_str.split(':'))
+                eh, em = map(int, e_str.split(':'))
+                form_days[date] = (time_type(sh, sm), time_type(eh, em))
+            except (ValueError, TypeError):
+                pass
+
+        # ── Parse teacher selection ───────────────────────────────────────────
+        selected_tids = set()
+        for tid_str in request.form.getlist(f"sector_{div_id_key}_teachers[]"):
+            try:
+                selected_tids.add(int(tid_str))
+            except ValueError:
+                pass
+
+        teacher_dur_overrides = {}
+        for tid in selected_tids:
+            raw = request.form.get(f"sector_{div_id_key}_teacher_{tid}_duration", "").strip()
+            try:
+                teacher_dur_overrides[tid] = int(raw) if raw else None
+            except ValueError:
+                teacher_dur_overrides[tid] = None
+
+        # ── Get or create EventSector ─────────────────────────────────────────
+        sector = EventSector.query.filter_by(
+            event_id=event.id, division_id=div_id).first()
+        if not sector:
+            sector = EventSector(event_id=event.id, division_id=div_id)
+            db.session.add(sector)
+        sector.slot_duration_minutes = slot_dur
+        sector.break_minutes         = break_min
+        db.session.flush()
+
+        # ── Update EventSectorTeacher ─────────────────────────────────────────
+        for etc in list(sector.teacher_configs):
+            if etc.teacher_id not in selected_tids:
+                db.session.delete(etc)
+        db.session.flush()
+
+        for tid in selected_tids:
+            etc = EventSectorTeacher.query.filter_by(
+                sector_id=sector.id, teacher_id=tid).first()
+            if not etc:
+                etc = EventSectorTeacher(sector_id=sector.id, teacher_id=tid)
+                db.session.add(etc)
+            etc.slot_duration_minutes = teacher_dur_overrides.get(tid)
+        db.session.flush()
+
+        # Build (User, duration) list for slot generation
+        teacher_gen = []
+        teacher_map = {t.id: t for t in
+                       User.query.filter(User.id.in_(selected_tids)).all()}
+        for etc in sector.teacher_configs:
+            teacher = teacher_map.get(etc.teacher_id)
+            if teacher:
+                teacher_gen.append((teacher, etc.slot_duration_minutes or slot_dur))
+
+        # ── Handle ConferenceDay records ──────────────────────────────────────
+        existing_days = {
+            day.date: day for day in
+            ConferenceDay.query.filter_by(
+                event_id=event.id, division_id=div_id).all()
+        }
+
+        # Remove days no longer in form
+        for date, day in list(existing_days.items()):
+            if date not in form_days:
+                bk_count = db.session.query(Booking).join(Slot).filter(
+                    Slot.day_id == day.id, Booking.cancelled_at == None).count()
+                if bk_count and conflict_action == 'keep':
+                    protected.append(date.strftime('%d/%m/%Y'))
+                else:
+                    if bk_count:
+                        for slot in day.slots:
+                            if slot.booking:
+                                db.session.delete(slot.booking)
+                    db.session.delete(day)
+        db.session.flush()
+
+        # Refresh after deletes
+        existing_days = {
+            day.date: day for day in
+            ConferenceDay.query.filter_by(
+                event_id=event.id, division_id=div_id).all()
+        }
+
+        # ── Create / update days and generate slots ───────────────────────────
+        for date, (start_t, end_t) in sorted(form_days.items()):
+            if date in existing_days:
+                day = existing_days[date]
+                timing_changed = (
+                    day.start_time != start_t or day.end_time != end_t or
+                    day.slot_duration_minutes != slot_dur or
+                    day.break_minutes != break_min
+                )
+                existing_t_ids = {s.teacher_id for s in day.slots}
+                teachers_changed = existing_t_ids != {t.id for t, _ in teacher_gen}
+
+                day.start_time            = start_t
+                day.end_time              = end_t
+                day.slot_duration_minutes = slot_dur
+                day.break_minutes         = break_min
+
+                if timing_changed or teachers_changed:
+                    has_bk = db.session.query(Booking).join(Slot).filter(
+                        Slot.day_id == day.id,
+                        Booking.cancelled_at == None).first() is not None
+                    if not has_bk:
+                        for s in list(day.slots):
+                            db.session.delete(s)
+                        db.session.flush()
+                        if teacher_gen:
+                            db.session.add_all(
+                                generate_slots_for_sector_day(day, teacher_gen, break_min))
+            else:
+                day = ConferenceDay(
+                    event_id=event.id,
+                    division_id=div_id,
+                    date=date,
+                    start_time=start_t,
+                    end_time=end_t,
+                    slot_duration_minutes=slot_dur,
+                    break_minutes=break_min,
+                )
+                db.session.add(day)
+                db.session.flush()
+                if teacher_gen:
+                    db.session.add_all(
+                        generate_slots_for_sector_day(day, teacher_gen, break_min))
+
+    return protected
 
 
 # ── Notifications ──────────────────────────────────────────────────────────────
@@ -1913,11 +2812,6 @@ def notify(event_id):
                 guardian.invite_sent_at = datetime.utcnow()
             try:
                 send_conference_info_email(guardian, event, token)
-                db.session.add(EmailNotification(
-                    event_id=event_id,
-                    recipient_id=guardian.id,
-                    type="conference_info",
-                ))
                 sent += 1
             except Exception:
                 pass
@@ -1934,7 +2828,7 @@ def notify(event_id):
 
 def _get_notify_recipients(form, event_id):
     query = User.query.filter_by(role="guardian", is_active=True)
-    guardians = query.all()
+    guardians = query.order_by(User.last_name, User.first_name).all()
     result = []
     for g in guardians:
         if form.all_guardians.data:

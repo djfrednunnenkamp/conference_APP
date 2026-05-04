@@ -1,0 +1,878 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Setores e Turmas') }} – Conferensia{% endblock %}
+
+{% block head %}
+<style>
+/* ── Empty state ── */
+.pan-empty-state {
+  background:#fff; border:1px solid #e2e8f0; border-radius:16px;
+  padding:3rem 2rem; text-align:center; max-width:440px; margin:0 auto;
+}
+.pan-empty-icon {
+  width:64px; height:64px; border-radius:50%; background:#eff6ff;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:1.8rem; color:#93c5fd; margin-bottom:1rem;
+}
+.pan-empty-title { font-weight:700; font-size:1rem; color:#1e293b; margin-bottom:.4rem; }
+.pan-empty-body  { color:#64748b; font-size:.85rem; line-height:1.6; margin-bottom:1.25rem; }
+
+/* ── Sector item (accordion card) ── */
+.sector-item {
+  background:#fff;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  margin-bottom:.65rem;
+  overflow:hidden;
+}
+.sector-header {
+  display:flex;
+  align-items:center;
+  gap:.65rem;
+  padding:.8rem 1rem;
+  cursor:pointer;
+  user-select:none;
+  transition:background .12s;
+}
+.sector-header:hover { background:#f8fafc; }
+.sector-chevron {
+  color:#94a3b8;
+  font-size:.9rem;
+  flex-shrink:0;
+  transition:transform .22s ease;
+}
+.sector-item.open .sector-chevron { transform:rotate(90deg); }
+.sector-name {
+  font-weight:600;
+  font-size:.95rem;
+  color:#1e293b;
+  flex:1;
+  min-width:0;
+}
+.sector-meta {
+  font-size:.75rem;
+  color:#94a3b8;
+  flex-shrink:0;
+  white-space:nowrap;
+}
+.sector-actions {
+  display:flex;
+  gap:.3rem;
+  align-items:center;
+  flex-shrink:0;
+}
+
+/* ── Grade rows (inside expanded sector) ── */
+.sector-grades { display:none; border-top:1px solid #f1f5f9; }
+.sector-item.open .sector-grades { display:block; }
+
+.grade-row {
+  display:flex;
+  align-items:center;
+  gap:.75rem;
+  padding:.7rem 1rem .7rem 2.75rem;
+  border-bottom:1px solid #f8fafc;
+  transition:background .1s;
+}
+.grade-row:last-of-type { border-bottom:none; }
+.grade-row:hover { background:#f8fafc; }
+
+.grade-avatar {
+  width:32px; height:32px; border-radius:50%;
+  background:#e8f0fe; color:#1a3461;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:.75rem; flex-shrink:0;
+}
+.grade-name {
+  font-weight:600;
+  font-size:.88rem;
+  color:#1e293b;
+  min-width:60px;
+}
+.grade-meta-text {
+  font-size:.75rem;
+  color:#94a3b8;
+  flex-shrink:0;
+}
+.subject-pills {
+  display:flex;
+  flex-wrap:wrap;
+  gap:.3rem;
+  flex:1;
+  min-width:0;
+}
+.subject-pill {
+  display:inline-flex; align-items:center;
+  background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d;
+  border-radius:20px; padding:.1rem .55rem;
+  font-size:.7rem; font-weight:500; white-space:nowrap;
+}
+.subject-pill.more {
+  background:#f1f5f9; border-color:#e2e8f0; color:#64748b;
+}
+.subject-pill.none {
+  background:#fafafa; border-color:#e2e8f0; color:#94a3b8; font-style:italic;
+}
+
+/* ── Grade empty label ── */
+.grade-empty {
+  display:flex; align-items:center; gap:.6rem;
+  padding:.9rem 1rem .9rem 2.75rem;
+  color:#94a3b8; font-size:.83rem; font-style:italic;
+}
+.grade-empty i { font-size:1rem; }
+
+/* ── Reorder arrows: hidden by default, shown in reorder-mode ── */
+.order-arrows { display: none !important; }
+#sectorList.reorder-mode .order-arrows { display: flex !important; }
+
+/* ── Subject panel modal ── */
+.subj-check-item {
+  display:flex; align-items:center; gap:.75rem;
+  padding:.55rem .75rem;
+  border-radius:8px; cursor:pointer; transition:background .1s;
+}
+.subj-check-item:hover { background:#f8fafc; }
+.subj-check-item input[type=checkbox] { width:16px; height:16px; cursor:pointer; flex-shrink:0; }
+.subj-check-item .subj-name { font-size:.9rem; color:#1e293b; }
+.subj-check-item.loading { opacity:.5; pointer-events:none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ── Page header ── #}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+  <h4 class="fw-bold mb-0">{{ _('Setores e Turmas') }}</h4>
+  <div class="d-flex gap-2 flex-wrap">
+    <button id="reorderToggleBtn"
+            class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrows-move me-1"></i><span class="reorder-label">{{ _('Reorganizar') }}</span>
+    </button>
+    <a href="{{ url_for('admin.export_divisions') }}"
+       class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-download me-1"></i>{{ _('Exportar CSV') }}
+    </a>
+    <button class="btn btn-outline-secondary btn-sm"
+            data-bs-toggle="modal" data-bs-target="#importModal">
+      <i class="bi bi-upload me-1"></i>{{ _('Importar CSV') }}
+    </button>
+    <button class="btn btn-primary btn-sm"
+            data-bs-toggle="modal" data-bs-target="#newSectorModal">
+      <i class="bi bi-plus-lg me-1"></i>{{ _('Novo setor') }}
+    </button>
+  </div>
+</div>
+
+{# ── Sector list ── #}
+{% if divisions %}
+<div id="sectorList">
+{% for div in divisions %}
+<div class="sector-item" id="sector-{{ div.id }}">
+
+  {# ── Sector header ── #}
+  <div class="sector-header" onclick="toggleSector({{ div.id }})">
+    <i class="bi bi-chevron-right sector-chevron" id="chevron-{{ div.id }}"></i>
+
+    {# Order arrows (stop click from bubbling to toggle) #}
+    <div class="order-arrows flex-column" style="gap:1px" onclick="event.stopPropagation()">
+      {% if not loop.first %}
+      <form method="POST" action="{{ url_for('admin.move_division', id=div.id, direction='up') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-link p-0 text-muted" style="font-size:.65rem;line-height:1.1"
+                title="{{ _('Mover para cima') }}"><i class="bi bi-chevron-up"></i></button>
+      </form>
+      {% else %}
+      <span style="font-size:.65rem;line-height:1.1;visibility:hidden"><i class="bi bi-chevron-up"></i></span>
+      {% endif %}
+      {% if not loop.last %}
+      <form method="POST" action="{{ url_for('admin.move_division', id=div.id, direction='down') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-link p-0 text-muted" style="font-size:.65rem;line-height:1.1"
+                title="{{ _('Mover para baixo') }}"><i class="bi bi-chevron-down"></i></button>
+      </form>
+      {% else %}
+      <span style="font-size:.65rem;line-height:1.1;visibility:hidden"><i class="bi bi-chevron-down"></i></span>
+      {% endif %}
+    </div>
+
+    <span class="sector-name">{{ div.name }}</span>
+    <span class="sector-meta" id="smeta-{{ div.id }}">
+      {{ div.grade_groups|length }} {{ _('turma(s)') }}
+      &nbsp;·&nbsp;
+      {{ div.subjects|length }} {{ _('matéria(s)') }}
+    </span>
+
+    {# Sector action buttons — stop click from toggling expand #}
+    <div class="sector-actions" onclick="event.stopPropagation()">
+      <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:.75rem"
+              onclick='openAddGrade({{ div.id }}, {{ div.name|tojson }})'
+              title="{{ _('Nova turma') }}">
+        <i class="bi bi-people me-1"></i>{{ _('+ Turma') }}
+      </button>
+      <button class="btn btn-outline-success btn-sm py-0 px-2" style="font-size:.75rem"
+              onclick='openManageSubjects({{ div.id }}, {{ div.name|tojson }})'
+              title="{{ _('Gerenciar matérias') }}">
+        <i class="bi bi-journal-bookmark me-1"></i>{{ _('+ Matéria') }}
+      </button>
+      <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.75rem"
+              onclick='openRenameSector({{ div.id }}, {{ div.name|tojson }})'
+              title="{{ _('Renomear') }}">
+        <i class="bi bi-pencil"></i>
+      </button>
+      <form method="POST" action="{{ url_for('admin.delete_division', id=div.id) }}" class="d-inline"
+            data-pan-confirm="{{ _('Todas as turmas serão desatribuídas. Esta ação não pode ser desfeita.') }}"
+            data-pan-title="{{ _('Excluir') }} {{ div.name }}"
+            data-pan-danger="1" data-pan-confirm-text="{{ _('Excluir') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:.75rem"
+                title="{{ _('Excluir setor') }}">
+          <i class="bi bi-trash"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Grade rows (shown when expanded) ── #}
+  <div class="sector-grades" id="grades-{{ div.id }}">
+    {% if div.grade_groups %}
+    {% for g in div.grade_groups | sort(attribute='order') %}
+
+    {# Compute active subjects for this grade in this division #}
+    {% set active_subs = namespace(list=[]) %}
+    {% for s in div.subjects %}
+      {% if (g.id, s.id) in active_pairs %}
+        {% set active_subs.list = active_subs.list + [s] %}
+      {% endif %}
+    {% endfor %}
+
+    <div class="grade-row" id="grade-row-{{ g.id }}">
+
+      {# Order arrows #}
+      <div class="order-arrows flex-column" style="gap:1px;flex-shrink:0">
+        {% if not loop.first %}
+        <form method="POST" action="{{ url_for('admin.move_grade', grade_id=g.id, direction='up') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-link p-0 text-muted" style="font-size:.6rem;line-height:1.1"
+                  title="{{ _('Mover para cima') }}"><i class="bi bi-chevron-up"></i></button>
+        </form>
+        {% else %}
+        <span style="font-size:.6rem;line-height:1.1;visibility:hidden"><i class="bi bi-chevron-up"></i></span>
+        {% endif %}
+        {% if not loop.last %}
+        <form method="POST" action="{{ url_for('admin.move_grade', grade_id=g.id, direction='down') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn btn-link p-0 text-muted" style="font-size:.6rem;line-height:1.1"
+                  title="{{ _('Mover para baixo') }}"><i class="bi bi-chevron-down"></i></button>
+        </form>
+        {% else %}
+        <span style="font-size:.6rem;line-height:1.1;visibility:hidden"><i class="bi bi-chevron-down"></i></span>
+        {% endif %}
+      </div>
+
+      {# Avatar #}
+      <div class="grade-avatar">{{ g.name[0]|upper }}</div>
+
+      {# Name + student count #}
+      <div style="min-width:0">
+        <span class="grade-name">{{ g.name }}</span>
+        <span class="grade-meta-text ms-2">
+          <i class="bi bi-people" style="font-size:.7rem"></i>
+          {{ g.student_profiles|length }}
+        </span>
+      </div>
+
+      {# Subject pills (updated live by JS after toggle) #}
+      <div class="subject-pills" id="pills-{{ g.id }}">
+        {% if active_subs.list %}
+          {% for s in active_subs.list[:3] %}
+          <span class="subject-pill">{{ s.name }}</span>
+          {% endfor %}
+          {% if active_subs.list|length > 3 %}
+          <span class="subject-pill more">+{{ active_subs.list|length - 3 }}</span>
+          {% endif %}
+        {% else %}
+        <span class="subject-pill none">{{ _('Nenhuma matéria') }}</span>
+        {% endif %}
+      </div>
+
+      {# Matérias button #}
+      <button class="btn btn-outline-secondary btn-sm flex-shrink-0"
+              style="font-size:.78rem"
+              onclick='openSubjectModal({{ g.id }}, {{ div.id }}, {{ g.name|tojson }})'>
+        <i class="bi bi-journal-bookmark me-1"></i>{{ _('Matérias') }}
+      </button>
+
+      {# Delete grade #}
+      <form method="POST" action="{{ url_for('admin.delete_grade', id=g.id) }}"
+            class="d-inline flex-shrink-0"
+            data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+            data-pan-title="{{ _('Excluir turma') }} {{ g.name }}"
+            data-pan-danger="1" data-pan-confirm-text="{{ _('Excluir') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-outline-danger btn-sm py-1 px-2" style="font-size:.75rem"
+                title="{{ _('Excluir turma') }}">
+          <i class="bi bi-trash"></i>
+        </button>
+      </form>
+    </div>
+
+    {% endfor %}
+    {% else %}
+    <div class="grade-empty" id="grade-empty-{{ div.id }}">
+      <i class="bi bi-people"></i>
+      <span>{{ _('Nenhuma turma neste setor.') }}
+        <a href="#" class="ms-1" style="font-size:.82rem"
+           onclick='event.preventDefault(); openAddGrade({{ div.id }}, {{ div.name|tojson }})'>
+          {{ _('Adicionar agora') }}
+        </a>
+      </span>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endfor %}
+</div>
+
+{% else %}
+{# ── Empty state ── #}
+<div class="pan-empty-state mt-2">
+  <div class="pan-empty-icon"><i class="bi bi-diagram-3"></i></div>
+  <h5 class="pan-empty-title">{{ _('Nenhum setor criado ainda') }}</h5>
+  <p class="pan-empty-body">{{ _('Crie um setor para começar a organizar turmas e matérias.') }}</p>
+  <button class="btn btn-primary btn-sm px-4"
+          data-bs-toggle="modal" data-bs-target="#newSectorModal">
+    <i class="bi bi-plus-lg me-1"></i>{{ _('Criar primeiro setor') }}
+  </button>
+</div>
+{% endif %}
+
+
+{# ══════════════════════════════════════════════════════════
+   MODALS
+   ══════════════════════════════════════════════════════════ #}
+
+{# ── New Sector ── #}
+<div class="modal fade" id="newSectorModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('admin.new_division') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header border-0 pb-0">
+          <h6 class="modal-title fw-semibold">
+            <i class="bi bi-diagram-3 me-2"></i>{{ _('Novo setor') }}
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" name="name" id="newSectorName"
+                 class="form-control" placeholder="{{ _('Ex: High School') }}"
+                 maxlength="100" required autocomplete="off">
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>{{ _('Criar') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Rename Sector ── #}
+<div class="modal fade" id="renameSectorModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <form method="POST" id="renameSectorForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header border-0 pb-0">
+          <h6 class="modal-title fw-semibold">
+            <i class="bi bi-pencil me-2"></i>{{ _('Renomear setor') }}
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" name="name" id="renameSectorInput"
+                 class="form-control" maxlength="100" required autocomplete="off">
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Add Grade ── #}
+<div class="modal fade" id="addGradeModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content">
+      <form method="POST" id="addGradeForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header border-0 pb-0">
+          <h6 class="modal-title fw-semibold" id="addGradeTitle">
+            <i class="bi bi-people me-2"></i>{{ _('Nova turma') }}
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" name="name" id="addGradeInput"
+                 class="form-control" placeholder="{{ _('Ex: G9A') }}"
+                 maxlength="100" required autocomplete="off">
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{# ── Manage Subjects Modal ── #}
+<div class="modal fade" id="manageSubjectsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-1">
+        <div>
+          <h6 class="modal-title fw-bold mb-0" id="manageSubjTitle"></h6>
+          <div class="text-muted" style="font-size:.78rem">{{ _('Matérias do setor') }}</div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2" id="manageSubjBody" style="max-height:340px;overflow-y:auto">
+        {# Filled by JS #}
+      </div>
+      <div class="modal-footer border-0 pt-2 flex-column align-items-stretch gap-0">
+        <div class="d-flex gap-2">
+          <input type="text" id="manageSubjInput" class="form-control form-control-sm"
+                 placeholder="{{ _('Nova matéria...') }}" maxlength="100" autocomplete="off">
+          <button class="btn btn-success btn-sm flex-shrink-0 px-3"
+                  onclick="addSubjectToSector()">
+            <i class="bi bi-plus-lg"></i>
+          </button>
+        </div>
+        <div class="text-danger" style="font-size:.78rem;min-height:1.2em;margin-top:.3rem"
+             id="manageSubjError"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Subject Panel Modal (shared, populated by JS) ── #}
+<div class="modal fade" id="subjectPanelModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-1">
+        <div>
+          <h6 class="modal-title fw-bold mb-0" id="subjPanelTitle"></h6>
+          <div class="text-muted" style="font-size:.78rem" id="subjPanelSub"></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body py-2" id="subjPanelBody" style="max-height:380px;overflow-y:auto">
+        {# Filled by JS #}
+      </div>
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-primary btn-sm px-4"
+                data-bs-dismiss="modal">{{ _('Fechar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Import Modal ── #}
+<div class="modal fade" id="importModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="POST" action="{{ url_for('admin.import_divisions') }}"
+            enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="bi bi-upload me-2"></i>{{ _('Importar Setores e Turmas') }}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-2">
+            {{ _('CSV com colunas:') }}
+            <code>setor</code>, <code>turma</code>, <code>materias</code>.
+            {{ _('Uma linha por turma. Matérias separadas por') }} <code>|</code>.
+          </p>
+          <p class="text-muted small mb-3">
+            {{ _('Setor, turma e matérias são criados automaticamente. As matérias são vinculadas à turma da linha.') }}
+          </p>
+          <a href="{{ url_for('admin.template_divisions') }}"
+             class="btn btn-outline-secondary btn-sm mb-3">
+            <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ _('Baixar modelo') }}
+          </a>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">{{ _('Arquivo CSV') }}</label>
+            <input type="file" name="csv_file" accept=".csv" class="form-control" required>
+          </div>
+          <p class="fw-semibold small mb-2">{{ _('Modo de importação:') }}</p>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="mode"
+                   id="impModeAdd" value="add" checked>
+            <label class="form-check-label" for="impModeAdd">
+              <strong>{{ _('Somente adicionar') }}</strong>
+              <span class="text-muted d-block" style="font-size:.8rem">
+                {{ _('Mantém os existentes, insere apenas os novos.') }}
+              </span>
+            </label>
+          </div>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="mode"
+                   id="impModeReplace" value="replace">
+            <label class="form-check-label" for="impModeReplace">
+              <strong>{{ _('Substituir lista') }}</strong>
+              <span class="text-muted d-block" style="font-size:.8rem">
+                {{ _('Recria turmas e matérias de cada setor: remove o que não está no arquivo.') }}
+              </span>
+            </label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="mode"
+                   id="impModeDelete" value="delete">
+            <label class="form-check-label" for="impModeDelete">
+              <strong>{{ _('Apagar os importados') }}</strong>
+              <span class="text-muted d-block" style="font-size:.8rem">
+                {{ _('Remove os setores listados no arquivo.') }}
+              </span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            {{ _('Importar') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF = "{{ csrf_token() }}";
+
+// ── Sector data injected from server ─────────────────────────────────────────
+const SECTORS_DATA = {{ sectors_js | tojson }};
+
+// Convert to a map keyed by sector id for fast lookup
+const SECTORS_MAP = {};
+SECTORS_DATA.forEach(s => { SECTORS_MAP[s.id] = s; });
+
+// Mutable active-subjects set per grade (updated after each toggle)
+const gradeActive = {};
+SECTORS_DATA.forEach(sec => {
+  Object.entries(sec.grades).forEach(([gid, gdata]) => {
+    gradeActive[parseInt(gid)] = new Set(gdata.active);
+  });
+});
+
+// ── Toggle sector expand ──────────────────────────────────────────────────────
+function toggleSector(divId) {
+  document.getElementById(`sector-${divId}`).classList.toggle('open');
+}
+
+// ── Rename sector modal ───────────────────────────────────────────────────────
+function openRenameSector(divId, currentName) {
+  document.getElementById('renameSectorInput').value = currentName;
+  document.getElementById('renameSectorForm').action = `/admin/divisions/${divId}/edit`;
+  bootstrap.Modal.getOrCreateInstance(
+    document.getElementById('renameSectorModal')).show();
+  document.getElementById('renameSectorModal').addEventListener('shown.bs.modal', () => {
+    document.getElementById('renameSectorInput').select();
+  }, { once: true });
+}
+
+// ── Add grade modal ───────────────────────────────────────────────────────────
+function openAddGrade(divId, divName) {
+  document.getElementById('addGradeTitle').innerHTML =
+    `<i class="bi bi-people me-2"></i>{{ _('Nova turma') }} <span class="text-muted fw-normal">— ${divName}</span>`;
+  document.getElementById('addGradeForm').action =
+    `/admin/divisions/${divId}/grades/new`;
+  document.getElementById('addGradeInput').value = '';
+  bootstrap.Modal.getOrCreateInstance(
+    document.getElementById('addGradeModal')).show();
+  document.getElementById('addGradeModal').addEventListener('shown.bs.modal', () => {
+    document.getElementById('addGradeInput').focus();
+  }, { once: true });
+}
+
+// ── Manage subjects modal ─────────────────────────────────────────────────────
+let _manageDivId = null;
+
+function openManageSubjects(divId, divName) {
+  _manageDivId = divId;
+  document.getElementById('manageSubjTitle').textContent = divName;
+  document.getElementById('manageSubjInput').value = '';
+  document.getElementById('manageSubjError').textContent = '';
+  renderManageSubjects(divId);
+  bootstrap.Modal.getOrCreateInstance(
+    document.getElementById('manageSubjectsModal')).show();
+  document.getElementById('manageSubjectsModal').addEventListener('shown.bs.modal', () => {
+    document.getElementById('manageSubjInput').focus();
+  }, { once: true });
+}
+
+function renderManageSubjects(divId) {
+  const sector = SECTORS_MAP[divId];
+  const body   = document.getElementById('manageSubjBody');
+  if (!sector || !sector.subjects.length) {
+    body.innerHTML = `
+      <div class="text-center py-4 text-muted" style="font-size:.875rem">
+        <i class="bi bi-journal-x d-block mb-2" style="font-size:1.6rem"></i>
+        {{ _('Nenhuma matéria neste setor ainda.') }}<br>
+        <span style="font-size:.8rem">{{ _('Use o campo abaixo para adicionar a primeira.') }}</span>
+      </div>`;
+    return;
+  }
+  body.innerHTML = sector.subjects.map(s => `
+    <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" id="ms-subj-${s.id}">
+      <span style="flex:1;font-size:.88rem;color:#1e293b">${s.name}</span>
+      <button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:.75rem"
+              title="{{ _('Excluir matéria') }}"
+              onclick="deleteSubjectFromSector(${s.id}, ${divId})">
+        <i class="bi bi-trash"></i>
+      </button>
+    </div>
+  `).join('');
+}
+
+async function deleteSubjectFromSector(subjectId, divId) {
+  const row = document.getElementById(`ms-subj-${subjectId}`);
+  if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+  try {
+    const resp = await fetch(`/admin/subjects/${subjectId}/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }
+    });
+    if (resp.ok) {
+      // Remove from SECTORS_MAP
+      SECTORS_MAP[divId].subjects = SECTORS_MAP[divId].subjects.filter(s => s.id !== subjectId);
+      // Remove from all gradeActive sets in this sector and refresh pills
+      const sector = SECTORS_MAP[divId];
+      Object.keys(sector.grades).forEach(gid => {
+        const gidInt = parseInt(gid);
+        gradeActive[gidInt]?.delete(subjectId);
+        updateGradePills(gidInt, divId);
+      });
+      updateSectorMeta(divId);
+      renderManageSubjects(divId);
+      // If subject panel is open for this sector, re-render it too
+      if (_curDivId === divId) renderSubjectPanel(_curGradeId, divId);
+    } else {
+      if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; }
+    }
+  } catch {
+    if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; }
+  }
+}
+
+async function addSubjectToSector() {
+  const divId = _manageDivId;
+  const input = document.getElementById('manageSubjInput');
+  const errEl = document.getElementById('manageSubjError');
+  const name  = input.value.trim();
+  if (!name) { input.focus(); return; }
+
+  errEl.textContent = '';
+  input.disabled = true;
+
+  try {
+    const resp = await fetch(`/admin/divisions/${divId}/subjects/new`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ name })
+    });
+    const data = await resp.json();
+    if (resp.ok) {
+      SECTORS_MAP[divId].subjects.push({ id: data.id, name: data.name });
+      updateSectorMeta(divId);
+      renderManageSubjects(divId);
+      input.value = '';
+      // If subject panel is open for this sector, re-render it
+      if (_curDivId === divId) renderSubjectPanel(_curGradeId, divId);
+    } else {
+      errEl.textContent = data.error || '{{ _("Erro ao adicionar.") }}';
+      input.select();
+    }
+  } catch {
+    errEl.textContent = '{{ _("Erro de conexão.") }}';
+  }
+  input.disabled = false;
+  input.focus();
+}
+
+// Allow pressing Enter in the add-subject input
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.activeElement === document.getElementById('manageSubjInput')) {
+    e.preventDefault();
+    addSubjectToSector();
+  }
+});
+
+// ── Update sector meta badge ──────────────────────────────────────────────────
+function updateSectorMeta(divId) {
+  const el = document.getElementById(`smeta-${divId}`);
+  if (!el) return;
+  const sector     = SECTORS_MAP[divId];
+  const gradeCount = Object.keys(sector.grades).length;
+  const subjCount  = sector.subjects.length;
+  el.innerHTML = `${gradeCount} {{ _('turma(s)') }} &nbsp;·&nbsp; ${subjCount} {{ _('matéria(s)') }}`;
+}
+
+// ── Subject panel modal (per-grade toggle) ────────────────────────────────────
+let _curGradeId = null;
+let _curDivId   = null;
+
+function openSubjectModal(gradeId, divId, gradeName) {
+  _curGradeId = gradeId;
+  _curDivId   = divId;
+  const sector = SECTORS_MAP[divId];
+  document.getElementById('subjPanelTitle').textContent = gradeName;
+  document.getElementById('subjPanelSub').textContent   = sector ? sector.name : '';
+  renderSubjectPanel(gradeId, divId);
+  bootstrap.Modal.getOrCreateInstance(
+    document.getElementById('subjectPanelModal')).show();
+}
+
+function renderSubjectPanel(gradeId, divId) {
+  const sector = SECTORS_MAP[divId];
+  const body   = document.getElementById('subjPanelBody');
+  const active = gradeActive[gradeId] || new Set();
+
+  if (!sector || !sector.subjects.length) {
+    body.innerHTML = `
+      <div class="text-center py-4 text-muted" style="font-size:.875rem">
+        <i class="bi bi-journal-x d-block mb-2" style="font-size:1.6rem"></i>
+        {{ _('Este setor ainda não tem matérias.') }}<br>
+        <a href="#" class="mt-2 d-inline-block"
+           onclick="event.preventDefault(); closeAndOpenManageSubjects(${divId})">
+          {{ _('Adicionar matéria ao setor') }}
+        </a>
+      </div>`;
+    return;
+  }
+
+  body.innerHTML = sector.subjects.map(s => `
+    <label class="subj-check-item" id="subj-item-${gradeId}-${s.id}">
+      <input type="checkbox"
+             class="form-check-input subj-toggle"
+             data-grade="${gradeId}" data-subject="${s.id}"
+             ${active.has(s.id) ? 'checked' : ''}>
+      <span class="subj-name">${s.name}</span>
+    </label>
+  `).join('');
+
+  body.querySelectorAll('.subj-toggle').forEach(cb => {
+    cb.addEventListener('change', handleSubjectToggle);
+  });
+}
+
+async function handleSubjectToggle(e) {
+  const cb        = e.target;
+  const gradeId   = parseInt(cb.dataset.grade);
+  const subjectId = parseInt(cb.dataset.subject);
+  const item      = document.getElementById(`subj-item-${gradeId}-${subjectId}`);
+  if (item) item.classList.add('loading');
+
+  try {
+    const resp = await fetch(
+      `/admin/grades/${gradeId}/subjects/${subjectId}/toggle`,
+      { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF } }
+    );
+    const data = await resp.json();
+    if (resp.ok) {
+      cb.checked = data.active;
+      if (data.active) gradeActive[gradeId].add(subjectId);
+      else             gradeActive[gradeId].delete(subjectId);
+      updateGradePills(gradeId, _curDivId);
+    } else {
+      cb.checked = !cb.checked; // revert
+    }
+  } catch {
+    cb.checked = !cb.checked; // revert on network error
+  }
+  if (item) item.classList.remove('loading');
+}
+
+// ── Update subject pills on the grade row ─────────────────────────────────────
+function updateGradePills(gradeId, divId) {
+  const sector      = SECTORS_MAP[divId];
+  const active      = gradeActive[gradeId] || new Set();
+  const activeSubs  = sector ? sector.subjects.filter(s => active.has(s.id)) : [];
+  const container   = document.getElementById(`pills-${gradeId}`);
+  if (!container) return;
+
+  if (!activeSubs.length) {
+    container.innerHTML =
+      `<span class="subject-pill none">{{ _('Nenhuma matéria') }}</span>`;
+    return;
+  }
+  let html = activeSubs.slice(0, 3)
+    .map(s => `<span class="subject-pill">${s.name}</span>`).join('');
+  if (activeSubs.length > 3)
+    html += `<span class="subject-pill more">+${activeSubs.length - 3}</span>`;
+  container.innerHTML = html;
+}
+
+// Close subject panel then open manage-subjects modal
+function closeAndOpenManageSubjects(divId) {
+  const panelEl = document.getElementById('subjectPanelModal');
+  bootstrap.Modal.getInstance(panelEl)?.hide();
+  const sector = SECTORS_MAP[divId];
+  panelEl.addEventListener('hidden.bs.modal', () => {
+    openManageSubjects(divId, sector ? sector.name : '');
+  }, { once: true });
+}
+
+// ── Auto-focus new sector modal ───────────────────────────────────────────────
+document.getElementById('newSectorModal').addEventListener('shown.bs.modal', () => {
+  document.getElementById('newSectorName').focus();
+});
+
+// ── Reorder toggle ────────────────────────────────────────────────────────────
+(function () {
+  const STORAGE_KEY = 'conferensia_reorder_mode';
+  const btn         = document.getElementById('reorderToggleBtn');
+  const list        = document.getElementById('sectorList');
+  if (!btn) return;
+
+  function applyMode(on) {
+    if (list) list.classList.toggle('reorder-mode', on);
+    btn.classList.toggle('btn-warning',          on);
+    btn.classList.toggle('btn-outline-secondary', !on);
+    btn.querySelector('.reorder-label').textContent =
+      on ? '{{ _("Sair") }}' : '{{ _("Reorganizar") }}';
+    try { localStorage.setItem(STORAGE_KEY, on ? '1' : '0'); } catch {}
+  }
+
+  // Restore saved state
+  let saved = false;
+  try { saved = localStorage.getItem(STORAGE_KEY) === '1'; } catch {}
+  applyMode(saved);
+
+  btn.addEventListener('click', () => {
+    applyMode(!list?.classList.contains('reorder-mode'));
+  });
+})();
+</script>
+{% endblock %}

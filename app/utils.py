@@ -5,6 +5,23 @@ from flask_mail import Message
 from app.extensions import mail, db
 
 
+def _log_email(recipient_id, email_type, event_id=None):
+    """Record a sent email in EmailNotification. Never raises — logging must not break mail flow."""
+    try:
+        from app.models import EmailNotification
+        db.session.add(EmailNotification(
+            recipient_id=recipient_id,
+            type=email_type,
+            event_id=event_id,
+        ))
+        db.session.commit()
+    except Exception:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
+
 def generate_token(email, salt="invite"):
     s = URLSafeTimedSerializer(current_app.config["SECRET_KEY"])
     return s.dumps(email, salt=salt)
@@ -28,6 +45,7 @@ def send_invite_email(user, token):
     body = render_template(template, user=user, link=link)
     msg = Message(subject=subject, recipients=[user.email], html=body)
     mail.send(msg)
+    _log_email(user.id, "invite")
 
 
 def send_conference_info_email(user, event, token=None):
@@ -47,6 +65,7 @@ def send_conference_info_email(user, event, token=None):
     body = render_template(template, user=user, event=event, link=link)
     msg = Message(subject=subject, recipients=[user.email], html=body)
     mail.send(msg)
+    _log_email(user.id, "conference_info", event_id=event.id)
 
 
 def send_reset_email(user, token):
@@ -62,6 +81,7 @@ def send_reset_email(user, token):
     body = render_template(template, user=user, link=link)
     msg = Message(subject=subject, recipients=[user.email], html=body)
     mail.send(msg)
+    _log_email(user.id, "reset_password")
 
 
 def generate_slots_for_day(day, teachers):
@@ -89,6 +109,40 @@ def generate_slots_for_day(day, teachers):
     return slots
 
 
+def generate_slots_for_sector_day(day, teacher_configs, break_minutes):
+    """
+    Generate Slot objects for a ConferenceDay with per-teacher duration support.
+
+    day             : ConferenceDay instance (already flushed, has .id and .date/.start_time/.end_time)
+    teacher_configs : list of (User, slot_duration_minutes) tuples
+    break_minutes   : break between slots in minutes (same for all teachers in the sector)
+    """
+    from app.models import Slot
+    slots = []
+    for teacher, duration_min in teacher_configs:
+        if not duration_min or duration_min <= 0:
+            continue
+        start_dt = datetime.combine(day.date, day.start_time)
+        end_dt   = datetime.combine(day.date, day.end_time)
+        step     = timedelta(minutes=duration_min + (break_minutes or 0))
+        slot_dur = timedelta(minutes=duration_min)
+        if step.total_seconds() <= 0:
+            continue
+        current = start_dt
+        guard   = 500   # safety cap
+        while current + slot_dur <= end_dt and guard > 0:
+            slots.append(Slot(
+                day_id=day.id,
+                teacher_id=teacher.id,
+                start_datetime=current,
+                end_datetime=current + slot_dur,
+                is_booked=False,
+            ))
+            current += step
+            guard  -= 1
+    return slots
+
+
 def send_teacher_absent_email(guardian, teacher, day, bookings, event):
     """Email to a guardian when a teacher they have meetings with is marked absent."""
     link = url_for("auth.login", _external=True)
@@ -103,6 +157,7 @@ def send_teacher_absent_email(guardian, teacher, day, bookings, event):
                            day=day, bookings=bookings, event=event, link=link)
     msg = Message(subject=subject, recipients=[guardian.email], html=body)
     mail.send(msg)
+    _log_email(guardian.id, "teacher_absent", event_id=event.id)
 
 
 def send_booking_reminder_email(guardian, event, day, bookings):
@@ -119,13 +174,14 @@ def send_booking_reminder_email(guardian, event, day, bookings):
                            day=day, bookings=bookings, link=link)
     msg = Message(subject=subject, recipients=[guardian.email], html=body)
     mail.send(msg)
+    _log_email(guardian.id, "reminder", event_id=event.id)
 
 
 def get_active_event():
     from app.models import ConferenceEvent
-    return ConferenceEvent.query.filter_by(status="published").order_by(ConferenceEvent.created_at.desc()).first()
+    return ConferenceEvent.query.filter_by(status="published").order_by(ConferenceEvent.name).first()
 
 
 def get_active_events():
     from app.models import ConferenceEvent
-    return ConferenceEvent.query.filter_by(status="published").order_by(ConferenceEvent.created_at.desc()).all()
+    return ConferenceEvent.query.filter_by(status="published").order_by(ConferenceEvent.name).all()

@@ -1,11 +1,35 @@
+import re
 from flask import Flask, session, request
 from config import Config
 from app.extensions import db, migrate, login_manager, mail, bcrypt, babel, csrf
 
 
+def _natsort_key(value):
+    """Split a string into (text, number) chunks for natural ordering."""
+    return [int(c) if c.isdigit() else c.lower()
+            for c in re.split(r'(\d+)', str(value))]
+
+
+def _natsort_filter(iterable, attribute=None):
+    """Jinja2 filter: sort a list naturally ascending (handles embedded numbers)."""
+    if attribute:
+        return sorted(iterable, key=lambda x: _natsort_key(getattr(x, attribute, '')))
+    return sorted(iterable, key=_natsort_key)
+
+
+def _natsort_desc_filter(iterable, attribute=None):
+    """Jinja2 filter: sort a list naturally descending (G12 → G11 → G10 …)."""
+    if attribute:
+        return sorted(iterable, key=lambda x: _natsort_key(getattr(x, attribute, '')), reverse=True)
+    return sorted(iterable, key=_natsort_key, reverse=True)
+
+
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    app.jinja_env.filters['natsort']      = _natsort_filter
+    app.jinja_env.filters['natsort_desc'] = _natsort_desc_filter
 
     db.init_app(app)
     migrate.init_app(app, db)

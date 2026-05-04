@@ -1,28 +1,170 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Painel') }} – Conferensia{% endblock %}
+{% block head %}
+<style>
+/* ── Empty state ── */
+.pan-empty-state {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 3.5rem 2rem;
+  text-align: center;
+  max-width: 460px;
+  margin: 0 auto;
+}
+.pan-empty-icon {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: #eff6ff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 2rem; color: #93c5fd;
+  margin-bottom: 1.25rem;
+}
+.pan-empty-title { font-weight:700; font-size:1.1rem; color:#1e293b; margin-bottom:.5rem; }
+.pan-empty-body  { color:#64748b; font-size:.88rem; line-height:1.6; margin-bottom:1.5rem; }
+
+/* ── Event card ── */
+.event-entry {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 5px rgba(0,0,0,.05);
+}
+.event-entry-header {
+  background: linear-gradient(135deg, #1a3461 0%, #174a30 100%);
+  padding: .9rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.event-entry-body {
+  padding: 1rem 1.25rem;
+}
+.event-entry-name {
+  font-weight: 700; font-size: .95rem; color: #fff;
+}
+.event-entry-dates {
+  font-size: .75rem; color: rgba(255,255,255,.65); margin-top: .15rem;
+}
+/* Guardian-booked state */
+.guardian-info-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: .75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  font-size: .84rem;
+  color: #475569;
+}
+.guardian-info-icon {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #dbeafe; color: #1d4ed8;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; flex-shrink: 0;
+}
+</style>
+{% endblock %}
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Bem-vindo(a)') }}, {{ current_user.first_name }}</h4>
+
+{# ── Greeting ── #}
+<div class="mb-4">
+  <h4 class="fw-bold mb-0">{{ _('Olá') }}, {{ current_user.first_name }} 👋</h4>
+  <p class="text-muted mb-0" style="font-size:.9rem">
+    {% if events %}
+      {{ _('Aqui estão os eventos de conferência disponíveis.') }}
+    {% else %}
+      {{ _('Nenhum evento de conferência ativo no momento.') }}
+    {% endif %}
+  </p>
+</div>
 
 {% if events %}
+<div class="d-flex flex-column gap-3">
   {% for event in events %}
-  <div class="card shadow-sm mb-3">
-    <div class="card-body">
-      <h6 class="fw-semibold">{{ event.name }}</h6>
+  <div class="event-entry">
+
+    {# Header #}
+    <div class="event-entry-header">
+      <div>
+        <div class="event-entry-name">
+          <i class="bi bi-calendar-event me-2" style="opacity:.7"></i>{{ event.name }}
+        </div>
+        {% if event.days %}
+        {% set sorted_days = event.days | sort(attribute='date') %}
+        <div class="event-entry-dates">
+          <i class="bi bi-clock me-1"></i>
+          {% if sorted_days | length == 1 %}
+            {{ sorted_days[0].date.strftime('%d/%m/%Y') }}
+          {% else %}
+            {{ sorted_days[0].date.strftime('%d/%m/%Y') }} – {{ sorted_days[-1].date.strftime('%d/%m/%Y') }}
+            &nbsp;·&nbsp; {{ sorted_days | length }} {{ _('dias') }}
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      <span class="badge"
+            style="background:rgba(255,255,255,.18);color:#fff;font-size:.72rem;font-weight:600;padding:.3rem .7rem;border-radius:20px;flex-shrink:0">
+        {% if event.status == 'published' %}
+          <i class="bi bi-check-circle me-1"></i>{{ _('Aberto') }}
+        {% elif event.status == 'closed' %}
+          <i class="bi bi-lock me-1"></i>{{ _('Encerrado') }}
+        {% endif %}
+      </span>
+    </div>
+
+    {# Body #}
+    <div class="event-entry-body">
       {% if event.student_booking_allowed %}
-      <p class="text-muted mb-3">{{ _('Você pode agendar suas próprias reuniões.') }}</p>
-      <div class="d-flex gap-2">
-        <a href="{{ url_for('student.schedule', event_id=event.id) }}" class="btn btn-primary btn-sm">
+      <p class="text-muted mb-3" style="font-size:.875rem">
+        {{ _('Você pode agendar suas próprias reuniões neste evento.') }}
+      </p>
+      <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('student.schedule', event_id=event.id) }}"
+           class="btn btn-primary btn-sm">
           <i class="bi bi-grid me-1"></i>{{ _('Agendar Reuniões') }}
         </a>
-        <a href="{{ url_for('student.bookings') }}" class="btn btn-outline-secondary btn-sm">{{ _('Minhas Reuniões') }}</a>
+        <a href="{{ url_for('student.bookings') }}"
+           class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-list-check me-1"></i>{{ _('Minhas Reuniões') }}
+        </a>
       </div>
       {% else %}
-      <p class="text-muted mb-0">{{ _('As reuniões estão sendo agendadas pelos seus responsáveis.') }}</p>
+      <div class="guardian-info-box">
+        <div class="guardian-info-icon">
+          <i class="bi bi-people-fill"></i>
+        </div>
+        <div>
+          {{ _('As reuniões estão sendo agendadas pelos seus responsáveis.') }}
+          <a href="{{ url_for('student.bookings') }}" class="d-block mt-1" style="font-size:.82rem">
+            <i class="bi bi-arrow-right me-1"></i>{{ _('Ver minhas reuniões') }}
+          </a>
+        </div>
+      </div>
       {% endif %}
     </div>
+
   </div>
   {% endfor %}
+</div>
+
 {% else %}
-<div class="alert alert-light">{{ _('Nenhum evento de conferência ativo no momento.') }}</div>
+{# ── Empty state: no active events ── #}
+<div class="pan-empty-state mt-2">
+  <div class="pan-empty-icon">
+    <i class="bi bi-calendar-x"></i>
+  </div>
+  <h5 class="pan-empty-title">{{ _('Nenhum evento ativo') }}</h5>
+  <p class="pan-empty-body">
+    {{ _('Não há eventos de conferência publicados no momento.') }}<br>
+    {{ _('O administrador será responsável por criar e publicar os eventos.') }}
+  </p>
+  <a href="{{ url_for('student.bookings') }}" class="btn btn-outline-primary btn-sm px-4">
+    <i class="bi bi-list-check me-1"></i>{{ _('Minhas Reuniões') }}
+  </a>
+</div>
 {% endif %}
+
 {% endblock %}

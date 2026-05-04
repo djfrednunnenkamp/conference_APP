@@ -1,74 +1,430 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Editar Professor') if teacher else _('Novo Professor') }} – Conferensia{% endblock %}
-{% block content %}
-<h4 class="fw-bold mb-4">{{ _('Editar Professor') if teacher else _('Novo Professor') }}</h4>
 
-{# Form wraps BOTH columns so checkboxes are submitted together with the fields #}
+{% block head %}
+<style>
+/* ── Modal accordion ── */
+.tf-sector-item {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  margin-bottom: .45rem;
+  overflow: hidden;
+}
+.tf-sector-header {
+  display: flex; align-items: center; gap: .55rem;
+  padding: .65rem .9rem;
+  cursor: pointer; user-select: none;
+  transition: background .12s;
+}
+.tf-sector-header:hover { background: #f8fafc; }
+.tf-sector-chevron {
+  color: #94a3b8; font-size: .82rem; flex-shrink: 0;
+  transition: transform .2s;
+}
+.tf-sector-item.open .tf-sector-chevron { transform: rotate(90deg); }
+.tf-sector-name  { font-weight: 600; font-size: .88rem; color: #1e293b; flex: 1; }
+.tf-sector-meta  { font-size: .7rem; color: #94a3b8; white-space: nowrap; }
+.tf-sector-badge {
+  font-size: .66rem; font-weight: 600; padding: .12rem .45rem;
+  border-radius: 20px; background: #eff6ff; color: #3b82f6;
+  border: 1px solid #bfdbfe;
+}
+.tf-sector-body { display: none; border-top: 1px solid #f1f5f9; }
+.tf-sector-item.open .tf-sector-body { display: block; }
+
+/* ── Grade rows ── */
+.tf-grade-row {
+  display: flex; align-items: flex-start; gap: .65rem;
+  padding: .55rem .9rem .55rem 2.25rem;
+  border-bottom: 1px solid #f8fafc;
+}
+.tf-grade-row:last-child { border-bottom: none; }
+.tf-grade-label {
+  font-weight: 700; font-size: .8rem; color: #1e293b;
+  min-width: 48px; padding-top: .2rem; flex-shrink: 0;
+}
+.tf-pills { display: flex; flex-wrap: wrap; gap: .25rem; flex: 1; min-width: 0; }
+
+/* ── Subject pill chips ── */
+.sg-pill {
+  display: inline-flex; align-items: center; gap: .25rem;
+  border-radius: 20px; padding: .16rem .6rem;
+  font-size: .7rem; font-weight: 500;
+  cursor: pointer; user-select: none;
+  transition: background .1s, border-color .1s, color .1s;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc; color: #64748b;
+  white-space: nowrap;
+}
+.sg-pill:hover:not(.active) {
+  background: #f1f5f9; border-color: #cbd5e1; color: #475569;
+}
+.sg-pill.active {
+  background: #f0fdf4; border-color: #86efac; color: #15803d;
+}
+.sg-pill .sg-check { font-size: .6rem; display: none; }
+.sg-pill.active .sg-check { display: inline; }
+
+/* ── "Todos" button ── */
+.tf-all-btn {
+  font-size: .66rem; padding: .16rem .42rem; line-height: 1.4;
+  border: 1px solid #e2e8f0; background: #fff; color: #64748b;
+  border-radius: 6px; cursor: pointer; flex-shrink: 0;
+  white-space: nowrap; margin-top: .18rem;
+  transition: background .1s, border-color .1s;
+}
+.tf-all-btn:hover  { background: #f1f5f9; border-color: #cbd5e1; }
+.tf-all-btn.all-on { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+
+/* ── Summary card (right col) ── */
+.sg-summary-sector  { margin-bottom: .6rem; }
+.sg-summary-sector-name {
+  font-size: .72rem; font-weight: 700; color: #64748b;
+  text-transform: uppercase; letter-spacing: .04em;
+  margin-bottom: .3rem;
+}
+.sg-summary-grade   { display: flex; align-items: flex-start; gap: .5rem; margin-bottom: .3rem; }
+.sg-summary-gname   { font-size: .78rem; font-weight: 700; color: #1e293b; min-width: 44px; flex-shrink: 0; padding-top:.1rem; }
+.sg-summary-pills   { display: flex; flex-wrap: wrap; gap: .22rem; }
+.sg-summary-pill {
+  font-size: .68rem; font-weight: 500;
+  background: #f0fdf4; border: 1px solid #86efac; color: #15803d;
+  border-radius: 20px; padding: .1rem .5rem; white-space: nowrap;
+}
+.sg-empty-hint {
+  text-align: center; padding: 1.5rem 1rem;
+  color: #94a3b8; font-size: .82rem;
+}
+.sg-empty-hint i { font-size: 1.5rem; display: block; margin-bottom: .4rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h4 class="fw-bold mb-4">
+  {{ _('Editar Professor') if teacher else _('Novo Professor') }}
+</h4>
+
+{# ── The form wraps EVERYTHING so modal checkboxes submit together ── #}
 <form method="POST" novalidate>
   {{ form.hidden_tag() }}
+
   <div class="row g-4">
 
-    {# ── Left column: personal info ───────────────────────────────────────── #}
-    <div class="col-md-6">
+    {# ════════════════════════════════════════════════════
+       Left col: personal info
+       ════════════════════════════════════════════════════ #}
+    <div class="col-lg-4 col-md-5">
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="row g-3">
             <div class="col-6">
-              <label class="form-label">{{ _('Nome') }}</label>
-              {{ form.first_name(class="form-control" + (" is-invalid" if form.first_name.errors else "")) }}
+              <label class="form-label fw-semibold" style="font-size:.84rem">{{ _('Nome') }}</label>
+              {{ form.first_name(class="form-control form-control-sm" + (" is-invalid" if form.first_name.errors else "")) }}
               {% for e in form.first_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
             </div>
             <div class="col-6">
-              <label class="form-label">{{ _('Sobrenome') }}</label>
-              {{ form.last_name(class="form-control" + (" is-invalid" if form.last_name.errors else "")) }}
+              <label class="form-label fw-semibold" style="font-size:.84rem">{{ _('Sobrenome') }}</label>
+              {{ form.last_name(class="form-control form-control-sm" + (" is-invalid" if form.last_name.errors else "")) }}
               {% for e in form.last_name.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
             </div>
             <div class="col-12">
-              <label class="form-label">{{ _('E-mail') }}</label>
-              {{ form.email(class="form-control" + (" is-invalid" if form.email.errors else "")) }}
+              <label class="form-label fw-semibold" style="font-size:.84rem">{{ _('E-mail') }}</label>
+              {{ form.email(class="form-control form-control-sm" + (" is-invalid" if form.email.errors else "")) }}
               {% for e in form.email.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
             </div>
-
           </div>
           <div class="mt-4 d-flex gap-2">
-            <button type="submit" class="btn btn-primary">{{ _('Salvar') }}</button>
-            <a href="{{ url_for('admin.teachers') }}" class="btn btn-outline-secondary">{{ _('Cancelar') }}</a>
+            <button type="submit" class="btn btn-primary btn-sm px-4">
+              <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+            </button>
+            <a href="{{ url_for('admin.teachers') }}"
+               class="btn btn-outline-secondary btn-sm">{{ _('Cancelar') }}</a>
           </div>
         </div>
       </div>
     </div>
 
-    {# ── Right column: subject/grade checkboxes (inside the same form) ─────── #}
-    <div class="col-md-6">
-      <div class="card shadow-sm">
-        <div class="card-header fw-semibold">{{ _('Matérias / Turmas') }}</div>
-        <div class="card-body" style="max-height:440px; overflow-y:auto;">
-          {% if not grade_subjects %}
-          <div class="alert alert-warning small mb-0">
-            {{ _('Nenhuma combinação matéria–turma configurada ainda.') }}
-            <a href="{{ url_for('admin.grades') }}">{{ _('Configurar em Turmas e Matérias →') }}</a>
-          </div>
-          {% else %}
-          <p class="text-muted small mb-3">{{ _('Marque as matérias que este professor leciona.') }}</p>
-          {% for grade, subjects in grade_subjects %}
-          <div class="mb-3">
-            <div class="fw-semibold text-primary small mb-1">{{ grade.name }}</div>
-            {% for s in subjects %}
-            {% set key = "sg_" ~ s.id ~ "_" ~ grade.id %}
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox"
-                     name="{{ key }}" id="{{ key }}" value="1"
-                     {% if existing_sgs is defined and (grade.id, s.id) in existing_sgs %}checked{% endif %}>
-              <label class="form-check-label" for="{{ key }}">{{ s.name }}</label>
+    {# ════════════════════════════════════════════════════
+       Right col: selection summary + open-modal button
+       ════════════════════════════════════════════════════ #}
+    <div class="col-lg-8 col-md-7">
+      <div class="card shadow-sm h-100">
+        <div class="card-header d-flex align-items-center justify-content-between py-2 px-3"
+             style="background:#fff; border-bottom:1px solid #f1f5f9;">
+          <span class="fw-semibold" style="font-size:.88rem; color:#1e293b">
+            <i class="bi bi-journal-bookmark me-2 text-primary" style="font-size:.9rem"></i>
+            {{ _('Matérias / Turmas') }}
+          </span>
+          <button type="button"
+                  class="btn btn-outline-primary btn-sm py-1 px-3"
+                  style="font-size:.78rem"
+                  data-bs-toggle="modal" data-bs-target="#sgModal">
+            <i class="bi bi-pencil me-1"></i>{{ _('Editar') }}
+          </button>
+        </div>
+
+        <div class="card-body p-3" id="sg-summary-area">
+          {# Rendered by JS on load and after every modal change #}
+        </div>
+      </div>
+    </div>
+
+  </div>{# /row #}
+
+  {# ════════════════════════════════════════════════════
+     Modal — lives inside <form> so checkboxes submit
+     ════════════════════════════════════════════════════ #}
+  <div class="modal fade" id="sgModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"
+         style="max-width: 580px">
+      <div class="modal-content">
+
+        <div class="modal-header border-0 pb-1">
+          <div>
+            <h6 class="modal-title fw-bold mb-0">
+              <i class="bi bi-journal-bookmark me-2 text-primary"></i>{{ _('Matérias / Turmas') }}
+            </h6>
+            <div class="text-muted" style="font-size:.75rem; margin-top:.1rem">
+              {% if teacher %}{{ teacher.full_name }}{% else %}{{ _('Novo professor') }}{% endif %}
+              &nbsp;·&nbsp;
+              <span id="sg-modal-count">0</span> {{ _('selecionada(s)') }}
             </div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="modal-body py-2 px-3"
+             style="max-height: 68vh; overflow-y: auto;">
+
+          {% if not grade_subjects_by_sector %}
+          <div class="text-center py-4 text-muted">
+            <i class="bi bi-journal-x d-block mb-2" style="font-size:1.8rem"></i>
+            <div style="font-size:.84rem; font-weight:600; color:#475569; margin-bottom:.3rem">
+              {{ _('Nenhuma matéria configurada') }}
+            </div>
+            <div style="font-size:.78rem">
+              {{ _('Configure em') }}
+              <a href="{{ url_for('admin.divisions') }}">{{ _('Setores e Turmas') }}</a>.
+            </div>
+          </div>
+
+          {% else %}
+
+          {# ── Accordion by sector ── #}
+          {% for div, grade_list in grade_subjects_by_sector %}
+
+          {% set ns = namespace(active=0) %}
+          {% for grade, subjects in grade_list %}
+            {% for s in subjects %}
+              {% if (grade.id, s.id) in existing_sgs %}{% set ns.active = ns.active + 1 %}{% endif %}
             {% endfor %}
+          {% endfor %}
+
+          <div class="tf-sector-item{% if ns.active > 0 %} open{% endif %}"
+               id="tf-sector-{{ div.id if div else 0 }}">
+            <div class="tf-sector-header"
+                 onclick="toggleTfSector({{ div.id if div else 0 }})">
+              <i class="bi bi-chevron-right tf-sector-chevron"></i>
+              <span class="tf-sector-name">{{ div.name if div else _('Sem setor') }}</span>
+              {% if ns.active > 0 %}
+              <span class="tf-sector-badge" id="tf-sbadge-{{ div.id if div else 0 }}">
+                {{ ns.active }} {{ _('selecionada(s)') }}
+              </span>
+              {% else %}
+              <span class="tf-sector-meta" id="tf-sbadge-{{ div.id if div else 0 }}">
+                {{ grade_list|length }} {{ _('turma(s)') }}
+              </span>
+              {% endif %}
+            </div>
+
+            <div class="tf-sector-body">
+              {% for grade, subjects in grade_list %}
+
+              {% set gns = namespace(g_active=0) %}
+              {% for s in subjects %}
+                {% if (grade.id, s.id) in existing_sgs %}{% set gns.g_active = gns.g_active + 1 %}{% endif %}
+              {% endfor %}
+
+              <div class="tf-grade-row">
+                <span class="tf-grade-label">{{ grade.name }}</span>
+                <div class="tf-pills" id="tf-pills-{{ grade.id }}"
+                     data-div-id="{{ div.id if div else 0 }}"
+                     data-total="{{ subjects|length }}">
+                  {% for s in subjects %}
+                  {% set is_active = (grade.id, s.id) in existing_sgs %}
+                  <label class="sg-pill{% if is_active %} active{% endif %}"
+                         for="sg_{{ s.id }}_{{ grade.id }}">
+                    <i class="bi bi-check2 sg-check"></i>
+                    <input type="checkbox"
+                           id="sg_{{ s.id }}_{{ grade.id }}"
+                           name="sg_{{ s.id }}_{{ grade.id }}"
+                           value="1"
+                           style="position:absolute;opacity:0;width:0;height:0;pointer-events:none"
+                           {% if is_active %}checked{% endif %}>
+                    {{ s.name }}
+                  </label>
+                  {% endfor %}
+                </div>
+                <button type="button"
+                        class="tf-all-btn{% if gns.g_active == subjects|length and subjects|length > 0 %} all-on{% endif %}"
+                        id="tf-all-{{ grade.id }}"
+                        onclick="toggleAllGrade({{ grade.id }})">
+                  {{ _('todos') }}
+                </button>
+              </div>
+              {% endfor %}
+            </div>
           </div>
           {% endfor %}
           {% endif %}
+
+        </div>{# /modal-body #}
+
+        <div class="modal-footer border-0 pt-1">
+          <button type="button" class="btn btn-primary btn-sm px-5"
+                  data-bs-dismiss="modal">
+            {{ _('Fechar') }}
+          </button>
         </div>
+
       </div>
     </div>
+  </div>{# /modal #}
 
-  </div>{# end .row #}
 </form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SG_DATA = {{ sg_data_js | tojson }};
+
+// ── Sector accordion toggle ───────────────────────────────────────────────────
+function toggleTfSector(divId) {
+  document.getElementById(`tf-sector-${divId}`).classList.toggle('open');
+}
+
+// ── Pill click: toggle checkbox + sync badge + summary ────────────────────────
+document.querySelectorAll('.sg-pill').forEach(pill => {
+  const cb = pill.querySelector('input[type=checkbox]');
+  if (!cb) return;
+  cb.addEventListener('change', () => {
+    pill.classList.toggle('active', cb.checked);
+    const pillsDiv = pill.closest('.tf-pills');
+    if (pillsDiv) {
+      syncAllBtn(pillsDiv.id.replace('tf-pills-', ''));
+      syncSectorBadge(pillsDiv.dataset.divId);
+    }
+    syncModalCount();
+    renderSummary();
+  });
+});
+
+// ── "Todos" per grade ─────────────────────────────────────────────────────────
+function toggleAllGrade(gradeId) {
+  const container = document.getElementById(`tf-pills-${gradeId}`);
+  const pills     = [...container.querySelectorAll('.sg-pill')];
+  const allOn     = pills.every(p => p.classList.contains('active'));
+  const target    = !allOn;
+  pills.forEach(pill => {
+    const cb = pill.querySelector('input[type=checkbox]');
+    if (!cb) return;
+    cb.checked = target;
+    pill.classList.toggle('active', target);
+  });
+  syncAllBtn(gradeId);
+  syncSectorBadge(container.dataset.divId);
+  syncModalCount();
+  renderSummary();
+}
+
+function syncAllBtn(gradeId) {
+  const container = document.getElementById(`tf-pills-${gradeId}`);
+  if (!container) return;
+  const pills = [...container.querySelectorAll('.sg-pill')];
+  const allOn = pills.length > 0 && pills.every(p => p.classList.contains('active'));
+  document.getElementById(`tf-all-${gradeId}`)?.classList.toggle('all-on', allOn);
+}
+
+// ── Sector badge (# selected) ─────────────────────────────────────────────────
+function syncSectorBadge(divId) {
+  const badge = document.getElementById(`tf-sbadge-${divId}`);
+  if (!badge) return;
+  const sector = SG_DATA.find(s => s.div_id == divId);
+  if (!sector) return;
+
+  let active = 0, total = 0;
+  sector.grades.forEach(g => {
+    total += g.subjects.length;
+    const container = document.getElementById(`tf-pills-${g.grade_id}`);
+    if (container)
+      active += container.querySelectorAll('.sg-pill.active').length;
+  });
+
+  if (active > 0) {
+    badge.className = 'tf-sector-badge';
+    badge.textContent = `${active} {{ _('selecionada(s)') }}`;
+  } else {
+    badge.className = 'tf-sector-meta';
+    badge.textContent = `${sector.grades.length} {{ _('turma(s)') }}`;
+  }
+}
+
+// ── Total count in modal subtitle ─────────────────────────────────────────────
+function syncModalCount() {
+  const n = document.querySelectorAll('#sgModal .sg-pill.active').length;
+  const el = document.getElementById('sg-modal-count');
+  if (el) el.textContent = n;
+}
+
+// ── Summary card (right column) ───────────────────────────────────────────────
+function renderSummary() {
+  const area = document.getElementById('sg-summary-area');
+  if (!area) return;
+
+  // Collect active selections keyed by div_id → grade_id → [name, ...]
+  const active = {};
+  SG_DATA.forEach(sector => {
+    sector.grades.forEach(g => {
+      const container = document.getElementById(`tf-pills-${g.grade_id}`);
+      if (!container) return;
+      const names = [...container.querySelectorAll('.sg-pill.active')]
+                      .map(p => p.textContent.trim());
+      if (names.length) {
+        if (!active[sector.div_id]) active[sector.div_id] = { name: sector.div_name, grades: [] };
+        active[sector.div_id].grades.push({ name: g.grade_name, subjects: names });
+      }
+    });
+  });
+
+  const sectors = Object.values(active);
+  if (!sectors.length) {
+    area.innerHTML = `
+      <div class="sg-empty-hint">
+        <i class="bi bi-journal-x"></i>
+        {{ _('Nenhuma matéria selecionada.') }}<br>
+        <span style="font-size:.76rem">{{ _('Clique em Editar para atribuir matérias e turmas.') }}</span>
+      </div>`;
+    return;
+  }
+
+  area.innerHTML = sectors.map(sec => `
+    <div class="sg-summary-sector">
+      <div class="sg-summary-sector-name">${sec.name}</div>
+      ${sec.grades.map(g => `
+        <div class="sg-summary-grade">
+          <span class="sg-summary-gname">${g.name}</span>
+          <div class="sg-summary-pills">
+            ${g.subjects.map(s => `<span class="sg-summary-pill">${s}</span>`).join('')}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+// ── Init on load ──────────────────────────────────────────────────────────────
+syncModalCount();
+renderSummary();
+</script>
 {% endblock %}

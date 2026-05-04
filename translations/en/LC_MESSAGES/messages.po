@@ -5,7 +5,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Conferensia 1.0\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-04-25 15:07-0300\n"
+"POT-Creation-Date: 2026-04-29 17:55-0300\n"
 "PO-Revision-Date: 2026-04-25 14:48-0300\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -16,147 +16,357 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
-#: app/admin/routes.py:62
+#: app/admin/routes.py:98 app/admin/routes.py:116 app/admin/routes.py:222
+#: app/admin/routes.py:240
+msgid "Nome obrigatório."
+msgstr "Name is required."
+
+#: app/admin/routes.py:100
+msgid "Setor já existe."
+msgstr "Sector already exists."
+
+#: app/admin/routes.py:105
+msgid "Setor criado."
+msgstr "Sector created."
+
+#: app/admin/routes.py:118
+msgid "Já existe um setor com esse nome."
+msgstr "A sector with this name already exists."
+
+#: app/admin/routes.py:122
+msgid "Setor atualizado."
+msgstr "Sector updated."
+
+#: app/admin/routes.py:135
+msgid "Setor excluído."
+msgstr "Sector deleted."
+
+#: app/admin/routes.py:224 app/admin/routes.py:276
 msgid "Turma já existe."
 msgstr "Grade group already exists."
 
-#: app/admin/routes.py:66
+#: app/admin/routes.py:228 app/admin/routes.py:280
 msgid "Turma adicionada."
 msgstr "Grade group added."
 
-#: app/admin/routes.py:100
-msgid "Turma excluída."
-msgstr "Grade group deleted."
+#: app/admin/routes.py:242
+msgid "Matéria já existe neste setor."
+msgstr "Subject already exists in this sector."
 
-#: app/admin/routes.py:113
+#: app/admin/routes.py:246
+msgid "Matéria adicionada."
+msgstr "Subject added."
+
+#: app/admin/routes.py:259
+msgid "Matéria excluída."
+msgstr "Subject deleted."
+
+#: app/admin/routes.py:285
 msgid "Disciplina já existe."
 msgstr "Subject already exists."
 
-#: app/admin/routes.py:117
+#: app/admin/routes.py:289
 msgid "Disciplina adicionada."
 msgstr "Subject added."
 
-#: app/admin/routes.py:130
+#: app/admin/routes.py:372
+msgid "Turma excluída."
+msgstr "Grade group deleted."
+
+#: app/admin/routes.py:392
 msgid "Disciplina excluída."
 msgstr "Subject deleted."
 
-#: app/admin/routes.py:160 app/admin/routes.py:340
+#: app/admin/routes.py:423 app/admin/routes.py:588 app/admin/routes.py:634
+#: app/admin/routes.py:1909 app/admin/routes.py:2031 app/auth/routes.py:110
 msgid "Já existe um usuário com este e-mail."
 msgstr "A user with this email already exists."
 
-#: app/admin/routes.py:180
+#: app/admin/routes.py:443
 #, python-format
 msgid "Professor criado e convite enviado para %(email)s."
 msgstr "Teacher created and invite sent to %(email)s."
 
-#: app/admin/routes.py:182
+#: app/admin/routes.py:445
 #, python-format
 msgid "Professor criado, mas falha no e-mail: %(err)s"
 msgstr "Teacher created but email failed: %(err)s"
 
-#: app/admin/routes.py:205
+#: app/admin/routes.py:464
 msgid "Professor atualizado."
 msgstr "Teacher updated."
 
-#: app/admin/routes.py:219
+#: app/admin/routes.py:478
 msgid "Este professor já configurou sua senha."
 msgstr "This teacher has already set their password."
 
-#: app/admin/routes.py:227
+#: app/admin/routes.py:486
 msgid "Convite reenviado."
 msgstr "Invite resent."
 
-#: app/admin/routes.py:229
+#: app/admin/routes.py:488
 #, python-format
 msgid "Falha no e-mail: %(err)s"
 msgstr "Email failed: %(err)s"
 
-#: app/admin/routes.py:242
+#: app/admin/routes.py:510
 msgid "Professor excluído."
 msgstr "Teacher deleted."
 
-#: app/admin/routes.py:255
+#: app/admin/routes.py:513
+#, python-format
+msgid "Erro ao excluir professor: %(err)s"
+msgstr "Error deleting teacher: %(err)s"
+
+#: app/admin/routes.py:537
 msgid "Aluno excluído."
 msgstr "Student deleted."
 
-#: app/admin/routes.py:276
+#: app/admin/routes.py:540
+#, python-format
+msgid "Erro ao excluir aluno: %(err)s"
+msgstr "Error deleting student: %(err)s"
+
+#: app/admin/routes.py:561
 #, python-format
 msgid "E-mail enviado para %(name)s."
 msgstr "Email sent to %(name)s."
 
-#: app/admin/routes.py:278
+#: app/admin/routes.py:563
 #, python-format
 msgid "Falha ao enviar e-mail: %(err)s"
 msgstr "Failed to send email: %(err)s"
 
-#: app/admin/routes.py:352
-msgid "Aluno criado."
-msgstr "Student created."
+#: app/admin/routes.py:594 app/admin/routes.py:2037
+msgid "Responsável atualizado."
+msgstr "Guardian updated."
 
-#: app/admin/routes.py:373
-msgid "Aluno atualizado."
-msgstr "Student updated."
+#: app/admin/routes.py:608
+msgid "Responsável excluído."
+msgstr "Guardian deleted."
 
-#: app/admin/routes.py:386
+#: app/admin/routes.py:611
+#, python-format
+msgid "Erro ao excluir responsável: %(err)s"
+msgstr "Error deleting guardian: %(err)s"
+
+#: app/admin/routes.py:651
+#, python-format
+msgid "Administrador criado e convite enviado para %(email)s."
+msgstr "Administrator created and invite sent to %(email)s."
+
+#: app/admin/routes.py:653
+#, python-format
+msgid "Administrador criado, mas falha no e-mail: %(err)s"
+msgstr "Administrator created but email failed: %(err)s"
+
+#: app/admin/routes.py:668
+msgid "Este e-mail já está em uso."
+msgstr "This email is already in use."
+
+#: app/admin/routes.py:674
+msgid "Administrador atualizado."
+msgstr "Administrator updated."
+
+#: app/admin/routes.py:685
+msgid "Você não pode excluir sua própria conta."
+msgstr "You cannot delete your own account."
+
+#: app/admin/routes.py:690
+msgid "Administrador excluído."
+msgstr "Administrator deleted."
+
+#: app/admin/routes.py:693
+#, python-format
+msgid "Erro ao excluir: %(err)s"
+msgstr "Error deleting: %(err)s"
+
+#: app/admin/routes.py:726
+msgid "Erro ao excluir usuários."
+msgstr "Error deleting users."
+
+#: app/admin/routes.py:729
+#, python-format
+msgid "%(count)d usuário(s) excluído(s)."
+msgstr "%(count)d user(s) deleted."
+
+#: app/admin/routes.py:758
+#, python-format
+msgid "%(count)d e-mail(s) enviado(s)."
+msgstr "%(count)d email(s) sent."
+
+#: app/admin/routes.py:760
+#, python-format
+msgid "%(count)d e-mail(s) com falha."
+msgstr "%(count)d email(s) failed."
+
+#: app/admin/routes.py:809
+msgid "Nenhum arquivo enviado."
+msgstr "No file uploaded."
+
+#: app/admin/routes.py:811
+msgid "O arquivo deve ter extensão .csv."
+msgstr "The file must have a .csv extension."
+
+#: app/admin/routes.py:815
+msgid "Arquivo muito grande (máximo 5 MB)."
+msgstr "File too large (maximum 5 MB)."
+
+#: app/admin/routes.py:826
+msgid "Arquivo vazio ou sem linhas de dados."
+msgstr "Empty file or no data rows."
+
+#: app/admin/routes.py:1025
+msgid "Erro ao ler o arquivo CSV."
+msgstr "Error reading the CSV file."
+
+#: app/admin/routes.py:1029
+msgid "Formato inválido. O arquivo deve ter a coluna 'setor'."
+msgstr "Invalid format. The file must have a 'setor' column."
+
+#: app/admin/routes.py:1044
+#, python-format
+msgid "%(n)s setor(es) removido(s)."
+msgstr "%(n)s sector(s) removed."
+
+#: app/admin/routes.py:1107
+#, python-format
+msgid ""
+"Importação concluída: %(c)s setor(es) processado(s), %(d)s item(ns) "
+"removido(s)."
+msgstr "Import complete: %(c)s sector(s) processed, %(d)s item(s) removed."
+
+#: app/admin/routes.py:1110
+#, python-format
+msgid "Importação concluída: %(c)s setor(es) criado(s), %(u)s atualizado(s)."
+msgstr "Import complete: %(c)s sector(s) created, %(u)s updated."
+
+#: app/admin/routes.py:1309
+#, python-format
+msgid "%(deleted)d professor(es) apagado(s)."
+msgstr "%(deleted)d teacher(s) deleted."
+
+#: app/admin/routes.py:1332
+#, python-format
+msgid "%(added)d professor(es) importado(s)."
+msgstr "%(added)d teacher(s) imported."
+
+#: app/admin/routes.py:1399
+#, python-format
+msgid "%(deleted)d aluno(s) apagado(s)."
+msgstr "%(deleted)d student(s) deleted."
+
+#: app/admin/routes.py:1432
+#, python-format
+msgid "%(added)d aluno(s) importado(s)."
+msgstr "%(added)d student(s) imported."
+
+#: app/admin/routes.py:1475
+#, python-format
+msgid "%(deleted)d responsável(eis) apagado(s)."
+msgstr "%(deleted)d guardian(s) deleted."
+
+#: app/admin/routes.py:1499
+#, python-format
+msgid "%(added)d responsável(eis) importado(s)."
+msgstr "%(added)d guardian(s) imported."
+
+#: app/admin/routes.py:1521
+#, python-format
+msgid "Erro ao ler arquivo: %(err)s"
+msgstr "Error reading file: %(err)s"
+
+#: app/admin/routes.py:1525
+msgid "Arquivo vazio ou sem cabeçalho."
+msgstr "Empty file or missing header."
+
+#: app/admin/routes.py:1554
+#, python-format
+msgid "%(n)d turma(s) apagada(s)."
+msgstr "%(n)d grade group(s) deleted."
+
+#: app/admin/routes.py:1634
+#, python-format
+msgid "%(g)d turma(s) e %(l)d vínculo(s) importado(s)."
+msgstr "%(g)d grade group(s) and %(l)d link(s) imported."
+
+#: app/admin/routes.py:1920
+msgid "Aluno salvo."
+msgstr "Student saved."
+
+#: app/admin/routes.py:1967
 msgid "Este aluno já possui 2 responsáveis vinculados."
 msgstr "This student already has 2 guardians linked."
 
-#: app/admin/routes.py:394
+#: app/admin/routes.py:1975
 msgid "Responsável já vinculado."
 msgstr "Guardian already linked."
 
-#: app/admin/routes.py:398
+#: app/admin/routes.py:1979
 msgid "Responsável vinculado."
 msgstr "Guardian linked."
 
-#: app/admin/routes.py:403
+#: app/admin/routes.py:1984
 msgid "Informe nome e sobrenome para criar um novo responsável."
 msgstr "Provide first and last name to create a new guardian."
 
-#: app/admin/routes.py:406
+#: app/admin/routes.py:1987
 msgid "E-mail já está em uso."
 msgstr "Email already in use."
 
-#: app/admin/routes.py:418
+#: app/admin/routes.py:1999
 #, python-format
 msgid "Responsável criado e convite enviado para %(email)s."
 msgstr "Guardian created and invite sent to %(email)s."
 
-#: app/admin/routes.py:420
+#: app/admin/routes.py:2001
 #, python-format
 msgid "Responsável criado, mas falha no e-mail: %(err)s"
 msgstr "Guardian created but email failed: %(err)s"
 
-#: app/admin/routes.py:432
+#: app/admin/routes.py:2013
 msgid "Responsável removido."
 msgstr "Guardian removed."
 
-#: app/admin/routes.py:461
+#: app/admin/routes.py:2027
+msgid "Nome, sobrenome e e-mail são obrigatórios."
+msgstr "First name, last name and email are required."
+
+#: app/admin/routes.py:2066
 msgid "Evento criado e horários gerados."
 msgstr "Event created and slots generated."
 
-#: app/admin/routes.py:481
+#: app/admin/routes.py:2188
+#, python-format
+msgid ""
+"Evento atualizado. O(s) dia(s) %(dates)s não foram removidos pois têm "
+"agendamentos confirmados."
+msgstr ""
+"Event updated. Day(s) %(dates)s were not removed as they have confirmed "
+"bookings."
+
+#: app/admin/routes.py:2193
 msgid "Evento atualizado."
 msgstr "Event updated."
 
-#: app/admin/routes.py:493
+#: app/admin/routes.py:2221
 msgid "Evento publicado."
 msgstr "Event published."
 
-#: app/admin/routes.py:504
+#: app/admin/routes.py:2232
 msgid "Evento encerrado."
 msgstr "Event closed."
 
-#: app/admin/routes.py:515
+#: app/admin/routes.py:2243
 msgid "Evento excluído."
 msgstr "Event deleted."
 
-#: app/admin/routes.py:559 app/templates/admin/students.html:11
-#: app/templates/admin/teachers.html:11
+#: app/admin/routes.py:2341 app/templates/admin/students.html:29
+#: app/templates/admin/teachers.html:29
 msgid "Todas as turmas"
 msgstr "All grades"
 
-#: app/admin/routes.py:582
+#: app/admin/routes.py:2359
 #, python-format
 msgid "%(count)s e-mails enviados."
 msgstr "%(count)s emails sent."
@@ -197,381 +407,1299 @@ msgstr "Current password is incorrect."
 msgid "Senha alterada com sucesso."
 msgstr "Password changed successfully."
 
-#: app/guardian/routes.py:55
+#: app/auth/routes.py:105
+msgid "Todos os campos são obrigatórios."
+msgstr "All fields are required."
+
+#: app/auth/routes.py:120
+msgid "Preferências salvas."
+msgstr "Preferences saved."
+
+#: app/guardian/routes.py:59
 msgid "Nenhum evento de conferência ativo."
 msgstr "No active conference event."
 
-#: app/teacher/routes.py:90
-msgid "Perfil atualizado."
-msgstr "Profile updated."
+#: app/templates/admin/dashboard.html:5 app/templates/base.html:35
+msgid "Visão Geral"
+msgstr "Overview"
 
-#: app/templates/base.html:26 app/templates/base.html:39
-#: app/templates/base.html:43 app/templates/base.html:46
+#: app/templates/base.html:37
+msgid "Pessoas"
+msgstr "People"
+
+#: app/templates/admin/dashboard.html:25 app/templates/admin/teachers.html:2
+#: app/templates/admin/teachers.html:6 app/templates/base.html:40
+#: app/templates/guardian/schedule.html:222
+#: app/templates/student/schedule.html:219
+msgid "Professores"
+msgstr "Teachers"
+
+#: app/templates/admin/dashboard.html:15 app/templates/admin/grades.html:240
+#: app/templates/admin/students.html:2 app/templates/admin/students.html:6
+#: app/templates/base.html:44
+msgid "Alunos"
+msgstr "Students"
+
+#: app/templates/admin/dashboard.html:35
+#: app/templates/admin/student_form.html:103
+#: app/templates/admin/students.html:59 app/templates/base.html:48
+msgid "Responsáveis"
+msgstr "Guardians"
+
+#: app/templates/base.html:50
+msgid "Acadêmico"
+msgstr "Academic"
+
+#: app/templates/admin/divisions.html:2 app/templates/admin/divisions.html:141
+#: app/templates/base.html:53
+msgid "Setores e Turmas"
+msgstr "Sectors & Classes"
+
+#: app/templates/admin/events.html:2 app/templates/admin/events.html:6
+#: app/templates/base.html:57
+msgid "Conferências"
+msgstr "Conferences"
+
+#: app/templates/admin/dashboard.html:2 app/templates/base.html:63
+#: app/templates/base.html:73 app/templates/base.html:83
 #: app/templates/guardian/dashboard.html:2
 #: app/templates/student/dashboard.html:2
 #: app/templates/teacher/dashboard.html:2
 msgid "Painel"
 msgstr "Dashboard"
 
-#: app/templates/base.html:28
-msgid "Usuários"
-msgstr "Users"
-
-#: app/templates/admin/dashboard.html:19 app/templates/admin/teachers.html:2
-#: app/templates/admin/teachers.html:5 app/templates/base.html:30
-msgid "Professores"
-msgstr "Teachers"
-
-#: app/templates/admin/dashboard.html:11 app/templates/admin/grades.html:95
-#: app/templates/admin/students.html:2 app/templates/admin/students.html:5
-#: app/templates/base.html:31
-msgid "Alunos"
-msgstr "Students"
-
-#: app/templates/admin/grades.html:2 app/templates/base.html:33
-msgid "Turmas"
-msgstr "Grade Groups"
-
-#: app/templates/admin/subjects.html:2 app/templates/admin/subjects.html:4
-#: app/templates/base.html:34
-msgid "Matérias"
-msgstr "Subjects"
-
-#: app/templates/admin/events.html:2 app/templates/base.html:37
-msgid "Eventos"
-msgstr "Events"
-
-#: app/templates/base.html:40 app/templates/teacher/schedule.html:2
-#: app/templates/teacher/schedule.html:4
+#: app/templates/base.html:67 app/templates/teacher/schedule.html:2
+#: app/templates/teacher/schedule.html:64
 msgid "Minha Agenda"
 msgstr "My Schedule"
 
-#: app/templates/base.html:41
-msgid "Perfil"
-msgstr "Profile"
-
-#: app/templates/base.html:44 app/templates/base.html:47
+#: app/templates/base.html:77 app/templates/base.html:87
 #: app/templates/guardian/bookings.html:2
-#: app/templates/guardian/bookings.html:4
-#: app/templates/guardian/schedule.html:21
-#: app/templates/student/bookings.html:2 app/templates/student/bookings.html:4
-#: app/templates/student/dashboard.html:14
-#: app/templates/student/schedule.html:21
+#: app/templates/guardian/bookings.html:42
+#: app/templates/guardian/dashboard.html:104
+#: app/templates/guardian/schedule.html:85
+#: app/templates/print_my_schedule.html:6 app/templates/student/bookings.html:2
+#: app/templates/student/bookings.html:40
+#: app/templates/student/dashboard.html:131
+#: app/templates/student/dashboard.html:165
+#: app/templates/student/schedule.html:82
 msgid "Minhas Reuniões"
 msgstr "My Meetings"
 
+#: app/templates/admin/admins.html:2 app/templates/admin/admins.html:6
+#: app/templates/base.html:96
+msgid "Administradores"
+msgstr "Administrators"
+
+#: app/templates/base.html:109 app/templates/base.html:156
+msgid "Administrador"
+msgstr "Administrator"
+
+#: app/templates/admin/event_bookings.html:20 app/templates/base.html:110
+#: app/templates/base.html:157 app/templates/guardian/bookings.html:75
+#: app/templates/guardian/schedule.html:261
+#: app/templates/student/bookings.html:57
+#: app/templates/student/schedule.html:258
+msgid "Professor"
+msgstr "Teacher"
+
+#: app/templates/admin/students.html:109 app/templates/base.html:111
+#: app/templates/base.html:158
+msgid "Responsável"
+msgstr "Guardian"
+
+#: app/templates/admin/event_bookings.html:21 app/templates/base.html:112
+#: app/templates/base.html:159 app/templates/teacher/schedule.html:212
+msgid "Aluno"
+msgstr "Student"
+
+#: app/templates/base.html:118 app/templates/base.html:411
+msgid "Preferências"
+msgstr "Preferences"
+
 #: app/templates/auth/change_password.html:2
 #: app/templates/auth/change_password.html:6
-#: app/templates/auth/change_password.html:27 app/templates/base.html:66
+#: app/templates/auth/change_password.html:27 app/templates/base.html:122
 #: app/templates/teacher/profile.html:38
 msgid "Alterar Senha"
 msgstr "Change Password"
 
-#: app/templates/base.html:68
+#: app/templates/base.html:126
+msgid "Idioma"
+msgstr "Language"
+
+#: app/templates/base.html:135
 msgid "Sair"
 msgstr "Log Out"
 
-#: app/templates/admin/dashboard.html:2
-msgid "Painel Admin"
-msgstr "Admin Dashboard"
+#: app/templates/admin/admin_form.html:54
+#: app/templates/admin/divisions.html:344
+#: app/templates/admin/divisions.html:372
+#: app/templates/admin/divisions.html:401
+#: app/templates/admin/divisions.html:430
+#: app/templates/admin/divisions.html:526
+#: app/templates/admin/event_bookings.html:117
+#: app/templates/admin/event_form.html:101
+#: app/templates/admin/event_form.html:262
+#: app/templates/admin/event_form.html:526 app/templates/admin/grades.html:146
+#: app/templates/admin/guardian_form.html:31
+#: app/templates/admin/guardians.html:155
+#: app/templates/admin/guardians.html:236
+#: app/templates/admin/student_form.html:46
+#: app/templates/admin/student_form.html:277
+#: app/templates/admin/students.html:172 app/templates/admin/students.html:261
+#: app/templates/admin/teacher_form.html:35
+#: app/templates/admin/teachers.html:154 app/templates/admin/teachers.html:235
+#: app/templates/base.html:233 app/templates/base.html:269
+#: app/templates/base.html:342 app/templates/base.html:455
+#: app/templates/teacher/schedule.html:289
+msgid "Cancelar"
+msgstr "Cancel"
 
-#: app/templates/admin/dashboard.html:4
-msgid "Painel Administrativo"
-msgstr "Administrative Dashboard"
+#: app/templates/base.html:234 app/templates/base.html:268
+#: app/templates/base.html:339 app/templates/base.html:341
+msgid "Confirmar"
+msgstr "Confirm"
 
-#: app/templates/admin/dashboard.html:27
-#: app/templates/admin/student_form.html:44
-#: app/templates/admin/students.html:26
-msgid "Responsáveis"
-msgstr "Guardians"
+#: app/templates/admin/divisions.html:456
+#: app/templates/admin/event_form.html:207
+#: app/templates/admin/student_form.html:318 app/templates/base.html:257
+#: app/templates/guardian/schedule.html:242
+#: app/templates/student/schedule.html:239
+msgid "Fechar"
+msgstr "Close"
 
-#: app/templates/admin/dashboard.html:36
-msgid "Evento ativo"
-msgstr "Active event"
+#: app/templates/base.html:309
+msgid "Erro"
+msgstr "Error"
 
-#: app/templates/admin/dashboard.html:38
-msgid "Nenhum evento ativo"
-msgstr "No active event"
+#: app/templates/base.html:310
+msgid "Atenção"
+msgstr "Warning"
 
-#: app/templates/admin/dashboard.html:48
-msgid "Progresso de agendamentos"
-msgstr "Booking progress"
+#: app/templates/base.html:311
+msgid "Sucesso"
+msgstr "Success"
 
-#: app/templates/admin/dashboard.html:54
-msgid "dos horários agendados"
-msgstr "of slots booked"
+#: app/templates/base.html:312
+msgid "Aviso"
+msgstr "Notice"
 
-#: app/templates/admin/dashboard.html:62
-msgid "Ações rápidas"
-msgstr "Quick actions"
+#: app/templates/admin/admin_form.html:26 app/templates/admin/admins.html:27
+#: app/templates/admin/events.html:44 app/templates/admin/guardian_form.html:14
+#: app/templates/admin/guardians.html:45 app/templates/admin/guardians.html:134
+#: app/templates/admin/guardians.html:186
+#: app/templates/admin/student_form.html:16
+#: app/templates/admin/student_form.html:221
+#: app/templates/admin/student_form.html:262
+#: app/templates/admin/students.html:56 app/templates/admin/students.html:143
+#: app/templates/admin/students.html:203 app/templates/admin/subjects.html:27
+#: app/templates/admin/teacher_form.html:17
+#: app/templates/admin/teachers.html:56 app/templates/admin/teachers.html:137
+#: app/templates/admin/teachers.html:187 app/templates/base.html:420
+#: app/templates/teacher/profile.html:13
+msgid "Nome"
+msgstr "Name"
 
-#: app/templates/admin/dashboard.html:64
-msgid "Adicionar professor"
-msgstr "Add teacher"
+#: app/templates/admin/admin_form.html:31
+#: app/templates/admin/guardian_form.html:19
+#: app/templates/admin/guardians.html:138
+#: app/templates/admin/guardians.html:190
+#: app/templates/admin/student_form.html:21
+#: app/templates/admin/student_form.html:225
+#: app/templates/admin/student_form.html:266
+#: app/templates/admin/students.html:147 app/templates/admin/students.html:207
+#: app/templates/admin/teacher_form.html:22
+#: app/templates/admin/teachers.html:141 app/templates/admin/teachers.html:191
+#: app/templates/base.html:425 app/templates/teacher/profile.html:18
+msgid "Sobrenome"
+msgstr "Last Name"
 
-#: app/templates/admin/dashboard.html:65
-msgid "Adicionar aluno"
-msgstr "Add student"
+#: app/templates/admin/admin_form.html:38 app/templates/admin/admins.html:28
+#: app/templates/admin/guardian_form.html:24
+#: app/templates/admin/guardians.html:46
+#: app/templates/admin/student_form.html:26
+#: app/templates/admin/student_form.html:229
+#: app/templates/admin/student_form.html:270
+#: app/templates/admin/students.html:57
+#: app/templates/admin/teacher_form.html:27
+#: app/templates/admin/teachers.html:57
+#: app/templates/auth/forgot_password.html:38 app/templates/auth/login.html:42
+#: app/templates/base.html:430 app/templates/teacher/profile.html:23
+msgid "E-mail"
+msgstr "Email"
 
-#: app/templates/admin/dashboard.html:66
-msgid "Criar evento"
-msgstr "Create event"
+#: app/templates/base.html:435 app/templates/teacher/profile.html:28
+msgid "Idioma preferido"
+msgstr "Preferred language"
 
-#: app/templates/admin/dashboard.html:67
-msgid "Todos os eventos"
-msgstr "All events"
-
-#: app/templates/admin/dashboard.html:73
-msgid "E-mails recentes"
-msgstr "Recent emails"
-
-#: app/templates/admin/dashboard.html:81
-msgid "Nenhum e-mail enviado ainda."
-msgstr "No emails sent yet."
-
-#: app/templates/admin/event_bookings.html:2
-#: app/templates/admin/event_bookings.html:5 app/templates/admin/events.html:29
-msgid "Agendamentos"
-msgstr "Bookings"
-
-#: app/templates/admin/event_bookings.html:6 app/templates/admin/notify.html:6
-#: app/templates/guardian/schedule.html:22
-#: app/templates/student/schedule.html:22
-msgid "Voltar"
-msgstr "Back"
-
-#: app/templates/admin/event_bookings.html:13
-#: app/templates/guardian/bookings.html:15
-#: app/templates/student/bookings.html:13
-#: app/templates/teacher/dashboard.html:36
-#: app/templates/teacher/schedule.html:20
-msgid "Data / Hora"
-msgstr "Date / Time"
-
-#: app/templates/admin/event_bookings.html:14
-#: app/templates/guardian/bookings.html:15
-#: app/templates/student/bookings.html:13
-msgid "Professor"
-msgstr "Teacher"
-
-#: app/templates/admin/event_bookings.html:15
-#: app/templates/teacher/dashboard.html:12
-#: app/templates/teacher/dashboard.html:36
-#: app/templates/teacher/schedule.html:20
-msgid "Aluno"
-msgstr "Student"
-
-#: app/templates/admin/event_bookings.html:16
-#: app/templates/student/bookings.html:13
-msgid "Agendado por"
-msgstr "Booked by"
-
-#: app/templates/admin/event_bookings.html:28
-msgid "Nenhum agendamento ainda."
-msgstr "No bookings yet."
-
-#: app/templates/admin/event_form.html:2 app/templates/admin/event_form.html:4
-msgid "Editar Evento"
-msgstr "Edit Event"
-
-#: app/templates/admin/event_form.html:2 app/templates/admin/events.html:6
-msgid "Novo Evento"
-msgstr "New Event"
-
-#: app/templates/admin/event_form.html:4
-msgid "Novo Evento de Conferência"
-msgstr "New Conference Event"
-
-#: app/templates/admin/event_form.html:10
-msgid "Informações gerais"
-msgstr "General information"
-
-#: app/templates/admin/event_form.html:13
-msgid "Nome do evento"
-msgstr "Event name"
-
-#: app/templates/admin/event_form.html:21
-msgid "Permitir agendamento por alunos"
-msgstr "Allow student booking"
-
-#: app/templates/admin/event_form.html:25
-msgid "Prazo de cancelamento (horas)"
-msgstr "Cancellation deadline (hours)"
-
-#: app/templates/admin/event_form.html:34
-msgid "Dias"
-msgstr "Days"
-
-#: app/templates/admin/event_form.html:36
-msgid "Adicionar dia"
-msgstr "Add day"
-
-#: app/templates/admin/event_form.html:43
-#: app/templates/admin/event_form.html:94
-msgid "Dia"
-msgstr "Day"
-
-#: app/templates/admin/event_form.html:48
-msgid "Data"
-msgstr "Date"
-
-#: app/templates/admin/event_form.html:52 app/templates/errors/403.html:8
-#: app/templates/errors/404.html:8 app/templates/errors/500.html:8
-msgid "Início"
-msgstr "Home"
-
-#: app/templates/admin/event_form.html:56
-msgid "Fim"
-msgstr "End"
-
-#: app/templates/admin/event_form.html:60
-msgid "Duração (min)"
-msgstr "Duration (min)"
-
-#: app/templates/admin/event_form.html:64
-msgid "Intervalo (min)"
-msgstr "Break (min)"
-
-#: app/templates/admin/event_form.html:75
-#: app/templates/admin/student_form.html:33
-#: app/templates/admin/teacher_form.html:33
+#: app/templates/admin/admin_form.html:52
+#: app/templates/admin/divisions.html:374
+#: app/templates/admin/event_form.html:100
+#: app/templates/admin/guardian_form.html:30
+#: app/templates/admin/student_form.html:36
+#: app/templates/admin/student_form.html:278
+#: app/templates/admin/teacher_form.html:34 app/templates/base.html:457
 #: app/templates/teacher/profile.html:37
 msgid "Salvar"
 msgstr "Save"
 
-#: app/templates/admin/event_form.html:76
-#: app/templates/admin/student_form.html:34
-#: app/templates/admin/teacher_form.html:34
-msgid "Cancelar"
-msgstr "Cancel"
+#: app/templates/admin/admin_form.html:2 app/templates/admin/admin_form.html:10
+msgid "Editar Administrador"
+msgstr "Edit Administrator"
 
-#: app/templates/admin/event_form.html:83
-msgid "Prévia dos horários"
-msgstr "Slot preview"
+#: app/templates/admin/admin_form.html:2 app/templates/admin/admin_form.html:10
+msgid "Novo Administrador"
+msgstr "New Administrator"
 
-#: app/templates/admin/event_form.html:85
-msgid "Preencha um dia para ver a prévia."
-msgstr "Fill in a day to see the preview."
+#: app/templates/admin/admin_form.html:18
+msgid "Dados do Administrador"
+msgstr "Administrator Details"
 
-#: app/templates/admin/events.html:5
-msgid "Eventos de Conferência"
-msgstr "Conference Events"
+#: app/templates/admin/admin_form.html:46
+msgid ""
+"Um e-mail de convite será enviado automaticamente para o endereço "
+"informado."
+msgstr "An invite email will be sent automatically to the provided address."
 
-#: app/templates/admin/events.html:17
-msgid "Publicado"
-msgstr "Published"
+#: app/templates/admin/admin_form.html:64
+msgid "Acesso"
+msgstr "Access"
 
-#: app/templates/admin/events.html:19
-msgid "Encerrado"
-msgstr "Closed"
+#: app/templates/admin/admin_form.html:77 app/templates/admin/admins.html:52
+#: app/templates/admin/guardians.html:77 app/templates/admin/teachers.html:80
+msgid "Ativo"
+msgstr "Active"
 
-#: app/templates/admin/events.html:21
-msgid "Rascunho"
-msgstr "Draft"
+#: app/templates/admin/admin_form.html:79 app/templates/admin/admins.html:54
+msgid "Convite pendente"
+msgstr "Invite pending"
 
-#: app/templates/admin/events.html:24
-msgid "dia(s)"
-msgstr "day(s)"
+#: app/templates/admin/admin_form.html:88
+msgid "Enviar redefinição de senha"
+msgstr "Send password reset"
 
-#: app/templates/admin/events.html:25
-msgid "Agendamento por alunos:"
-msgstr "Student booking:"
+#: app/templates/admin/admin_form.html:90
+msgid "Reenviar convite"
+msgstr "Resend invite"
 
-#: app/templates/admin/events.html:25
-msgid "Sim"
-msgstr "Yes"
+#: app/templates/admin/admins.html:8
+msgid "Adicionar Administrador"
+msgstr "Add Administrator"
 
-#: app/templates/admin/events.html:25
-msgid "Não"
-msgstr "No"
+#: app/templates/admin/admins.html:17 app/templates/admin/events.html:17
+#: app/templates/admin/students.html:25 app/templates/admin/teachers.html:25
+msgid "Buscar por nome..."
+msgstr "Search by name..."
 
-#: app/templates/admin/events.html:30 app/templates/admin/notify.html:2
-msgid "Notificar"
-msgstr "Notify"
+#: app/templates/admin/admins.html:29 app/templates/admin/events.html:45
+#: app/templates/admin/guardians.html:48 app/templates/admin/teachers.html:59
+#: app/templates/teacher/schedule.html:211
+msgid "Status"
+msgstr "Status"
 
-#: app/templates/admin/events.html:34
-msgid "Publicar"
-msgstr "Publish"
+#: app/templates/admin/admins.html:44
+msgid "você"
+msgstr "you"
 
-#: app/templates/admin/events.html:38
-msgid "Encerrar este evento?"
-msgstr "Close this event?"
+#: app/templates/admin/admins.html:60 app/templates/admin/events.html:101
+#: app/templates/admin/guardians.html:85
+#: app/templates/admin/student_form.html:64
+#: app/templates/admin/student_form.html:85
+#: app/templates/admin/student_form.html:121
+#: app/templates/admin/students.html:81 app/templates/admin/teachers.html:88
+msgid "Editar"
+msgstr "Edit"
 
-#: app/templates/admin/events.html:40
-msgid "Encerrar"
-msgstr "Close"
+#: app/templates/admin/admins.html:66 app/templates/admin/guardians.html:91
+#: app/templates/admin/students.html:99 app/templates/admin/students.html:109
+#: app/templates/admin/teachers.html:94
+#: app/templates/auth/forgot_password.html:28
+#: app/templates/auth/reset_password.html:2
+msgid "Redefinir senha"
+msgstr "Reset password"
 
-#: app/templates/admin/events.html:44
-msgid "Excluir este evento permanentemente?"
-msgstr "Permanently delete this event?"
+#: app/templates/admin/admins.html:73 app/templates/admin/divisions.html:278
+#: app/templates/admin/event_form.html:526 app/templates/admin/events.html:131
+#: app/templates/admin/grades.html:175 app/templates/admin/grades.html:195
+#: app/templates/admin/grades.html:249 app/templates/admin/guardians.html:97
+#: app/templates/admin/guardians.html:298 app/templates/admin/students.html:86
+#: app/templates/admin/students.html:322 app/templates/admin/subjects.html:35
+#: app/templates/admin/teachers.html:100 app/templates/admin/teachers.html:300
+msgid "Esta ação não pode ser desfeita."
+msgstr "This action cannot be undone."
 
-#: app/templates/admin/events.html:52
-msgid "Nenhum evento ainda."
-msgstr "No events yet."
-
-#: app/templates/admin/events.html:52
-msgid "Criar um"
-msgstr "Create one"
-
-#: app/templates/admin/grades.html:5
-msgid "Turmas e Matérias"
-msgstr "Grade Groups & Subjects"
-
-#: app/templates/admin/grades.html:12
-msgid "Adicionar turma"
-msgstr "Add grade group"
-
-#: app/templates/admin/grades.html:16
-msgid "ex: 9º Ano A"
-msgstr "e.g. Grade 9A"
-
-#: app/templates/admin/grades.html:20 app/templates/admin/subjects.html:17
-msgid "Adicionar"
-msgstr "Add"
-
-#: app/templates/admin/grades.html:29
-msgid "Cadastre matérias antes de atribuí-las às turmas."
-msgstr "Register subjects before assigning them to grade groups."
-
-#: app/templates/admin/grades.html:30
-msgid "Ir para Matérias →"
-msgstr "Go to Subjects →"
-
-#: app/templates/admin/grades.html:39
-msgid "Quais matérias cada turma tem?"
-msgstr "Which subjects does each grade have?"
-
-#: app/templates/admin/grades.html:40
-msgid "Clique numa célula para ativar/desativar."
-msgstr "Click a cell to enable/disable."
-
-#: app/templates/admin/grades.html:46 app/templates/admin/student_form.html:28
-#: app/templates/admin/students.html:25
-msgid "Turma"
-msgstr "Grade"
-
-#: app/templates/admin/grades.html:57
-msgid "alunos"
-msgstr "students"
-
-#: app/templates/admin/grades.html:79 app/templates/admin/grades.html:103
-#: app/templates/admin/students.html:56 app/templates/admin/students.html:59
-#: app/templates/admin/subjects.html:34 app/templates/admin/teachers.html:74
-#: app/templates/admin/teachers.html:77
+#: app/templates/admin/admins.html:74 app/templates/admin/admins.html:76
+#: app/templates/admin/admins.html:78 app/templates/admin/divisions.html:216
+#: app/templates/admin/divisions.html:217
+#: app/templates/admin/divisions.html:280 app/templates/admin/events.html:133
+#: app/templates/admin/events.html:135 app/templates/admin/grades.html:177
+#: app/templates/admin/grades.html:197 app/templates/admin/grades.html:251
+#: app/templates/admin/guardians.html:98 app/templates/admin/guardians.html:100
+#: app/templates/admin/guardians.html:102 app/templates/admin/students.html:87
+#: app/templates/admin/students.html:89 app/templates/admin/students.html:91
+#: app/templates/admin/subjects.html:36 app/templates/admin/subjects.html:37
+#: app/templates/admin/teachers.html:101 app/templates/admin/teachers.html:103
+#: app/templates/admin/teachers.html:105
 msgid "Excluir"
 msgstr "Delete"
 
-#: app/templates/admin/grades.html:95 app/templates/admin/student_form.html:13
-#: app/templates/admin/student_form.html:69
-#: app/templates/admin/students.html:23 app/templates/admin/subjects.html:27
-#: app/templates/admin/teacher_form.html:13
-#: app/templates/admin/teachers.html:23 app/templates/teacher/profile.html:13
-msgid "Nome"
-msgstr "Name"
+#: app/templates/admin/admins.html:83
+msgid "Não é possível excluir sua própria conta"
+msgstr "You cannot delete your own account"
 
-#: app/templates/admin/grades.html:115
-msgid "Nenhuma turma ainda. Adicione uma ao lado."
-msgstr "No grade groups yet. Add one on the left."
+#: app/templates/admin/admins.html:93
+msgid "Nenhum administrador encontrado."
+msgstr "No administrators found."
+
+#: app/templates/admin/admins.html:103
+msgid "Nenhum resultado para a busca."
+msgstr "No results for the search."
+
+#: app/templates/admin/dashboard.html:46
+msgid "Evento ativo"
+msgstr "Active event"
+
+#: app/templates/admin/dashboard.html:49
+msgid "Eventos ativos"
+msgstr "Active events"
+
+#: app/templates/admin/dashboard.html:52
+#: app/templates/guardian/dashboard.html:98
+#: app/templates/student/bookings.html:93
+#: app/templates/student/dashboard.html:159
+#: app/templates/teacher/dashboard.html:301
+#: app/templates/teacher/schedule.html:71
+msgid "Nenhum evento ativo"
+msgstr "No active event"
+
+#: app/templates/admin/dashboard.html:66
+msgid "Progresso"
+msgstr "Progress"
+
+#: app/templates/admin/dashboard.html:78
+#: app/templates/teacher/schedule.html:111
+msgid "agendados"
+msgstr "booked"
+
+#: app/templates/admin/dashboard.html:79
+msgid "total"
+msgstr "total"
+
+#: app/templates/admin/dashboard.html:91
+msgid "Ações rápidas"
+msgstr "Quick actions"
+
+#: app/templates/admin/dashboard.html:100
+msgid "Adicionar professor"
+msgstr "Add teacher"
+
+#: app/templates/admin/dashboard.html:110
+msgid "Adicionar aluno"
+msgstr "Add student"
+
+#: app/templates/admin/dashboard.html:120
+msgid "Criar conferência"
+msgstr "Create conference"
+
+#: app/templates/admin/dashboard.html:130
+#: app/templates/teacher/schedule.html:146
+msgid "Todos os eventos"
+msgstr "All events"
+
+#: app/templates/admin/dashboard.html:141
+msgid "E-mails recentes"
+msgstr "Recent emails"
+
+#: app/templates/admin/dashboard.html:145
+msgid "Convite"
+msgstr "Invite"
+
+#: app/templates/admin/dashboard.html:146
+msgid "Info da conferência"
+msgstr "Conference info"
+
+#: app/templates/admin/dashboard.html:147
+msgid "Lembrete"
+msgstr "Reminder"
+
+#: app/templates/admin/dashboard.html:148
+msgid "Redefinição de senha"
+msgstr "Password reset"
+
+#: app/templates/admin/dashboard.html:149
+msgid "Ausência de prof."
+msgstr "Teacher absence"
+
+#: app/templates/admin/dashboard.html:170
+msgid "Nenhum e-mail enviado ainda."
+msgstr "No emails sent yet."
+
+#: app/templates/admin/divisions.html:145
+msgid "Exportar CSV"
+msgstr "Export CSV"
+
+#: app/templates/admin/divisions.html:149
+msgid "Importar CSV"
+msgstr "Import CSV"
+
+#: app/templates/admin/divisions.html:153
+#: app/templates/admin/divisions.html:333
+msgid "Novo setor"
+msgstr "New sector"
+
+#: app/templates/admin/divisions.html:174
+msgid "Mover para cima"
+msgstr "Move up"
+
+#: app/templates/admin/divisions.html:183
+msgid "Mover para baixo"
+msgstr "Move down"
+
+#: app/templates/admin/divisions.html:192
+msgid "turma(s)"
+msgstr "grade(s)"
+
+#: app/templates/admin/divisions.html:194
+msgid "matéria(s)"
+msgstr "subject(s)"
+
+#: app/templates/admin/divisions.html:201
+#: app/templates/admin/divisions.html:390
+#: app/templates/admin/divisions.html:576
+msgid "Nova turma"
+msgstr "New class"
+
+#: app/templates/admin/divisions.html:202
+msgid "+ Turma"
+msgstr "+ Class"
+
+#: app/templates/admin/divisions.html:206
+#: app/templates/admin/divisions.html:419
+#: app/templates/admin/divisions.html:590
+msgid "Nova matéria"
+msgstr "New subject"
+
+#: app/templates/admin/divisions.html:207
+msgid "+ Matéria"
+msgstr "+ Subject"
+
+#: app/templates/admin/divisions.html:211
+msgid "Renomear"
+msgstr "Rename"
+
+#: app/templates/admin/divisions.html:215
+msgid "Todas as turmas serão desatribuídas. Esta ação não pode ser desfeita."
+msgstr "All grade groups will be unassigned. This action cannot be undone."
+
+#: app/templates/admin/divisions.html:220
+msgid "Excluir setor"
+msgstr "Delete sector"
+
+#: app/templates/admin/divisions.html:264
+#: app/templates/admin/divisions.html:687
+msgid "Nenhuma matéria"
+msgstr "No subjects"
+
+#: app/templates/admin/divisions.html:272
+#: app/templates/admin/student_form.html:61
+#: app/templates/admin/student_form.html:83 app/templates/admin/subjects.html:2
+#: app/templates/admin/subjects.html:4 app/templates/guardian/schedule.html:216
+#: app/templates/student/schedule.html:213
+msgid "Matérias"
+msgstr "Subjects"
+
+#: app/templates/admin/divisions.html:279
+#: app/templates/admin/divisions.html:283 app/templates/admin/grades.html:196
+#: app/templates/admin/grades.html:199 app/templates/admin/grades.html:250
+#: app/templates/admin/grades.html:253
+msgid "Excluir turma"
+msgstr "Delete grade group"
+
+#: app/templates/admin/divisions.html:293
+msgid "Nenhuma turma neste setor."
+msgstr "No classes in this sector."
+
+#: app/templates/admin/divisions.html:296
+msgid "Adicionar agora"
+msgstr "Add now"
+
+#: app/templates/admin/divisions.html:311
+msgid "Nenhum setor criado ainda"
+msgstr "No sectors created yet"
+
+#: app/templates/admin/divisions.html:312
+msgid "Crie um setor para começar a organizar turmas e matérias."
+msgstr "Create a sector to start organising classes and subjects."
+
+#: app/templates/admin/divisions.html:315
+msgid "Criar primeiro setor"
+msgstr "Create first sector"
+
+#: app/templates/admin/divisions.html:339
+msgid "Ex: High School"
+msgstr "E.g. High School"
+
+#: app/templates/admin/divisions.html:346
+msgid "Criar"
+msgstr "Create"
+
+#: app/templates/admin/divisions.html:362
+msgid "Renomear setor"
+msgstr "Rename sector"
+
+#: app/templates/admin/divisions.html:396
+msgid "Ex: G9A"
+msgstr "E.g. G9A"
+
+#: app/templates/admin/divisions.html:403
+#: app/templates/admin/divisions.html:432
+#: app/templates/admin/event_form.html:264
+#: app/templates/admin/student_form.html:107
+#: app/templates/admin/subjects.html:17
+msgid "Adicionar"
+msgstr "Add"
+
+#: app/templates/admin/divisions.html:425
+msgid "Ex: Matemática"
+msgstr "E.g. Mathematics"
+
+#: app/templates/admin/divisions.html:471
+msgid "Importar Setores e Turmas"
+msgstr "Import Sectors & Classes"
+
+#: app/templates/admin/divisions.html:477
+msgid "CSV com colunas:"
+msgstr "CSV with columns:"
+
+#: app/templates/admin/divisions.html:479
+msgid "Turmas e matérias separadas por"
+msgstr "Grade groups and subjects separated by"
+
+#: app/templates/admin/divisions.html:482
+msgid "Setor, turma e matéria são criados automaticamente se não existirem."
+msgstr "Sector, class and subject are created automatically if they do not exist."
+"Sector, grade group and subject will be created automatically if they "
+"don't exist.Sector, grade group and subject will be created automatically"
+" if they don't exist."
+
+#: app/templates/admin/divisions.html:486 app/templates/admin/grades.html:116
+#: app/templates/admin/guardians.html:202 app/templates/admin/students.html:227
+#: app/templates/admin/teachers.html:199
+msgid "Baixar modelo"
+msgstr "Download template"
+
+#: app/templates/admin/divisions.html:489 app/templates/admin/grades.html:119
+#: app/templates/admin/guardians.html:207 app/templates/admin/students.html:232
+#: app/templates/admin/teachers.html:206
+msgid "Arquivo CSV"
+msgstr "CSV File"
+
+#: app/templates/admin/divisions.html:492 app/templates/admin/grades.html:122
+#: app/templates/admin/guardians.html:210 app/templates/admin/students.html:235
+#: app/templates/admin/teachers.html:209
+msgid "Modo de importação:"
+msgstr "Import mode:"
+
+#: app/templates/admin/divisions.html:497 app/templates/admin/grades.html:126
+#: app/templates/admin/guardians.html:214 app/templates/admin/students.html:239
+#: app/templates/admin/teachers.html:213
+msgid "Somente adicionar"
+msgstr "Add only"
+
+#: app/templates/admin/divisions.html:499 app/templates/admin/grades.html:127
+#: app/templates/admin/guardians.html:215 app/templates/admin/students.html:240
+#: app/templates/admin/teachers.html:214
+msgid "Mantém os existentes, insere apenas os novos."
+msgstr "Keeps existing records, only inserts new ones."
+
+#: app/templates/admin/divisions.html:507 app/templates/admin/grades.html:133
+#: app/templates/admin/guardians.html:221 app/templates/admin/students.html:246
+#: app/templates/admin/teachers.html:220
+msgid "Substituir lista"
+msgstr "Replace list"
+
+#: app/templates/admin/divisions.html:509
+msgid "Recria turmas e matérias de cada setor: remove o que não está no arquivo."
+msgstr "Rebuilds classes and subjects for each sector: removes what is not in the file."
+"Recreates grade groups and subjects for each sector: removes what is not "
+"in the file.Recreates grade groups and subjects for each sector: removes "
+"what is not in the file."
+
+#: app/templates/admin/divisions.html:517 app/templates/admin/grades.html:140
+#: app/templates/admin/guardians.html:228 app/templates/admin/students.html:253
+#: app/templates/admin/teachers.html:227
+msgid "Apagar os importados"
+msgstr "Delete the imported ones"
+
+#: app/templates/admin/divisions.html:519
+msgid "Remove os setores listados no arquivo."
+msgstr "Removes the sectors listed in the file."
+
+#: app/templates/admin/divisions.html:528 app/templates/admin/grades.html:58
+#: app/templates/admin/grades.html:147 app/templates/admin/guardians.html:12
+#: app/templates/admin/guardians.html:237 app/templates/admin/students.html:12
+#: app/templates/admin/students.html:262 app/templates/admin/teachers.html:12
+#: app/templates/admin/teachers.html:236
+msgid "Importar"
+msgstr "Import"
+
+#: app/templates/admin/divisions.html:625 app/templates/admin/grades.html:270
+msgid "Este setor ainda não tem matérias."
+msgstr "This sector has no subjects yet."
+
+#: app/templates/admin/divisions.html:628
+msgid "Adicionar matéria ao setor"
+msgstr "Add subject to sector"
+
+#: app/templates/admin/event_bookings.html:2
+#: app/templates/admin/event_bookings.html:5
+#: app/templates/admin/events.html:105
+msgid "Agendamentos"
+msgstr "Bookings"
+
+#: app/templates/admin/event_bookings.html:8
+#: app/templates/teacher/schedule.html:163
+msgid "Imprimir"
+msgstr "Print"
+
+#: app/templates/admin/event_bookings.html:10 app/templates/admin/notify.html:6
+#: app/templates/guardian/schedule.html:88
+#: app/templates/student/schedule.html:85
+msgid "Voltar"
+msgstr "Back"
+
+#: app/templates/admin/event_bookings.html:19
+#: app/templates/guardian/bookings.html:74
+#: app/templates/student/bookings.html:56
+msgid "Data / Hora"
+msgstr "Date / Time"
+
+#: app/templates/admin/event_bookings.html:22
+#: app/templates/student/bookings.html:58
+msgid "Agendado por"
+msgstr "Booked by"
+
+#: app/templates/admin/event_bookings.html:34
+msgid "Nenhum agendamento ainda."
+msgstr "No bookings yet."
+
+#: app/templates/admin/event_bookings.html:48
+msgid "Imprimir agenda de reuniões"
+msgstr "Print meeting schedule"
+
+#: app/templates/admin/event_bookings.html:59
+#: app/templates/teacher/schedule.html:269
+msgid "Dias a incluir"
+msgstr "Days to include"
+
+#: app/templates/admin/event_bookings.html:78
+msgid "Tipo de exportação"
+msgstr "Export type"
+
+#: app/templates/admin/event_bookings.html:87
+msgid "PDF único"
+msgstr "Single PDF"
+
+#: app/templates/admin/event_bookings.html:89
+msgid ""
+"Todos os professores em um só arquivo. Abre uma aba — salve como PDF pelo"
+" navegador."
+msgstr ""
+"All teachers in a single file. Opens one tab — save as PDF via your "
+"browser."
+
+#: app/templates/admin/event_bookings.html:100
+msgid "PDFs individuais"
+msgstr "Individual PDFs"
+
+#: app/templates/admin/event_bookings.html:102
+#, python-format
+msgid ""
+"Uma aba por professor (%(n)s professores com agendamentos). Permita pop-"
+"ups se solicitado."
+msgstr ""
+"One tab per teacher (%(n)s teachers with bookings). Allow pop-ups if "
+"prompted."
+
+#: app/templates/admin/event_bookings.html:111
+#, python-format
+msgid ""
+"Serão abertas %(n)s abas. Certifique-se de que pop-ups estão permitidos "
+"para este site."
+msgstr "%(n)s tabs will open. Make sure pop-ups are allowed for this site."
+
+#: app/templates/admin/event_bookings.html:119
+#: app/templates/admin/event_bookings.html:142
+#: app/templates/teacher/schedule.html:291
+msgid "Abrir PDF"
+msgstr "Open PDF"
+
+#: app/templates/admin/event_bookings.html:141
+msgid "Abrir abas"
+msgstr "Open tabs"
+
+#: app/templates/admin/event_form.html:2 app/templates/admin/event_form.html:10
+msgid "Editar Evento"
+msgstr "Edit Event"
+
+#: app/templates/admin/event_form.html:2
+msgid "Novo Evento"
+msgstr "New Event"
+
+#: app/templates/admin/event_form.html:10
+msgid "Novo Evento de Conferência"
+msgstr "New Conference Event"
+
+#: app/templates/admin/event_form.html:16
+msgid "Informações gerais"
+msgstr "General information"
+
+#: app/templates/admin/event_form.html:19
+msgid "Nome do evento"
+msgstr "Event name"
+
+#: app/templates/admin/event_form.html:27
+msgid "Permitir agendamento por alunos"
+msgstr "Allow student booking"
+
+#: app/templates/admin/event_form.html:31
+msgid "Bloquear edição (horas antes)"
+msgstr "Lock editing (hours before)"
+
+#: app/templates/admin/event_form.html:33
+msgid "0 = livre até o início da reunião"
+msgstr "0 = free until meeting start"
+
+#: app/templates/admin/event_form.html:41 app/templates/admin/events.html:46
+msgid "Dias"
+msgstr "Days"
+
+#: app/templates/admin/event_form.html:43
+msgid "Adicionar dia"
+msgstr "Add day"
+
+#: app/templates/admin/event_form.html:52
+#: app/templates/admin/event_form.html:537
+msgid "Dia"
+msgstr "Day"
+
+#: app/templates/admin/event_form.html:54
+#: app/templates/admin/event_form.html:343
+msgid "Desativado"
+msgstr "Disabled"
+
+#: app/templates/admin/event_form.html:63
+#: app/templates/admin/event_form.html:332
+msgid "Desativar dia"
+msgstr "Disable day"
+
+#: app/templates/admin/event_form.html:63
+#: app/templates/admin/event_form.html:332
+msgid "Ativar dia"
+msgstr "Enable day"
+
+#: app/templates/admin/event_form.html:72
+msgid "Data"
+msgstr "Date"
+
+#: app/templates/admin/event_form.html:76 app/templates/errors/403.html:8
+#: app/templates/errors/404.html:8 app/templates/errors/500.html:8
+msgid "Início"
+msgstr "Home"
+
+#: app/templates/admin/event_form.html:80
+msgid "Fim"
+msgstr "End"
+
+#: app/templates/admin/event_form.html:84
+msgid "Duração (min)"
+msgstr "Duration (min)"
+
+#: app/templates/admin/event_form.html:88
+msgid "Intervalo (min)"
+msgstr "Break (min)"
+
+#: app/templates/admin/event_form.html:109
+msgid "Prévia dos horários"
+msgstr "Slot preview"
+
+#: app/templates/admin/event_form.html:111
+msgid "Preencha um dia para ver a prévia."
+msgstr "Fill in a day to see the preview."
+
+#: app/templates/admin/event_form.html:119
+msgid "Presença de professores"
+msgstr "Teacher attendance"
+
+#: app/templates/admin/event_form.html:130
+#: app/templates/admin/event_form.html:445
+msgid "ausente(s)"
+msgstr "absent"
+
+#: app/templates/admin/event_form.html:132
+#: app/templates/admin/event_form.html:449
+msgid "todos presentes"
+msgstr "all present"
+
+#: app/templates/admin/event_form.html:137
+msgid "Gerenciar"
+msgstr "Manage"
+
+#: app/templates/admin/event_form.html:143
+msgid "Nenhum professor cadastrado ainda."
+msgstr "No teachers registered yet."
+
+#: app/templates/admin/event_form.html:152
+msgid "Lembretes para responsáveis"
+msgstr "Reminders for guardians"
+
+#: app/templates/admin/event_form.html:160
+msgid "Enviar resumo de agendamentos X horas antes de cada dia da conferência."
+msgstr "Send a booking summary X hours before each conference day."
+
+#: app/templates/admin/event_form.html:165
+#: app/templates/admin/event_form.html:502
+msgid "antes"
+msgstr "before"
+
+#: app/templates/admin/event_form.html:169
+#: app/templates/admin/event_form.html:504
+msgid "Enviar agora"
+msgstr "Send now"
+
+#: app/templates/admin/event_form.html:174
+#: app/templates/admin/event_form.html:507
+#: app/templates/admin/event_form.html:526
+msgid "Remover"
+msgstr "Remove"
+
+#: app/templates/admin/event_form.html:180
+msgid "Nenhum lembrete configurado."
+msgstr "No reminders configured."
+
+#: app/templates/admin/event_form.html:197
+msgid "Presença"
+msgstr "Attendance"
+
+#: app/templates/admin/event_form.html:203
+#: app/templates/guardian/schedule.html:233
+#: app/templates/student/schedule.html:230
+msgid "Buscar professor..."
+msgstr "Search teacher..."
+
+#: app/templates/admin/event_form.html:223
+msgid "Notificar responsáveis?"
+msgstr "Notify guardians?"
+
+#: app/templates/admin/event_form.html:233
+msgid "Não enviar"
+msgstr "Do not send"
+
+#: app/templates/admin/event_form.html:236
+msgid "Enviar aviso"
+msgstr "Send notice"
+
+#: app/templates/admin/event_form.html:250
+msgid "Novo lembrete"
+msgstr "New reminder"
+
+#: app/templates/admin/event_form.html:254
+msgid "Enviar quantas horas antes de cada dia?"
+msgstr "How many hours before each day to send?"
+
+#: app/templates/admin/event_form.html:259
+msgid "Ex: 24 = envia 1 dia antes; 2 = envia 2h antes"
+msgstr "E.g. 24 = sends 1 day before; 2 = sends 2h before"
+
+#: app/templates/admin/event_form.html:281
+msgid "Dias com agendamentos confirmados"
+msgstr "Days with confirmed bookings"
+
+#: app/templates/admin/event_form.html:287
+msgid "Os dias"
+msgstr "The days"
+
+#: app/templates/admin/event_form.html:288
+msgid "serão removidos e possuem agendamentos. O que deseja fazer?"
+msgstr "will be removed and have bookings. What would you like to do?"
+
+#: app/templates/admin/event_form.html:294
+msgid "Apagar o dia e manter os agendamentos"
+msgstr "Delete the day and keep bookings"
+
+#: app/templates/admin/event_form.html:296
+msgid "Os agendamentos já confirmados continuam válidos."
+msgstr "Already confirmed bookings remain valid."
+
+#: app/templates/admin/event_form.html:301
+msgid "Apagar o dia e remover todos os agendamentos"
+msgstr "Delete the day and remove all bookings"
+
+#: app/templates/admin/event_form.html:303
+msgid "Todos os horários marcados neste dia serão cancelados."
+msgstr "All bookings on this day will be cancelled."
+
+#: app/templates/admin/event_form.html:308
+msgid "Cancelar — não salvar"
+msgstr "Cancel — don't save"
+
+#: app/templates/admin/event_form.html:380
+#: app/templates/admin/teachers.html:113
+msgid "Nenhum professor encontrado."
+msgstr "No teachers found."
+
+#: app/templates/admin/event_form.html:397
+#: app/templates/admin/event_form.html:421
+msgid "Ausente"
+msgstr "Absent"
+
+#: app/templates/admin/event_form.html:397
+#: app/templates/admin/event_form.html:421
+msgid "Presente"
+msgstr "Present"
+
+#: app/templates/admin/event_form.html:463
+msgid "Erro ao enviar emails."
+msgstr "Error sending emails."
+
+#: app/templates/admin/event_form.html:526
+msgid "Remover lembrete?"
+msgstr "Remove reminder?"
+
+#: app/templates/admin/event_form.html:632
+msgid "Nenhum horário gerado com esses parâmetros."
+msgstr "No slots generated with these parameters."
+
+#: app/templates/admin/event_form.html:678
+msgid "agendamento"
+msgstr "booking"
+
+#: app/templates/admin/event_form.html:678
+msgid "agendamentos"
+msgstr "bookings"
+
+#: app/templates/admin/events.html:8
+msgid "Nova Conferência"
+msgstr "New Conference"
+
+#: app/templates/admin/events.html:21
+msgid "Todos os status"
+msgstr "All statuses"
+
+#: app/templates/admin/events.html:22 app/templates/admin/events.html:73
+msgid "Rascunho"
+msgstr "Draft"
+
+#: app/templates/admin/events.html:23 app/templates/admin/events.html:65
+msgid "Publicado"
+msgstr "Published"
+
+#: app/templates/admin/events.html:24 app/templates/admin/events.html:69
+#: app/templates/guardian/dashboard.html:139
+#: app/templates/student/dashboard.html:113
+msgid "Encerrado"
+msgstr "Closed"
+
+#: app/templates/admin/events.html:28
+msgid "Todos os dias"
+msgstr "All days"
+
+#: app/templates/admin/events.html:29 app/templates/admin/events.html:78
+msgid "dia"
+msgstr "day"
+
+#: app/templates/admin/events.html:30 app/templates/admin/events.html:31
+#: app/templates/admin/events.html:32 app/templates/admin/events.html:78
+#: app/templates/guardian/dashboard.html:129
+#: app/templates/student/dashboard.html:103
+#: app/templates/teacher/schedule.html:102
+msgid "dias"
+msgstr "days"
+
+#: app/templates/admin/events.html:47
+msgid "Período"
+msgstr "Period"
+
+#: app/templates/admin/events.html:48
+msgid "Agend. Alunos"
+msgstr "Student Booking"
+
+#: app/templates/admin/events.html:93
+msgid "Sim"
+msgstr "Yes"
+
+#: app/templates/admin/events.html:95
+msgid "Não"
+msgstr "No"
+
+#: app/templates/admin/events.html:109 app/templates/admin/notify.html:2
+msgid "Notificar"
+msgstr "Notify"
+
+#: app/templates/admin/events.html:115
+msgid "Publicar"
+msgstr "Publish"
+
+#: app/templates/admin/events.html:121
+msgid "O evento será encerrado e não aceitará novos agendamentos."
+msgstr "The event will be closed and will not accept new bookings."
+
+#: app/templates/admin/events.html:122
+msgid "Encerrar evento"
+msgstr "Close event"
+
+#: app/templates/admin/events.html:123 app/templates/admin/events.html:125
+msgid "Encerrar"
+msgstr "Close"
+
+#: app/templates/admin/events.html:132
+msgid "Excluir evento permanentemente"
+msgstr "Permanently delete event"
+
+#: app/templates/admin/events.html:145
+msgid "Nenhuma conferência encontrada."
+msgstr "No conferences found."
+
+#: app/templates/admin/events.html:146
+msgid "Criar uma"
+msgstr "Create one"
+
+#: app/templates/admin/events.html:156
+msgid "Nenhum resultado para os filtros aplicados."
+msgstr "No results for the applied filters."
+
+#: app/templates/admin/grades.html:2 app/templates/admin/grades.html:52
+msgid "Turmas e Matérias"
+msgstr "Grade Groups & Subjects"
+
+#: app/templates/admin/grades.html:55 app/templates/admin/guardians.html:9
+#: app/templates/admin/students.html:9 app/templates/admin/teachers.html:9
+msgid "Exportar"
+msgstr "Export"
+
+#: app/templates/admin/grades.html:71
+msgid "Todas"
+msgstr "All"
+
+#: app/templates/admin/grades.html:89
+msgid "Sem setor"
+msgstr "No sector"
+
+#: app/templates/admin/grades.html:104
+msgid "Importar Turmas e Matérias"
+msgstr "Import Grade Groups & Subjects"
+
+#: app/templates/admin/grades.html:109
+msgid "Formato novo (recomendado): colunas"
+msgstr "New format (recommended): columns"
+
+#: app/templates/admin/grades.html:109
+msgid "demais colunas = matérias (1 = ativa, 0 = inativa)."
+msgstr "remaining columns = subjects (1 = active, 0 = inactive)."
+
+#: app/templates/admin/grades.html:110
+msgid "Setor, turma e matéria serão criados automaticamente se não existirem."
+msgstr "Sector, class and subject will be created automatically if they do not exist."
+"Sector, grade group and subject will be created automatically if they "
+"don't exist.Sector, grade group and subject will be created automatically"
+" if they don't exist."
+
+#: app/templates/admin/grades.html:113
+msgid "Formato legado: primeira coluna"
+msgstr "Legacy format: first column"
+
+#: app/templates/admin/grades.html:113
+msgid "(sem coluna de setor)."
+msgstr "(no sector column)."
+
+#: app/templates/admin/grades.html:134
+msgid "Reconstrói toda a matriz: apaga o que não está no arquivo."
+msgstr "Rebuilds the entire matrix: deletes what is not in the file."
+
+#: app/templates/admin/grades.html:141
+msgid "Apaga as turmas listadas no arquivo."
+msgstr "Deletes the grade groups listed in the file."
+
+#: app/templates/admin/grades.html:161
+msgid "Quais matérias cada turma tem?"
+msgstr "Which subjects does each grade have?"
+
+#: app/templates/admin/grades.html:162
+msgid "Clique numa célula para ativar/desativar."
+msgstr "Click a cell to enable/disable."
+
+#: app/templates/admin/grades.html:168 app/templates/admin/grades.html:240
+#: app/templates/admin/student_form.html:31
+#: app/templates/admin/student_form.html:298
+#: app/templates/admin/students.html:58 app/templates/admin/students.html:151
+#: app/templates/admin/students.html:211
+msgid "Turma"
+msgstr "Grade"
+
+#: app/templates/admin/grades.html:176 app/templates/admin/grades.html:179
+msgid "Excluir matéria"
+msgstr "Delete subject"
+
+#: app/templates/admin/grades.html:204
+msgid "alunos"
+msgstr "students"
+
+#: app/templates/admin/grades.html:271 app/templates/admin/grades.html:282
+msgid "Adicionar no painel de Setores"
+msgstr "Add in the Sectors panel"
+
+#: app/templates/admin/grades.html:273
+msgid "Adicione matérias no"
+msgstr "Add subjects in"
+
+#: app/templates/admin/grades.html:273 app/templates/admin/grades.html:284
+msgid "painel de Setores"
+msgstr "Sectors panel"
+
+#: app/templates/admin/grades.html:281
+msgid "Este setor ainda não tem turmas."
+msgstr "This sector has no grade groups yet."
+
+#: app/templates/admin/grades.html:284
+msgid "Adicione turmas no"
+msgstr "Add grade groups in"
+
+#: app/templates/admin/grades.html:292
+msgid "Nenhuma turma ou matéria encontrada."
+msgstr "No grade groups or subjects found."
+
+#: app/templates/admin/grades.html:294
+msgid "Ir para Setores"
+msgstr "Go to Sectors"
+
+#: app/templates/admin/guardian_form.html:2
+#: app/templates/admin/guardian_form.html:4
+#: app/templates/admin/student_form.html:255
+msgid "Editar Responsável"
+msgstr "Edit Guardian"
+
+#: app/templates/admin/guardian_form.html:43
+msgid "Filhos vinculados"
+msgstr "Linked children"
+
+#: app/templates/admin/guardians.html:2 app/templates/admin/guardians.html:6
+msgid "Pais / Responsáveis"
+msgstr "Parents / Guardians"
+
+#: app/templates/admin/guardians.html:22
+msgid "Buscar por nome ou filho..."
+msgstr "Search by name or child..."
+
+#: app/templates/admin/guardians.html:26 app/templates/admin/students.html:37
+#: app/templates/admin/teachers.html:37
+msgid "selecionado(s)"
+msgstr "selected"
+
+#: app/templates/admin/guardians.html:29 app/templates/admin/students.html:40
+#: app/templates/admin/teachers.html:40
+msgid "Enviar e-mail"
+msgstr "Send email"
+
+#: app/templates/admin/guardians.html:32 app/templates/admin/guardians.html:297
+#: app/templates/admin/guardians.html:299 app/templates/admin/students.html:43
+#: app/templates/admin/students.html:321 app/templates/admin/students.html:323
+#: app/templates/admin/teachers.html:43 app/templates/admin/teachers.html:299
+#: app/templates/admin/teachers.html:301
+msgid "Apagar"
+msgstr "Delete"
+
+#: app/templates/admin/guardians.html:47
+msgid "Filho(s)"
+msgstr "Child(ren)"
+
+#: app/templates/admin/guardians.html:79 app/templates/admin/teachers.html:82
+msgid "Pendente"
+msgstr "Pending"
+
+#: app/templates/admin/guardians.html:110
+msgid "Nenhum responsável cadastrado."
+msgstr "No guardians registered."
+
+#: app/templates/admin/guardians.html:122
+msgid "Exportar Responsáveis"
+msgstr "Export Guardians"
+
+#: app/templates/admin/guardians.html:126 app/templates/admin/students.html:135
+#: app/templates/admin/teachers.html:129
+msgid "Escolha quais colunas incluir no arquivo CSV:"
+msgstr "Choose which columns to include in the CSV file:"
+
+#: app/templates/admin/guardians.html:130
+#: app/templates/admin/guardians.html:182 app/templates/admin/students.html:139
+#: app/templates/admin/students.html:199 app/templates/admin/teachers.html:133
+#: app/templates/admin/teachers.html:183
+msgid "obrigatório"
+msgstr "required"
+
+#: app/templates/admin/guardians.html:142
+msgid "Filho 1 (objeto JSON)"
+msgstr "Child 1 (JSON object)"
+
+#: app/templates/admin/guardians.html:146
+msgid "Filho 2 (objeto JSON)"
+msgstr "Child 2 (JSON object)"
+
+#: app/templates/admin/guardians.html:150 app/templates/admin/students.html:167
+#: app/templates/admin/teachers.html:149
+msgid "Ativo / Pendente"
+msgstr "Active / Pending"
+
+#: app/templates/admin/guardians.html:157 app/templates/admin/students.html:174
+#: app/templates/admin/teachers.html:156
+msgid "Baixar CSV"
+msgstr "Download CSV"
+
+#: app/templates/admin/guardians.html:172
+msgid "Importar Responsáveis"
+msgstr "Import Guardians"
+
+#: app/templates/admin/guardians.html:178 app/templates/admin/students.html:195
+#: app/templates/admin/teachers.html:179
+msgid "Colunas presentes no arquivo:"
+msgstr "Columns present in the file:"
+
+#: app/templates/admin/guardians.html:194
+msgid "Filho 1"
+msgstr "Child 1"
+
+#: app/templates/admin/guardians.html:198
+msgid "Filho 2"
+msgstr "Child 2"
+
+#: app/templates/admin/guardians.html:222 app/templates/admin/students.html:247
+#: app/templates/admin/teachers.html:221
+msgid "Apaga quem não está no arquivo e insere os novos."
+msgstr "Removes anyone not in the file and adds new entries."
+
+#: app/templates/admin/guardians.html:229 app/templates/admin/students.html:254
+#: app/templates/admin/teachers.html:228
+msgid "Apaga exatamente os registros listados no arquivo."
+msgstr "Deletes exactly the records listed in the file."
+
+#: app/templates/admin/guardians.html:297
+#: app/templates/admin/guardians.html:307
+msgid "responsável(is)"
+msgstr "guardian(s)"
+
+#: app/templates/admin/guardians.html:307 app/templates/admin/students.html:331
+#: app/templates/admin/teachers.html:309
+msgid "Enviar e-mail para"
+msgstr "Send email to"
+
+#: app/templates/admin/guardians.html:308
+msgid "Deseja enviar o e-mail de convite para os responsáveis selecionados?"
+msgstr "Would you like to send the invite email to the selected guardians?"
+
+#: app/templates/admin/guardians.html:309 app/templates/admin/students.html:333
+#: app/templates/admin/teachers.html:311
+msgid "Enviar"
+msgstr "Send"
 
 #: app/templates/admin/notify.html:5
 msgid "Notificar Responsáveis"
@@ -635,75 +1763,132 @@ msgstr "All sends are recorded in the history."
 
 #: app/templates/admin/student_form.html:2
 #: app/templates/admin/student_form.html:4
-msgid "Editar Aluno"
-msgstr "Edit Student"
-
-#: app/templates/admin/student_form.html:2
-#: app/templates/admin/student_form.html:4
 msgid "Novo Aluno"
 msgstr "New Student"
 
-#: app/templates/admin/student_form.html:18
-#: app/templates/admin/student_form.html:70
-#: app/templates/admin/teacher_form.html:18
-#: app/templates/teacher/profile.html:18
-msgid "Sobrenome"
-msgstr "Last Name"
+#: app/templates/admin/student_form.html:2
+#: app/templates/admin/student_form.html:4
+msgid "Editar Aluno"
+msgstr "Edit Student"
 
-#: app/templates/admin/student_form.html:23
-#: app/templates/admin/students.html:24
-#: app/templates/admin/teacher_form.html:23
-#: app/templates/admin/teachers.html:24
-#: app/templates/auth/forgot_password.html:13 app/templates/auth/login.html:15
-#: app/templates/teacher/profile.html:23
-msgid "E-mail"
-msgstr "Email"
+#: app/templates/admin/student_form.html:39
+msgid "O rascunho será excluído permanentemente."
+msgstr "The draft will be permanently deleted."
 
-#: app/templates/admin/student_form.html:44
-msgid "máx. 2"
-msgstr "max. 2"
+#: app/templates/admin/student_form.html:40
+msgid "Descartar novo aluno"
+msgstr "Discard new student"
 
-#: app/templates/admin/student_form.html:55
+#: app/templates/admin/student_form.html:41
+#: app/templates/admin/student_form.html:43
+msgid "Descartar"
+msgstr "Discard"
+
+#: app/templates/admin/student_form.html:91
+msgid "Salve a turma do aluno para configurar as matérias."
+msgstr "Save the student's grade group first to configure subjects."
+
+#: app/templates/admin/student_form.html:93
+msgid "A turma deste aluno não possui matérias cadastradas."
+msgstr "This student's grade group has no subjects configured."
+
+#: app/templates/admin/student_form.html:132
+msgid "O responsável será desvinculado deste aluno."
+msgstr "The guardian will be unlinked from this student."
+
+#: app/templates/admin/student_form.html:133
+#: app/templates/admin/student_form.html:134
+#: app/templates/admin/student_form.html:136
+msgid "Desvincular"
+msgstr "Unlink"
+
+#: app/templates/admin/student_form.html:146
 msgid "Nenhum responsável vinculado ainda."
 msgstr "No guardians linked yet."
 
-#: app/templates/admin/student_form.html:60
-msgid "Vincular ou criar responsável"
-msgstr "Link or create guardian"
+#: app/templates/admin/student_form.html:163
+msgid "Adicionar Responsável"
+msgstr "Add Guardian"
 
-#: app/templates/admin/student_form.html:65
-msgid "E-mail do responsável"
-msgstr "Guardian's email"
+#: app/templates/admin/student_form.html:171
+msgid "Vincular existente"
+msgstr "Link existing"
 
-#: app/templates/admin/student_form.html:67
-msgid "Se o e-mail não for encontrado, preencha abaixo para criar:"
-msgstr "If the email is not found, fill in below to create:"
+#: app/templates/admin/student_form.html:176
+msgid "Criar novo"
+msgstr "Create new"
 
-#: app/templates/admin/student_form.html:72
-msgid "Vincular / Criar Responsável"
-msgstr "Link / Create Guardian"
+#: app/templates/admin/student_form.html:185
+msgid "Buscar por nome ou e-mail…"
+msgstr "Search by name or email…"
 
-#: app/templates/admin/students.html:6
+#: app/templates/admin/student_form.html:206
+msgid "Nenhum responsável disponível para vincular."
+msgstr "No guardians available to link."
+
+#: app/templates/admin/student_form.html:210
+msgid "Nenhum resultado encontrado."
+msgstr "No results found."
+
+#: app/templates/admin/student_form.html:235
+msgid "Criar e vincular"
+msgstr "Create and link"
+
+#: app/templates/admin/student_form.html:292
+msgid "Matérias de"
+msgstr "Subjects of"
+
+#: app/templates/admin/student_form.html:299
+msgid "Desmarque as que este aluno não cursa."
+msgstr "Uncheck the subjects this student does not take."
+
+#: app/templates/admin/student_form.html:313
+msgid "Salvo automaticamente."
+msgstr "Saved automatically."
+
+#: app/templates/admin/students.html:15
 msgid "Adicionar Aluno"
 msgstr "Add Student"
 
-#: app/templates/admin/students.html:48 app/templates/admin/teachers.html:54
-msgid "Editar"
-msgstr "Edit"
-
-#: app/templates/admin/students.html:71 app/templates/admin/students.html:85
-#: app/templates/admin/teachers.html:65
-#: app/templates/auth/reset_password.html:2
-msgid "Redefinir senha"
-msgstr "Reset password"
-
-#: app/templates/admin/students.html:85 app/templates/teacher/dashboard.html:12
-msgid "Responsável"
-msgstr "Guardian"
-
-#: app/templates/admin/students.html:96
+#: app/templates/admin/students.html:119
 msgid "Nenhum aluno encontrado."
 msgstr "No students found."
+
+#: app/templates/admin/students.html:131
+msgid "Exportar Alunos"
+msgstr "Export Students"
+
+#: app/templates/admin/students.html:155 app/templates/admin/students.html:215
+msgid "Matérias (lista JSON)"
+msgstr "Subjects (JSON list)"
+
+#: app/templates/admin/students.html:159
+msgid "Responsável 1 (objeto JSON)"
+msgstr "Guardian 1 (JSON object)"
+
+#: app/templates/admin/students.html:163
+msgid "Responsável 2 (objeto JSON)"
+msgstr "Guardian 2 (JSON object)"
+
+#: app/templates/admin/students.html:189
+msgid "Importar Alunos"
+msgstr "Import Students"
+
+#: app/templates/admin/students.html:219
+msgid "Responsável 1"
+msgstr "Guardian 1"
+
+#: app/templates/admin/students.html:223
+msgid "Responsável 2"
+msgstr "Guardian 2"
+
+#: app/templates/admin/students.html:321 app/templates/admin/students.html:331
+msgid "aluno(s)"
+msgstr "student(s)"
+
+#: app/templates/admin/students.html:332
+msgid "Deseja enviar o e-mail de convite para os alunos selecionados?"
+msgstr "Would you like to send the invite email to the selected students?"
 
 #: app/templates/admin/subjects.html:9
 msgid "Adicionar matéria"
@@ -713,7 +1898,7 @@ msgstr "Add subject"
 msgid "ex: Matemática"
 msgstr "e.g. Mathematics"
 
-#: app/templates/admin/subjects.html:41
+#: app/templates/admin/subjects.html:44
 msgid "Nenhuma matéria ainda."
 msgstr "No subjects yet."
 
@@ -727,54 +1912,52 @@ msgstr "Edit Teacher"
 msgid "Novo Professor"
 msgstr "New Teacher"
 
-#: app/templates/admin/teacher_form.html:28
-#: app/templates/teacher/profile.html:32
-msgid "Bio / Descrição"
-msgstr "Bio / Description"
-
-#: app/templates/admin/teacher_form.html:43
-#: app/templates/admin/teachers.html:25
+#: app/templates/admin/teacher_form.html:44
+#: app/templates/admin/teachers.html:58
 msgid "Matérias / Turmas"
 msgstr "Subjects / Grades"
 
-#: app/templates/admin/teacher_form.html:47
+#: app/templates/admin/teacher_form.html:48
 msgid "Nenhuma combinação matéria–turma configurada ainda."
 msgstr "No subject–grade combinations configured yet."
 
-#: app/templates/admin/teacher_form.html:48
-msgid "Configurar em Turmas →"
-msgstr "Configure in Grade Groups →"
+#: app/templates/admin/teacher_form.html:49
+msgid "Configurar em Turmas e Matérias →"
+msgstr "Configure in Grade Groups & Subjects →"
 
-#: app/templates/admin/teacher_form.html:51
+#: app/templates/admin/teacher_form.html:52
 msgid "Marque as matérias que este professor leciona."
 msgstr "Check the subjects this teacher teaches."
 
-#: app/templates/admin/teachers.html:6
+#: app/templates/admin/teachers.html:15
 msgid "Adicionar Professor"
 msgstr "Add Teacher"
 
-#: app/templates/admin/teachers.html:26 app/templates/teacher/schedule.html:20
-msgid "Status"
-msgstr "Status"
+#: app/templates/admin/teachers.html:125
+msgid "Exportar Professores"
+msgstr "Export Teachers"
 
-#: app/templates/admin/teachers.html:44
-msgid "Ativo"
-msgstr "Active"
+#: app/templates/admin/teachers.html:145 app/templates/admin/teachers.html:195
+msgid "Matérias/Turmas"
+msgstr "Subjects/Grades"
 
-#: app/templates/admin/teachers.html:46
-msgid "Pendente"
-msgstr "Pending"
+#: app/templates/admin/teachers.html:171
+msgid "Importar Professores"
+msgstr "Import Teachers"
 
-#: app/templates/admin/teachers.html:85
-msgid "Nenhum professor encontrado."
-msgstr "No teachers found."
+#: app/templates/admin/teachers.html:299 app/templates/admin/teachers.html:309
+msgid "professor(es)"
+msgstr "teacher(s)"
+
+#: app/templates/admin/teachers.html:310
+msgid "Deseja enviar o e-mail de convite para os professores selecionados?"
+msgstr "Would you like to send the invite email to the selected teachers?"
 
 #: app/templates/auth/change_password.html:12
 msgid "Senha Atual"
 msgstr "Current Password"
 
 #: app/templates/auth/change_password.html:17
-#: app/templates/auth/reset_password.html:12
 msgid "Nova Senha"
 msgstr "New Password"
 
@@ -782,42 +1965,59 @@ msgstr "New Password"
 msgid "Confirmar Nova Senha"
 msgstr "Confirm New Password"
 
-#: app/templates/auth/forgot_password.html:2
-#: app/templates/auth/forgot_password.html:8 app/templates/auth/login.html:29
+#: app/templates/auth/forgot_password.html:2 app/templates/auth/login.html:63
 msgid "Esqueci minha senha"
 msgstr "Forgot my password"
 
-#: app/templates/auth/forgot_password.html:9
-msgid "Digite seu e-mail e enviaremos um link de redefinição."
-msgstr "Enter your email and we will send you a reset link."
+#: app/templates/auth/forgot_password.html:17 app/templates/auth/login.html:18
+#: app/templates/auth/reset_password.html:17
+msgid "Sistema de Conferências"
+msgstr "Conference System"
 
-#: app/templates/auth/forgot_password.html:18
+#: app/templates/auth/forgot_password.html:30
+msgid "Informe seu e-mail e enviaremos um link para criar uma nova senha."
+msgstr "Enter your email and we will send you a link to create a new password."
+
+#: app/templates/auth/forgot_password.html:49
 msgid "Enviar link"
 msgstr "Send link"
 
-#: app/templates/auth/forgot_password.html:22
+#: app/templates/auth/forgot_password.html:57
+#: app/templates/auth/reset_password.html:66
 msgid "Voltar ao login"
 msgstr "Back to login"
 
-#: app/templates/auth/login.html:2 app/templates/auth/login.html:25
+#: app/templates/auth/login.html:2 app/templates/auth/login.html:56
 msgid "Entrar"
 msgstr "Log In"
 
-#: app/templates/auth/login.html:20
+#: app/templates/auth/login.html:33
+msgid "Verifique os campos e tente novamente."
+msgstr "Check the fields and try again."
+
+#: app/templates/auth/login.html:49
 msgid "Senha"
 msgstr "Password"
 
-#: app/templates/auth/reset_password.html:8
-msgid "Redefinir sua senha"
-msgstr "Reset your password"
+#: app/templates/auth/reset_password.html:29
+msgid "Criar nova senha"
+msgstr "Create new password"
 
-#: app/templates/auth/reset_password.html:17
-msgid "Confirmar Senha"
-msgstr "Confirm Password"
+#: app/templates/auth/reset_password.html:31
+msgid "Escolha uma senha com pelo menos 8 caracteres."
+msgstr "Choose a password with at least 8 characters."
 
-#: app/templates/auth/reset_password.html:22
-msgid "Redefinir Senha"
-msgstr "Reset Password"
+#: app/templates/auth/reset_password.html:39
+msgid "Nova senha"
+msgstr "New password"
+
+#: app/templates/auth/reset_password.html:48
+msgid "Confirmar senha"
+msgstr "Confirm password"
+
+#: app/templates/auth/reset_password.html:58
+msgid "Salvar nova senha"
+msgstr "Save new password"
 
 #: app/templates/errors/403.html:2 app/templates/errors/403.html:6
 msgid "Acesso Negado"
@@ -847,181 +2047,380 @@ msgstr "Internal server error"
 msgid "Algo deu errado. Tente novamente mais tarde."
 msgstr "Something went wrong. Please try again later."
 
-#: app/templates/guardian/bookings.html:15
+#: app/templates/guardian/bookings.html:49
+#: app/templates/guardian/bookings.html:55
+#: app/templates/guardian/bookings.html:139
+#: app/templates/guardian/schedule.html:82
+#: app/templates/student/bookings.html:43
+#: app/templates/student/schedule.html:79
+msgid "Baixar PDF"
+msgstr "Download PDF"
+
+#: app/templates/guardian/bookings.html:76
 msgid "Matéria"
 msgstr "Subject"
 
-#: app/templates/guardian/bookings.html:42
-#: app/templates/student/bookings.html:28
+#: app/templates/guardian/bookings.html:109
+#: app/templates/guardian/schedule.html:260
+#: app/templates/student/bookings.html:77
+#: app/templates/student/schedule.html:257
 msgid "Nenhuma reunião agendada ainda."
 msgstr "No meetings scheduled yet."
 
-#: app/templates/guardian/bookings.html:42
+#: app/templates/guardian/bookings.html:112
+#: app/templates/student/bookings.html:81
 msgid "Agendar agora"
 msgstr "Schedule now"
 
-#: app/templates/guardian/bookings.html:45
-msgid "Nenhum filho vinculado à sua conta."
-msgstr "No children linked to your account."
+#: app/templates/guardian/bookings.html:123
+#: app/templates/guardian/dashboard.html:85
+msgid "Nenhum filho vinculado"
+msgstr "No children linked"
 
-#: app/templates/guardian/dashboard.html:4
-msgid "Conferências dos meus filhos"
-msgstr "My children's conferences"
+#: app/templates/guardian/bookings.html:125
+#: app/templates/guardian/dashboard.html:87
+msgid "Sua conta ainda não está vinculada a nenhum aluno."
+msgstr "Your account is not yet linked to any student."
 
-#: app/templates/guardian/dashboard.html:7
-msgid "Nenhum filho vinculado à sua conta. Entre em contato com a secretaria."
-msgstr "No children linked to your account. Please contact the school office."
+#: app/templates/guardian/bookings.html:126
+#: app/templates/guardian/dashboard.html:88
+msgid "Entre em contato com a secretaria para fazer a vinculação."
+msgstr "Please contact the school office to have your account linked."
 
-#: app/templates/guardian/dashboard.html:23
+#: app/templates/guardian/bookings.html:146
+msgid "Selecione o filho cujas reuniões deseja exportar:"
+msgstr "Select the child whose meetings you want to export:"
+
+#: app/templates/guardian/dashboard.html:69
+#: app/templates/student/dashboard.html:74
+#: app/templates/teacher/dashboard.html:164
+msgid "Olá"
+msgstr "Hello"
+
+#: app/templates/guardian/dashboard.html:72
+msgid "Agende as reuniões dos seus filhos abaixo."
+msgstr "Schedule your children's meetings below."
+
+#: app/templates/guardian/dashboard.html:74
+#: app/templates/student/dashboard.html:79
+msgid "Nenhum evento de conferência ativo no momento."
+msgstr "No active conference event at the moment."
+
+#: app/templates/guardian/dashboard.html:100
+#: app/templates/student/bookings.html:95
+#: app/templates/student/dashboard.html:161
+#: app/templates/teacher/dashboard.html:303
+#: app/templates/teacher/schedule.html:73
+msgid "Não há eventos de conferência publicados no momento."
+msgstr "There are no published conference events at the moment."
+
+#: app/templates/guardian/dashboard.html:101
+msgid "Assim que um evento for publicado, você poderá agendar reuniões aqui."
+msgstr "Once an event is published, you will be able to schedule meetings here."
+
+#: app/templates/guardian/dashboard.html:137
+#: app/templates/student/dashboard.html:111
+msgid "Aberto"
+msgstr "Open"
+
+#: app/templates/guardian/dashboard.html:169
 msgid "reunião(ões) agendada(s)"
 msgstr "meeting(s) scheduled"
 
-#: app/templates/guardian/dashboard.html:24
-msgid "para"
-msgstr "for"
+#: app/templates/guardian/dashboard.html:173
+#: app/templates/teacher/dashboard.html:292
+msgid "Nenhuma reunião agendada"
+msgstr "No meetings scheduled"
 
-#: app/templates/guardian/dashboard.html:28
-#: app/templates/student/dashboard.html:13
-#: app/templates/student/schedule.html:2 app/templates/student/schedule.html:17
-msgid "Agendar Reuniões"
-msgstr "Schedule Meetings"
-
-#: app/templates/guardian/dashboard.html:31
-msgid "Nenhum evento ativo no momento."
-msgstr "No active event at the moment."
-
+#: app/templates/guardian/dashboard.html:182
 #: app/templates/guardian/schedule.html:2
 msgid "Agendar"
 msgstr "Schedule"
 
-#: app/templates/guardian/schedule.html:27
-#: app/templates/student/schedule.html:27
-msgid "Legenda:"
-msgstr "Legend:"
+#: app/templates/guardian/dashboard.html:194
+msgid "Nenhum filho vinculado a este evento."
+msgstr "No children linked to this event."
 
-#: app/templates/guardian/schedule.html:28
-#: app/templates/student/schedule.html:28
-#: app/templates/teacher/schedule.html:32
+#: app/templates/guardian/schedule.html:96
+#: app/templates/guardian/schedule.html:207
+#: app/templates/student/schedule.html:93
+#: app/templates/student/schedule.html:204
+msgid "Filtrar"
+msgstr "Filter"
+
+#: app/templates/guardian/schedule.html:108
+#: app/templates/guardian/schedule.html:159
+#: app/templates/student/schedule.html:105
+#: app/templates/student/schedule.html:156
+msgid "Reuniões Agendadas"
+msgstr "Scheduled Meetings"
+
+#: app/templates/guardian/schedule.html:123
+#: app/templates/student/schedule.html:120
+#: app/templates/teacher/dashboard.html:274
+#: app/templates/teacher/schedule.html:227
 msgid "Disponível"
 msgstr "Available"
 
-#: app/templates/guardian/schedule.html:29
-#: app/templates/student/schedule.html:29
-msgid "Agendado por mim"
-msgstr "Booked by me"
+#: app/templates/guardian/schedule.html:124
+#: app/templates/student/schedule.html:121
+msgid "Meu"
+msgstr "My"
 
-#: app/templates/guardian/schedule.html:30
-#: app/templates/student/schedule.html:30
+#: app/templates/guardian/schedule.html:125
+#: app/templates/student/schedule.html:122
 msgid "Ocupado"
 msgstr "Taken"
 
-#: app/templates/guardian/schedule.html:31
-#: app/templates/student/schedule.html:31
-msgid "Conflito de horário"
-msgstr "Time conflict"
+#: app/templates/guardian/schedule.html:126
+#: app/templates/student/schedule.html:123
+msgid "Conflito"
+msgstr "Conflict"
 
-#: app/templates/guardian/schedule.html:46
+#: app/templates/guardian/schedule.html:139
 msgid "Nenhum horário disponível para este aluno."
 msgstr "No slots available for this student."
 
-#: app/templates/guardian/schedule.html:55
-#: app/templates/student/schedule.html:55
+#: app/templates/guardian/schedule.html:176
+#: app/templates/student/schedule.html:173
+msgid "Reunião duplicada"
+msgstr "Duplicate meeting"
+
+#: app/templates/guardian/schedule.html:183
+#: app/templates/student/schedule.html:180
+msgid "Você já tem uma reunião agendada com"
+msgstr "You already have a meeting scheduled with"
+
+#: app/templates/guardian/schedule.html:185
+#: app/templates/student/schedule.html:182
+msgid "Deseja agendar outra reunião com este professor?"
+msgstr "Would you like to schedule another meeting with this teacher?"
+
+#: app/templates/guardian/schedule.html:191
+#: app/templates/student/schedule.html:188
+msgid "Não, cancelar"
+msgstr "No, cancel"
+
+#: app/templates/guardian/schedule.html:194
+#: app/templates/student/schedule.html:191
+msgid "Sim, agendar"
+msgstr "Yes, book"
+
+#: app/templates/guardian/schedule.html:240
+#: app/templates/student/schedule.html:237
+msgid "Limpar filtros"
+msgstr "Clear filters"
+
+#: app/templates/guardian/schedule.html:256
+#: app/templates/student/schedule.html:253
 msgid "Atualizado às"
 msgstr "Updated at"
 
-#: app/templates/guardian/schedule.html:56
-#: app/templates/student/schedule.html:56
-msgid "Você já tem uma reunião neste horário. Agendar mesmo assim?"
-msgstr "You already have a meeting at this time. Book anyway?"
-
-#: app/templates/guardian/schedule.html:57
-#: app/templates/student/schedule.html:57
+#: app/templates/guardian/schedule.html:257
+#: app/templates/student/schedule.html:254
 msgid "Cancelar esta reunião?"
 msgstr "Cancel this meeting?"
 
-#: app/templates/guardian/schedule.html:58
-#: app/templates/student/schedule.html:58
+#: app/templates/guardian/schedule.html:258
+#: app/templates/student/schedule.html:255
 msgid "Não foi possível agendar."
 msgstr "Could not book the slot."
 
-#: app/templates/guardian/schedule.html:59
-#: app/templates/student/schedule.html:59
+#: app/templates/guardian/schedule.html:259
+#: app/templates/student/schedule.html:256
 msgid "Não foi possível cancelar."
 msgstr "Could not cancel the booking."
 
-#: app/templates/student/dashboard.html:4
-#: app/templates/teacher/dashboard.html:4
-msgid "Bem-vindo(a)"
-msgstr "Welcome"
+#: app/templates/guardian/schedule.html:311
+#: app/templates/student/schedule.html:308
+msgid "Dia desativado"
+msgstr "Day disabled"
 
-#: app/templates/student/dashboard.html:11
-msgid "Você pode agendar suas próprias reuniões."
-msgstr "You can schedule your own meetings."
+#: app/templates/guardian/schedule.html:421
+#: app/templates/student/schedule.html:418
+msgid "Prazo de agendamento encerrado"
+msgstr "Booking deadline past"
 
-#: app/templates/student/dashboard.html:21
-msgid "As reuniões de"
-msgstr "The meetings for"
+#: app/templates/guardian/schedule.html:453
+#: app/templates/student/schedule.html:450
+msgid "Conflito de horário"
+msgstr "Time conflict"
 
-#: app/templates/student/dashboard.html:21
-msgid "estão sendo agendadas pelos seus responsáveis."
-msgstr "are being scheduled by your guardians."
+#: app/templates/guardian/schedule.html:636
+#: app/templates/student/schedule.html:633
+msgid "Esta ação não poderá ser desfeita."
+msgstr "This action cannot be undone."
 
-#: app/templates/student/dashboard.html:23
+#: app/templates/guardian/schedule.html:637
+#: app/templates/student/schedule.html:634
+msgid "Cancelar reunião"
+msgstr "Cancel meeting"
+
+#: app/templates/guardian/schedule.html:637
+#: app/templates/student/schedule.html:634
+msgid "Manter"
+msgstr "Keep"
+
+#: app/templates/student/bookings.html:96
+#: app/templates/student/dashboard.html:162
+#: app/templates/teacher/dashboard.html:304
+#: app/templates/teacher/schedule.html:74
+msgid "O administrador será responsável por criar e publicar os eventos."
+msgstr "The administrator will be responsible for creating and publishing events."
+
+#: app/templates/student/dashboard.html:77
+msgid "Aqui estão os eventos de conferência disponíveis."
+msgstr "Here are the available conference events."
+
+#: app/templates/student/dashboard.html:122
+msgid "Você pode agendar suas próprias reuniões neste evento."
+msgstr "You can schedule your own meetings for this event."
+
+#: app/templates/student/dashboard.html:127
+#: app/templates/student/schedule.html:2 app/templates/student/schedule.html:73
+msgid "Agendar Reuniões"
+msgstr "Schedule Meetings"
+
+#: app/templates/student/dashboard.html:140
+msgid "As reuniões estão sendo agendadas pelos seus responsáveis."
+msgstr "Your meetings are being scheduled by your guardians."
+
+#: app/templates/student/dashboard.html:142
 msgid "Ver minhas reuniões"
 msgstr "View my meetings"
 
-#: app/templates/student/dashboard.html:26
-#: app/templates/teacher/schedule.html:45
-msgid "Nenhum evento de conferência ativo no momento."
-msgstr "No active conference event at the moment."
-
-#: app/templates/student/schedule.html:46
+#: app/templates/student/schedule.html:136
 msgid "Nenhum horário disponível."
 msgstr "No slots available."
 
-#: app/templates/teacher/dashboard.html:8
-msgid "Reuniões de hoje"
-msgstr "Today's meetings"
+#: app/templates/teacher/dashboard.html:168
+msgid "Você tem reuniões hoje. Boa conferência!"
+msgstr "You have meetings today. Have a great conference!"
 
-#: app/templates/teacher/dashboard.html:12
-msgid "Horário"
-msgstr "Time"
+#: app/templates/teacher/dashboard.html:170
+msgid "Aqui está o seu próximo dia de conferência."
+msgstr "Here is your next conference day."
 
-#: app/templates/teacher/dashboard.html:27
-msgid "Nenhuma reunião agendada para hoje."
-msgstr "No meetings scheduled for today."
+#: app/templates/teacher/dashboard.html:173
+msgid "Nenhuma reunião agendada no momento."
+msgstr "No meetings scheduled at the moment."
 
-#: app/templates/teacher/dashboard.html:32
-msgid "Próximas reuniões"
-msgstr "Upcoming meetings"
+#: app/templates/teacher/dashboard.html:187
+msgid "reuniões futuras"
+msgstr "upcoming meetings"
+
+#: app/templates/teacher/dashboard.html:198
+msgid "evento(s) ativo(s)"
+msgstr "active event(s)"
+
+#: app/templates/teacher/dashboard.html:212
+msgid "agendados hoje"
+msgstr "booked today"
+
+#: app/templates/teacher/dashboard.html:212
+msgid "no próximo dia"
+msgstr "on the next day"
+
+#: app/templates/teacher/dashboard.html:224
+msgid "horários no dia"
+msgstr "slots on the day"
+
+#: app/templates/teacher/dashboard.html:238
+msgid "HOJE"
+msgstr "TODAY"
+
+#: app/templates/teacher/dashboard.html:238
+msgid "PRÓXIMO DIA"
+msgstr "NEXT DAY"
+
+#: app/templates/teacher/dashboard.html:249
+msgid "Hoje"
+msgstr "Today"
+
+#: app/templates/teacher/dashboard.html:258
+msgid "Ver agenda completa"
+msgstr "View full schedule"
+
+#: app/templates/teacher/dashboard.html:280
+#: app/templates/teacher/schedule.html:246
+msgid "Nenhum horário configurado para este dia."
+msgstr "No slots configured for this day."
+
+#: app/templates/teacher/dashboard.html:294
+msgid "Você ainda não tem horários configurados nos eventos ativos."
+msgstr "You don't have any slots configured in active events."
+
+#: app/templates/teacher/dashboard.html:295
+msgid "Assim que os responsáveis agendarem reuniões, elas aparecerão aqui."
+msgstr "Once guardians schedule meetings, they will appear here."
+
+#: app/templates/teacher/dashboard.html:298
+msgid "Ver minha agenda"
+msgstr "View my schedule"
 
 #: app/templates/teacher/profile.html:2 app/templates/teacher/profile.html:4
 msgid "Meu Perfil"
 msgstr "My Profile"
 
-#: app/templates/teacher/profile.html:28
-msgid "Idioma preferido"
-msgstr "Preferred language"
+#: app/templates/teacher/profile.html:32
+msgid "Bio / Descrição"
+msgstr "Bio / Description"
 
-#: app/templates/teacher/schedule.html:10
-msgid "Filtrar"
-msgstr "Filter"
+#: app/templates/teacher/schedule.html:118
+msgid "Nenhum horário configurado"
+msgstr "No slots configured"
 
-#: app/templates/teacher/schedule.html:12
-msgid "Limpar"
-msgstr "Clear"
+#: app/templates/teacher/schedule.html:125
+msgid "Ver agenda"
+msgstr "View schedule"
 
-#: app/templates/teacher/schedule.html:28
-msgid "Cancelado"
-msgstr "Cancelled"
+#: app/templates/teacher/schedule.html:172
+msgid "Nenhum dia configurado"
+msgstr "No days configured"
 
-#: app/templates/teacher/schedule.html:30
+#: app/templates/teacher/schedule.html:174
+msgid "Este evento ainda não possui dias de conferência configurados."
+msgstr "This event has no conference days configured yet."
+
+#: app/templates/teacher/schedule.html:175
+msgid ""
+"O administrador precisará adicionar os dias antes das reuniões aparecerem"
+" aqui."
+msgstr "The administrator will need to add days before meetings appear here."
+
+#: app/templates/teacher/schedule.html:179
+msgid "Voltar aos eventos"
+msgstr "Back to events"
+
+#: app/templates/teacher/schedule.html:198
+msgid "agendado(s)"
+msgstr "booked"
+
+#: app/templates/teacher/schedule.html:200
+msgid "Nenhum agendamento"
+msgstr "No bookings"
+
+#: app/templates/teacher/schedule.html:210
+msgid "Horário"
+msgstr "Time"
+
+#: app/templates/teacher/schedule.html:223
 msgid "Agendado"
 msgstr "Booked"
 
-#: app/templates/teacher/schedule.html:38
-msgid "Nenhum horário encontrado."
-msgstr "No slots found."
+#: app/templates/teacher/schedule.html:225
+msgid "Cancelado"
+msgstr "Cancelled"
+
+#: app/templates/teacher/schedule.html:262
+msgid "Imprimir agenda"
+msgstr "Print schedule"
+
+#: app/templates/teacher/schedule.html:285
+msgid ""
+"Será aberta uma nova aba formatada para impressão. Salve como PDF pelo "
+"navegador."
+msgstr "A new tab formatted for printing will open. Save as PDF via your browser."
 
 #~ msgid "Criar senha"
 #~ msgstr "Create password"
@@ -1034,4 +2433,129 @@ msgstr "No slots found."
 
 #~ msgid "Reenviar convite"
 #~ msgstr "Resend invite"
+
+#~ msgid "Perfil atualizado."
+#~ msgstr "Profile updated."
+
+#~ msgid "Usuários"
+#~ msgstr "Users"
+
+#~ msgid "Eventos"
+#~ msgstr "Events"
+
+#~ msgid "Perfil"
+#~ msgstr "Profile"
+
+#~ msgid "Painel Admin"
+#~ msgstr "Admin Dashboard"
+
+#~ msgid "Painel Administrativo"
+#~ msgstr "Administrative Dashboard"
+
+#~ msgid "dos horários agendados"
+#~ msgstr "of slots booked"
+
+#~ msgid "dia(s)"
+#~ msgstr "day(s)"
+
+#~ msgid "Nenhum evento ainda."
+#~ msgstr "No events yet."
+
+#~ msgid "ex: 9º Ano A"
+#~ msgstr "e.g. Grade 9A"
+
+#~ msgid "Cadastre matérias antes de atribuí-las às turmas."
+#~ msgstr "Register subjects before assigning them to grade groups."
+
+#~ msgid "Nenhuma turma ainda. Adicione uma ao lado."
+#~ msgstr "No grade groups yet. Add one on the left."
+
+#~ msgid "máx. 2"
+#~ msgstr "max. 2"
+
+#~ msgid "Vincular ou criar responsável"
+#~ msgstr "Link or create guardian"
+
+#~ msgid "Se o e-mail não for encontrado, preencha abaixo para criar:"
+#~ msgstr "If the email is not found, fill in below to create:"
+
+#~ msgid "Vincular / Criar Responsável"
+#~ msgstr "Link / Create Guardian"
+
+#~ msgid "Redefinir sua senha"
+#~ msgstr "Reset your password"
+
+#~ msgid "Conferências dos meus filhos"
+#~ msgstr "My children's conferences"
+
+#~ msgid "para"
+#~ msgstr "for"
+
+#~ msgid "Nenhum evento ativo no momento."
+#~ msgstr "No active event at the moment."
+
+#~ msgid "Legenda:"
+#~ msgstr "Legend:"
+
+#~ msgid "Agendado por mim"
+#~ msgstr "Booked by me"
+
+#~ msgid "Ver minhas reuniões"
+#~ msgstr "View my meetings"
+
+#~ msgid "Reuniões de hoje"
+#~ msgstr "Today's meetings"
+
+#~ msgid "Próximas reuniões"
+#~ msgstr "Upcoming meetings"
+
+#~ msgid "Nenhum filho vinculado à sua conta. Entre em contato com a secretaria."
+#~ msgstr "No children linked to your account. Please contact the school office."
+
+#~ msgid "Bem-vindo(a)"
+#~ msgstr "Welcome"
+
+#~ msgid "Setores"
+#~ msgstr "Sectors"
+
+#~ msgid "Agrupe as turmas em setores (ex: Pré-escola, Fundamental, High School)."
+#~ msgstr ""
+#~ "Group grade groups into sectors (e.g."
+#~ " Pre-school, Primary, High School)."
+
+#~ msgid "Nome do setor"
+#~ msgstr "Sector name"
+
+#~ msgid "Turmas"
+#~ msgstr "Grade Groups"
+
+#~ msgid "Clique para renomear"
+#~ msgstr "Click to rename"
+
+#~ msgid "Remover do setor"
+#~ msgstr "Remove from sector"
+
+#~ msgid "Nova turma (ex: G9)"
+#~ msgstr "New grade group (e.g. G9)"
+
+#~ msgid "Excluir a matéria"
+#~ msgstr "Delete subject"
+
+#~ msgid "Nova matéria (ex: Matemática)"
+#~ msgstr "New subject (e.g. Mathematics)"
+
+#~ msgid "Use o formulário ao lado para criar o primeiro."
+#~ msgstr "Use the form on the side to create the first one."
+
+#~ msgid "Nenhuma turma disponível."
+#~ msgstr "No grade groups available."
+
+#~ msgid "Não foi possível atribuir a turma."
+#~ msgstr "Could not assign the grade group."
+
+#~ msgid "Não foi possível remover a turma."
+#~ msgstr "Could not remove the grade group."
+
+#~ msgid "Não foi possível renomear."
+#~ msgstr "Could not rename."
 

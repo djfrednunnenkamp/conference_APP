@@ -1,112 +1,203 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Painel') }} – Conferensia{% endblock %}
+{% block head %}
+<style>
+/* ── Shared empty-state ── */
+.pan-empty-state {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 3.5rem 2rem;
+  text-align: center;
+  max-width: 460px;
+  margin: 0 auto;
+}
+.pan-empty-icon {
+  width: 72px; height: 72px;
+  border-radius: 50%;
+  background: #eff6ff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 2rem; color: #93c5fd;
+  margin-bottom: 1.25rem;
+}
+.pan-empty-icon.amber { background:#fffbeb; color:#fcd34d; }
+.pan-empty-title { font-weight:700; font-size:1.1rem; color:#1e293b; margin-bottom:.5rem; }
+.pan-empty-body  { color:#64748b; font-size:.88rem; line-height:1.6; margin-bottom:1.5rem; }
+
+/* ── Event card ── */
+.conf-event-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0,0,0,.06);
+}
+.conf-event-header {
+  background: linear-gradient(135deg,#1a3461,#174a30);
+  padding: 1.1rem 1.5rem;
+}
+.child-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .9rem 1.5rem;
+  transition: background .12s;
+}
+.child-row + .child-row { border-top: 1px solid #f1f5f9; }
+.child-row:hover { background: #f8fafc; }
+.child-avatar {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: #e8f0fe;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .85rem; color: #1a3461; flex-shrink: 0;
+}
+.booking-badge {
+  display: inline-flex; align-items: center; gap: .3rem;
+  background: #dcfce7; color: #166534;
+  border-radius: 20px; font-size: .72rem; font-weight: 700;
+  padding: .15rem .6rem;
+}
+.booking-badge.none {
+  background: #f1f5f9; color: #94a3b8;
+}
+</style>
+{% endblock %}
 {% block content %}
-<h4 class="fw-bold mb-4">{{ _('Conferências') }}</h4>
 
-{% if not events %}
-  {% if not children %}
-  <div class="alert alert-info">
-    {{ _('Nenhum filho vinculado à sua conta. Entre em contato com a secretaria.') }}
-  </div>
-  {% else %}
-  <div class="alert alert-info">
-    {{ _('Nenhum evento de conferência ativo no momento.') }}
-  </div>
-  {% endif %}
-{% endif %}
+{# ── Greeting ── #}
+<div class="mb-4">
+  <h4 class="fw-bold mb-0">{{ _('Olá') }}, {{ current_user.first_name }} 👋</h4>
+  <p class="text-muted mb-0" style="font-size:.9rem">
+    {% if events %}
+      {{ _('Agende as reuniões dos seus filhos abaixo.') }}
+    {% else %}
+      {{ _('Nenhum evento de conferência ativo no momento.') }}
+    {% endif %}
+  </p>
+</div>
 
+{# ── Empty: no children ── #}
+{% if not events and not children %}
+<div class="pan-empty-state">
+  <div class="pan-empty-icon amber">
+    <i class="bi bi-person-x"></i>
+  </div>
+  <h5 class="pan-empty-title">{{ _('Nenhum filho vinculado') }}</h5>
+  <p class="pan-empty-body">
+    {{ _('Sua conta ainda não está vinculada a nenhum aluno.') }}<br>
+    {{ _('Entre em contato com a secretaria para fazer a vinculação.') }}
+  </p>
+</div>
+
+{# ── Empty: children exist but no active events ── #}
+{% elif not events %}
+<div class="pan-empty-state">
+  <div class="pan-empty-icon">
+    <i class="bi bi-calendar-x"></i>
+  </div>
+  <h5 class="pan-empty-title">{{ _('Nenhum evento ativo') }}</h5>
+  <p class="pan-empty-body">
+    {{ _('Não há eventos de conferência publicados no momento.') }}<br>
+    {{ _('Assim que um evento for publicado, você poderá agendar reuniões aqui.') }}
+  </p>
+  <a href="{{ url_for('guardian.bookings') }}" class="btn btn-outline-primary btn-sm px-4">
+    <i class="bi bi-list-check me-1"></i>{{ _('Minhas Reuniões') }}
+  </a>
+</div>
+
+{# ── Events list ── #}
+{% else %}
 <div class="d-flex flex-column gap-4">
 {% for event in events %}
+<div class="conf-event-card">
 
-  <div class="card shadow-sm">
-
-    {# ── Event header ── #}
-    <div class="card-header py-3 px-4"
-         style="background:linear-gradient(135deg,#1a3461,#174a30);border-radius:calc(.375rem - 1px) calc(.375rem - 1px) 0 0">
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-        <div>
-          <h5 class="fw-bold mb-0" style="color:#fff">
-            <i class="bi bi-calendar-event me-2" style="opacity:.8"></i>{{ event.name }}
-          </h5>
-          {% if event.days %}
-          <div class="mt-1" style="font-size:.8rem;color:rgba(255,255,255,.7)">
-            {% set sorted_days = event.days | sort(attribute='date') %}
-            {% if sorted_days | length == 1 %}
-              <i class="bi bi-clock me-1"></i>{{ sorted_days[0].date.strftime('%d/%m/%Y') }}
-            {% else %}
-              <i class="bi bi-clock me-1"></i>
-              {{ sorted_days[0].date.strftime('%d/%m/%Y') }} – {{ sorted_days[-1].date.strftime('%d/%m/%Y') }}
-            {% endif %}
-          </div>
+  {# Event header #}
+  <div class="conf-event-header">
+    <div class="d-flex align-items-start justify-content-between gap-2 flex-wrap">
+      <div>
+        <h5 class="fw-bold mb-1" style="color:#fff;font-size:1rem">
+          <i class="bi bi-calendar-event me-2" style="opacity:.75"></i>{{ event.name }}
+        </h5>
+        {% if event.days %}
+        {% set sorted_days = event.days | sort(attribute='date') %}
+        <div style="font-size:.78rem;color:rgba(255,255,255,.65)">
+          <i class="bi bi-clock me-1"></i>
+          {% if sorted_days | length == 1 %}
+            {{ sorted_days[0].date.strftime('%d/%m/%Y') }}
+          {% else %}
+            {{ sorted_days[0].date.strftime('%d/%m/%Y') }} – {{ sorted_days[-1].date.strftime('%d/%m/%Y') }}
+            &nbsp;·&nbsp; {{ sorted_days | length }} {{ _('dias') }}
           {% endif %}
         </div>
-        <span class="badge"
-              style="background:rgba(255,255,255,.18);color:#fff;font-size:.75rem;font-weight:600;padding:.35rem .75rem">
-          {% if event.status == 'published' %}
-            <i class="bi bi-check-circle me-1"></i>{{ _('Aberto') }}
-          {% elif event.status == 'closed' %}
-            <i class="bi bi-lock me-1"></i>{{ _('Encerrado') }}
-          {% else %}
-            {{ event.status }}
-          {% endif %}
-        </span>
+        {% endif %}
       </div>
+      <span class="badge"
+            style="background:rgba(255,255,255,.18);color:#fff;font-size:.72rem;font-weight:600;padding:.3rem .7rem;border-radius:20px">
+        {% if event.status == 'published' %}
+          <i class="bi bi-check-circle me-1"></i>{{ _('Aberto') }}
+        {% elif event.status == 'closed' %}
+          <i class="bi bi-lock me-1"></i>{{ _('Encerrado') }}
+        {% endif %}
+      </span>
     </div>
-
-    {# ── Children list for this event ── #}
-    <div class="card-body p-0">
-      {% set ns = namespace(found=false) %}
-      {% for item in children %}
-        {% for ec in item.event_counts %}
-          {% if ec.event.id == event.id %}
-            {% set ns.found = true %}
-            <div class="d-flex align-items-center justify-content-between px-4 py-3
-                        {% if not loop.first or not loop.first %}border-top{% endif %}"
-                 style="{% if not loop.first %}border-top:1px solid #f1f5f9{% endif %}">
-
-              <div class="d-flex align-items-center gap-3">
-                {# Avatar #}
-                <div style="width:40px;height:40px;border-radius:50%;background:#e8f0fe;
-                            display:flex;align-items:center;justify-content:center;
-                            font-weight:700;font-size:.85rem;color:#1a3461;flex-shrink:0">
-                  {{ item.student.first_name[0] }}{{ item.student.last_name[0] }}
-                </div>
-                <div>
-                  <div class="fw-semibold" style="color:#1e293b">{{ item.student.full_name }}</div>
-                  <div style="font-size:.8rem;color:#64748b">
-                    <i class="bi bi-mortarboard me-1"></i>
-                    {{ item.student.student_profile.grade_group.name if item.student.student_profile else '—' }}
-                    &nbsp;·&nbsp;
-                    {% if ec.booked > 0 %}
-                      <span style="color:#166534">
-                        <i class="bi bi-calendar-check me-1"></i>{{ ec.booked }} {{ _('reunião(ões) agendada(s)') }}
-                      </span>
-                    {% else %}
-                      <span style="color:#94a3b8">{{ _('Nenhuma reunião agendada') }}</span>
-                    {% endif %}
-                  </div>
-                </div>
-              </div>
-
-              <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=event.id) }}"
-                 class="btn btn-primary btn-sm ms-3 flex-shrink-0">
-                <i class="bi bi-grid me-1"></i>{{ _('Agendar') }}
-              </a>
-
-            </div>
-          {% endif %}
-        {% endfor %}
-      {% endfor %}
-
-      {% if not ns.found %}
-      <div class="px-4 py-3 text-muted" style="font-size:.875rem">
-        <i class="bi bi-person-x me-1"></i>{{ _('Nenhum filho vinculado a este evento.') }}
-      </div>
-      {% endif %}
-    </div>
-
   </div>
 
+  {# Children rows #}
+  {% set ns = namespace(found=false) %}
+  {% for item in children %}
+    {% for ec in item.event_counts %}
+      {% if ec.event.id == event.id %}
+        {% set ns.found = true %}
+        <div class="child-row">
+
+          {# Avatar #}
+          <div class="child-avatar">
+            {{ item.student.first_name[0] }}{{ item.student.last_name[0] }}
+          </div>
+
+          {# Info #}
+          <div class="flex-grow-1 min-width-0">
+            <div class="fw-semibold" style="color:#1e293b;font-size:.9rem">{{ item.student.full_name }}</div>
+            <div class="d-flex align-items-center gap-2 mt-1 flex-wrap">
+              {% if item.student.student_profile %}
+              <span style="font-size:.75rem;color:#64748b">
+                <i class="bi bi-mortarboard me-1"></i>{{ item.student.student_profile.grade_group.name }}
+              </span>
+              {% endif %}
+              {% if ec.booked > 0 %}
+              <span class="booking-badge">
+                <i class="bi bi-calendar-check"></i>{{ ec.booked }} {{ _('reunião(ões) agendada(s)') }}
+              </span>
+              {% else %}
+              <span class="booking-badge none">
+                <i class="bi bi-calendar"></i>{{ _('Nenhuma reunião agendada') }}
+              </span>
+              {% endif %}
+            </div>
+          </div>
+
+          {# Action #}
+          <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=event.id) }}"
+             class="btn btn-primary btn-sm flex-shrink-0">
+            <i class="bi bi-grid me-1"></i>{{ _('Agendar') }}
+          </a>
+
+        </div>
+      {% endif %}
+    {% endfor %}
+  {% endfor %}
+
+  {# No child found for this event #}
+  {% if not ns.found %}
+  <div class="d-flex align-items-center gap-2 px-4 py-3" style="color:#94a3b8;font-size:.85rem">
+    <i class="bi bi-person-dash"></i>
+    <span>{{ _('Nenhum filho vinculado a este evento.') }}</span>
+  </div>
+  {% endif %}
+
+</div>
 {% endfor %}
 </div>
+{% endif %}
+
 {% endblock %}

@@ -1,11 +1,57 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Turmas e Matérias') }} – Conferensia{% endblock %}
+{% block head %}
+<style>
+/* ── Division filter tabs ── */
+.div-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: 1.5rem;
+}
+.div-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .35rem .9rem;
+  border-radius: 20px;
+  font-size: .82rem;
+  font-weight: 500;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  text-decoration: none;
+  transition: background .15s, border-color .15s, color .15s;
+  white-space: nowrap;
+}
+.div-tab:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.div-tab.active {
+  background: #1a3461;
+  border-color: #1a3461;
+  color: #fff;
+}
+.div-tab .count {
+  background: rgba(255,255,255,.25);
+  border-radius: 10px;
+  padding: .05rem .45rem;
+  font-size: .72rem;
+}
+.div-tab:not(.active) .count {
+  background: #e2e8f0;
+  color: #64748b;
+}
+</style>
+{% endblock %}
 {% block content %}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="fw-bold mb-0">{{ _('Turmas e Matérias') }}</h4>
   <div class="d-flex gap-2">
-    <a href="{{ url_for('admin.export_grades_matrix') }}" class="btn btn-outline-secondary btn-sm">
+    <a href="{{ url_for('admin.export_grades_matrix', division_id=selected_division_id) if selected_division_id is not none else url_for('admin.export_grades_matrix') }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-download me-1"></i>{{ _('Exportar') }}
     </a>
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
@@ -13,6 +59,40 @@
     </button>
   </div>
 </div>
+
+{# ── Division filter tabs ── #}
+{% if divisions %}
+<div class="div-filter-bar">
+
+  {# "Todas" tab #}
+  <a href="{{ url_for('admin.grades') }}"
+     class="div-tab {% if selected_division_id is none %}active{% endif %}">
+    <i class="bi bi-grid-3x3-gap" style="font-size:.8rem"></i>
+    {{ _('Todas') }}
+    <span class="count">{{ total_grade_count }}</span>
+  </a>
+
+  {# One tab per division #}
+  {% for div in divisions %}
+  <a href="{{ url_for('admin.grades', division_id=div.id) }}"
+     class="div-tab {% if selected_division_id == div.id %}active{% endif %}">
+    {{ div.name }}
+    <span class="count">{{ div.grade_groups | length }}</span>
+  </a>
+  {% endfor %}
+
+  {# "Sem setor" tab (only if there are unassigned grades) #}
+  {% if unassigned_count > 0 %}
+  <a href="{{ url_for('admin.grades', division_id=0) }}"
+     class="div-tab {% if selected_division_id == 0 %}active{% endif %}">
+    <i class="bi bi-slash-circle" style="font-size:.78rem"></i>
+    {{ _('Sem setor') }}
+    <span class="count">{{ unassigned_count }}</span>
+  </a>
+  {% endif %}
+
+</div>
+{% endif %}
 
 {# ── Import modal ── #}
 <div class="modal fade" id="importModal" tabindex="-1">
@@ -26,7 +106,11 @@
         </div>
         <div class="modal-body">
           <p class="text-muted small mb-2">
-            {{ _('Formato: primeira coluna = nome da turma, demais colunas = matérias (1 = ativa, 0 = inativa).') }}
+            {{ _('Formato novo (recomendado): colunas') }} <code>setor</code>, <code>turma</code>, {{ _('demais colunas = matérias (1 = ativa, 0 = inativa).') }}
+            {{ _('Setor, turma e matéria serão criados automaticamente se não existirem.') }}
+          </p>
+          <p class="text-muted small mb-2">
+            {{ _('Formato legado: primeira coluna') }} <code>grade</code> {{ _('(sem coluna de setor).') }}
           </p>
           <a href="{{ url_for('admin.template_grades_matrix') }}" class="btn btn-outline-secondary btn-sm mb-3">
             <i class="bi bi-file-earmark-arrow-down me-1"></i>{{ _('Baixar modelo') }}
@@ -67,61 +151,9 @@
   </div>
 </div>
 
-<div class="row g-4">
-
-  {# ── Left sidebar: add forms only ── #}
-  <div class="col-md-3 d-flex flex-column gap-3">
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h6 class="fw-semibold mb-3">{{ _('Adicionar turma') }}</h6>
-        <form method="POST" novalidate>
-          {{ grade_form.hidden_tag() }}
-          {{ grade_form.submit(style="display:none") }}
-          <div class="mb-3">
-            {{ grade_form.name(class="form-control form-control-sm" + (" is-invalid" if grade_form.name.errors else ""),
-                               placeholder=_('ex: 9º Ano A')) }}
-            {% for e in grade_form.name.errors %}
-              <div class="invalid-feedback">{{ e }}</div>
-            {% endfor %}
-          </div>
-          <div class="d-grid">
-            <button type="submit" name="{{ grade_form.submit.name }}" value="true"
-                    class="btn btn-primary btn-sm">
-              <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar turma') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h6 class="fw-semibold mb-3">{{ _('Adicionar matéria') }}</h6>
-        <form method="POST" novalidate>
-          {{ subject_form.hidden_tag() }}
-          {{ subject_form.submit(style="display:none") }}
-          <div class="mb-3">
-            {{ subject_form.name(class="form-control form-control-sm" + (" is-invalid" if subject_form.name.errors else ""),
-                                 placeholder=_('ex: Matemática')) }}
-            {% for e in subject_form.name.errors %}
-              <div class="invalid-feedback">{{ e }}</div>
-            {% endfor %}
-          </div>
-          <div class="d-grid">
-            <button type="submit" name="{{ subject_form.submit.name }}" value="true"
-                    class="btn btn-primary btn-sm">
-              <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar matéria') }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-  </div>
-
-  {# ── Right: grade × subject matrix ── #}
-  <div class="col-md-9">
+{# ── Grade × subject matrix (full width) ── #}
+<div class="row">
+  <div class="col-12">
 
     {% if grades and all_subjects %}
     <div class="card shadow-sm">
@@ -138,7 +170,7 @@
               <th style="min-width:90px; font-size:.82rem">
                 <div class="d-flex align-items-center justify-content-center gap-1">
                   <span>{{ s.name }}</span>
-                  <form method="POST" action="{{ url_for('admin.delete_subject', id=s.id) }}"
+                  <form method="POST" action="{{ url_for('admin.delete_subject_by_id', id=s.id) }}"
                         class="d-inline"
                         data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
                         data-pan-title="{{ _('Excluir matéria') }} {{ s.name }}"
@@ -157,7 +189,7 @@
             {% for g in grades %}
             <tr>
               <td class="text-start ps-3">
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
                   <form method="POST" action="{{ url_for('admin.delete_grade', id=g.id) }}"
                         class="d-inline"
                     data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
@@ -178,6 +210,9 @@
                       action="{{ url_for('admin.toggle_grade_subject', grade_id=g.id, subject_id=s.id) }}"
                       class="d-inline">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  {% if selected_division_id is not none %}
+                  <input type="hidden" name="division_id" value="{{ selected_division_id }}">
+                  {% endif %}
                   {% if (g.id, s.id) in active %}
                   <button class="btn btn-success btn-sm px-2 py-1">
                     <i class="bi bi-check-lg"></i>
@@ -208,7 +243,7 @@
             {% for g in grades %}
             <tr>
               <td>
-                <div class="d-flex align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
                   <form method="POST" action="{{ url_for('admin.delete_grade', id=g.id) }}"
                         class="d-inline"
                     data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
@@ -231,20 +266,38 @@
     </div>
     <div class="alert alert-warning mt-3 small">
       <i class="bi bi-exclamation-triangle me-1"></i>
-      {{ _('Adicione matérias ao lado para poder atribuí-las às turmas.') }}
+      {% if selected_division_id %}
+        {{ _('Este setor ainda não tem matérias.') }}
+        <a href="{{ url_for('admin.divisions') }}">{{ _('Adicionar no painel de Setores') }}</a>
+      {% else %}
+        {{ _('Adicione matérias no') }} <a href="{{ url_for('admin.divisions') }}">{{ _('painel de Setores') }}</a>.
+      {% endif %}
     </div>
 
     {% elif all_subjects %}
-    <div class="alert alert-light">
-      {{ _('Nenhuma turma ainda. Adicione uma ao lado.') }}
+    <div class="alert alert-info small">
+      <i class="bi bi-info-circle me-1"></i>
+      {% if selected_division_id %}
+        {{ _('Este setor ainda não tem turmas.') }}
+        <a href="{{ url_for('admin.divisions') }}">{{ _('Adicionar no painel de Setores') }}</a>
+      {% else %}
+        {{ _('Adicione turmas no') }} <a href="{{ url_for('admin.divisions') }}">{{ _('painel de Setores') }}</a>.
+      {% endif %}
     </div>
 
     {% else %}
-    <div class="alert alert-light">
-      {{ _('Adicione turmas e matérias ao lado para começar.') }}
+    <div class="card shadow-sm">
+      <div class="card-body text-center py-5">
+        <i class="bi bi-journal-bookmark" style="font-size:2.5rem;color:#cbd5e1"></i>
+        <p class="text-muted mt-3 mb-2">{{ _('Nenhuma turma ou matéria encontrada.') }}</p>
+        <a href="{{ url_for('admin.divisions') }}" class="btn btn-primary btn-sm">
+          <i class="bi bi-diagram-3 me-1"></i>{{ _('Ir para Setores') }}
+        </a>
+      </div>
     </div>
     {% endif %}
 
   </div>
 </div>
+
 {% endblock %}

@@ -62,6 +62,18 @@ class ConferenceEventForm(FlaskForm):
     submit = SubmitField("Save")
 
 
+class ConferenceEventSimpleForm(FlaskForm):
+    """Stripped-down event form — days/sectors are handled manually in the route."""
+    name = StringField("Event Name", validators=[DataRequired()])
+    student_booking_allowed = BooleanField("Allow student booking")
+    cancel_deadline_hours = IntegerField(
+        "Prazo para cancelar (horas antes)",
+        validators=[InputRequired(), NumberRange(min=0)],
+        default=24,
+    )
+    submit = SubmitField("Save")
+
+
 class NotifyForm(FlaskForm):
     all_guardians = BooleanField("All guardians")
     not_yet_notified = BooleanField("Guardians not yet notified for this event")

@@ -31,7 +31,9 @@ def _assert_guardian_owns_student(student_id):
 @guardian_required
 def dashboard():
     events = get_active_events()
-    links = GuardianStudent.query.filter_by(guardian_id=current_user.id).all()
+    links = (GuardianStudent.query.filter_by(guardian_id=current_user.id)
+             .join(User, GuardianStudent.student_id == User.id)
+             .order_by(User.last_name, User.first_name).all())
     children = []
     for link in links:
         student = User.query.get(link.student_id)
@@ -88,7 +90,9 @@ def print_schedule():
 @guardian_required
 def bookings():
     events = get_active_events()
-    links = GuardianStudent.query.filter_by(guardian_id=current_user.id).all()
+    links = (GuardianStudent.query.filter_by(guardian_id=current_user.id)
+             .join(User, GuardianStudent.student_id == User.id)
+             .order_by(User.last_name, User.first_name).all())
     children_data = []
     for link in links:
         student = User.query.get(link.student_id)
