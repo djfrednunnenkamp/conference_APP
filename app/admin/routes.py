@@ -2327,6 +2327,9 @@ def edit_event(id):
     divisions = Division.query.order_by(Division.order, Division.name).all()
 
     if form.validate_on_submit():
+        if event.status != 'draft':
+            flash(_("Evento publicado não pode ser editado. Despublique primeiro."), "warning")
+            return redirect(url_for("admin.edit_event", id=id))
         if not _has_at_least_one_day():
             flash(_("Adicione pelo menos 1 dia de reunião (com data, início e fim) em qualquer setor."), "warning")
         else:
@@ -2374,9 +2377,30 @@ def edit_event(id):
 @admin_required
 def publish_event(id):
     event = ConferenceEvent.query.get_or_404(id)
+    if event.status != 'draft':
+        flash(_("Apenas eventos em rascunho podem ser publicados."), "warning")
+        return redirect(url_for("admin.events"))
+    _generate_all_slots_for_event(event)
     event.status = "published"
     db.session.commit()
-    flash(_("Evento publicado."), "success")
+    flash(_("Evento publicado e horários gerados."), "success")
+    return redirect(url_for("admin.events"))
+
+
+@admin_bp.route("/events/<int:id>/unpublish", methods=["POST"])
+@login_required
+@admin_required
+def unpublish_event(id):
+    event = ConferenceEvent.query.get_or_404(id)
+    if event.status != 'published':
+        flash(_("Apenas eventos publicados podem ser despublicados."), "warning")
+        return redirect(url_for("admin.events"))
+    for day in event.days:
+        for slot in list(day.slots):
+            db.session.delete(slot)
+    event.status = "draft"
+    db.session.commit()
+    flash(_("Evento despublicado. Todos os horários e agendamentos foram removidos."), "warning")
     return redirect(url_for("admin.events"))
 
 
@@ -2764,17 +2788,6 @@ def _save_event_sectors(event, conflict_action='keep'):
                 day.slot_duration_minutes = slot_dur
                 day.break_minutes         = break_min
 
-                if timing_changed or teachers_changed:
-                    has_bk = db.session.query(Booking).join(Slot).filter(
-                        Slot.day_id == day.id,
-                        Booking.cancelled_at == None).first() is not None
-                    if not has_bk:
-                        for s in list(day.slots):
-                            db.session.delete(s)
-                        db.session.flush()
-                        if teacher_gen:
-                            db.session.add_all(
-                                generate_slots_for_sector_day(day, teacher_gen, break_min))
             else:
                 day = ConferenceDay(
                     event_id=event.id,
@@ -2787,11 +2800,33 @@ def _save_event_sectors(event, conflict_action='keep'):
                 )
                 db.session.add(day)
                 db.session.flush()
-                if teacher_gen:
-                    db.session.add_all(
-                        generate_slots_for_sector_day(day, teacher_gen, break_min))
 
     return protected
+
+
+def _generate_all_slots_for_event(event):
+    """Generate slots for all sectors/days of a draft event being published."""
+    for sector in event.sectors:
+        slot_dur = sector.slot_duration_minutes
+        break_min = sector.break_minutes
+        teacher_map = {t.id: t for t in
+                       User.query.filter(User.id.in_(
+                           [etc.teacher_id for etc in sector.teacher_configs])).all()}
+        teacher_gen = []
+        for etc in sector.teacher_configs:
+            teacher = teacher_map.get(etc.teacher_id)
+            if teacher:
+                teacher_gen.append((teacher, etc.slot_duration_minutes or slot_dur))
+        if not teacher_gen:
+            continue
+        days = ConferenceDay.query.filter_by(
+            event_id=event.id, division_id=sector.division_id).all()
+        for day in days:
+            for s in list(day.slots):
+                db.session.delete(s)
+            db.session.flush()
+            db.session.add_all(
+                generate_slots_for_sector_day(day, teacher_gen, break_min))
 
 
 # ── Notifications ──────────────────────────────────────────────────────────────

@@ -110,13 +110,25 @@
                 <i class="bi bi-envelope"></i>
               </a>
               {% if event.status == 'draft' %}
-              <form method="POST" action="{{ url_for('admin.publish_event', id=event.id) }}" class="d-inline">
+              <form method="POST" action="{{ url_for('admin.publish_event', id=event.id) }}" class="d-inline"
+                    data-pan-confirm="{{ _('Publicar gerará todos os horários e bloqueará a edição do evento.') }}"
+                    data-pan-title="{{ _('Publicar evento') }}"
+                    data-pan-confirm-text="{{ _('Publicar') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-success btn-sm" title="{{ _('Publicar') }}">
                   <i class="bi bi-send"></i>
                 </button>
               </form>
               {% elif event.status == 'published' %}
+              <form method="POST" action="{{ url_for('admin.unpublish_event', id=event.id) }}" class="d-inline"
+                    data-pan-confirm="{{ _('Despublicar apagará TODOS os horários e agendamentos existentes.') }}"
+                    data-pan-title="{{ _('Despublicar evento') }}"
+                    data-pan-danger="1" data-pan-confirm-text="{{ _('Despublicar') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-secondary btn-sm" title="{{ _('Despublicar') }}">
+                  <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+              </form>
               <form method="POST" action="{{ url_for('admin.close_event', id=event.id) }}" class="d-inline"
                     data-pan-confirm="{{ _('O evento será encerrado e não aceitará novos agendamentos.') }}"
                     data-pan-title="{{ _('Encerrar evento') }}"

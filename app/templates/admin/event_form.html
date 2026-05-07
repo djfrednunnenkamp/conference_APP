@@ -53,6 +53,28 @@
   </div>
 </div>
 
+{% if event and event.status != 'draft' %}
+<div class="alert alert-warning d-flex align-items-center gap-2 mb-3" role="alert">
+  <i class="bi bi-lock-fill flex-shrink-0"></i>
+  <div>
+    {% if event.status == 'published' %}
+    {{ _('Este evento está publicado. A edição está bloqueada.') }}
+    <form method="POST" action="{{ url_for('admin.unpublish_event', id=event.id) }}" class="d-inline ms-2"
+          data-pan-confirm="{{ _('Despublicar apagará TODOS os horários e agendamentos existentes.') }}"
+          data-pan-title="{{ _('Despublicar evento') }}"
+          data-pan-danger="1" data-pan-confirm-text="{{ _('Despublicar') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>{{ _('Despublicar') }}
+      </button>
+    </form>
+    {% else %}
+    {{ _('Este evento está encerrado e não pode ser editado.') }}
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <form method="POST" novalidate id="eventForm">
   {{ form.hidden_tag() }}
   <input type="hidden" name="conflict_action" id="conflictAction" value="keep">
@@ -241,7 +263,8 @@
 
       {# ── Save ─────────────────────────────────────────────────────────── #}
       <div class="d-flex gap-2 mb-4">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary"
+                {% if event and event.status != 'draft' %}disabled{% endif %}>
           <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
         </button>
         <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary">
@@ -1137,5 +1160,12 @@ document.querySelectorAll('.ev-sector-item').forEach(item => {
   updateTeacherBadge(divId);
 });
 updateActiveSectorsBadge();
+
+{% if event and event.status != 'draft' %}
+// Lock all form inputs when event is published/closed
+document.getElementById('eventForm').querySelectorAll(
+  'input, select, textarea, button[type=button]'
+).forEach(el => { el.disabled = true; });
+{% endif %}
 </script>
 {% endblock %}
