@@ -73,6 +73,30 @@
     {% endif %}
   </div>
 </div>
+
+{% if event.status == 'published' %}
+<div class="card shadow-sm mb-3">
+  <div class="card-header fw-semibold small d-flex align-items-center gap-2">
+    <i class="bi bi-pencil-square text-primary"></i>{{ _('Configurações editáveis') }}
+  </div>
+  <div class="card-body">
+    <form method="POST" action="{{ url_for('admin.update_event_meta', id=event.id) }}" class="d-flex align-items-center gap-3">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" name="student_booking_allowed"
+               id="metaStudentBooking" value="y"
+               {% if event.student_booking_allowed %}checked{% endif %}>
+        <label class="form-check-label small" for="metaStudentBooking">
+          {{ _('Permitir agendamento por alunos') }}
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+      </button>
+    </form>
+  </div>
+</div>
+{% endif %}
 {% endif %}
 
 <form method="POST" novalidate id="eventForm">
@@ -321,6 +345,7 @@
               {% endif %}
             </div>
             <button type="button" class="btn btn-outline-primary btn-sm"
+                    data-always-enabled="1"
                     onclick="openAttendanceModal({{ day.id }}, '{{ day.date.strftime('%d/%m/%Y') }}')">
               <i class="bi bi-pencil me-1"></i>{{ _('Gerenciar') }}
             </button>
@@ -1162,10 +1187,12 @@ document.querySelectorAll('.ev-sector-item').forEach(item => {
 updateActiveSectorsBadge();
 
 {% if event and event.status != 'draft' %}
-// Lock all form inputs when event is published/closed
+// Lock all form inputs when event is published/closed, except attendance Gerenciar buttons
 document.getElementById('eventForm').querySelectorAll(
   'input, select, textarea, button[type=button]'
-).forEach(el => { el.disabled = true; });
+).forEach(el => {
+  if (!el.dataset.alwaysEnabled) el.disabled = true;
+});
 {% endif %}
 </script>
 {% endblock %}

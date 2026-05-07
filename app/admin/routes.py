@@ -2387,6 +2387,17 @@ def publish_event(id):
     return redirect(url_for("admin.events"))
 
 
+@admin_bp.route("/events/<int:id>/update_meta", methods=["POST"])
+@login_required
+@admin_required
+def update_event_meta(id):
+    event = ConferenceEvent.query.get_or_404(id)
+    event.student_booking_allowed = request.form.get('student_booking_allowed') == 'y'
+    db.session.commit()
+    flash(_("Configuração atualizada."), "success")
+    return redirect(url_for("admin.edit_event", id=id))
+
+
 @admin_bp.route("/events/<int:id>/unpublish", methods=["POST"])
 @login_required
 @admin_required
