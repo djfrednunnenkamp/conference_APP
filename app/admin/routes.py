@@ -186,10 +186,14 @@ def move_grade(grade_id, direction):
     if idx is None:
         return redirect(url_for("admin.divisions"))
     swap_idx = idx - 1 if direction == "up" else idx + 1
+    swapped_id = None
     if 0 <= swap_idx < len(siblings):
         a, b = siblings[idx], siblings[swap_idx]
         a.order, b.order = b.order, a.order
         db.session.commit()
+        swapped_id = b.id
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({"ok": True, "swapped_id": swapped_id})
     return redirect(url_for("admin.divisions"))
 
 

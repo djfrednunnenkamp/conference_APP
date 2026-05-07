@@ -249,24 +249,16 @@
 
       {# Order arrows #}
       <div class="order-arrows flex-column" style="gap:1px;flex-shrink:0">
-        {% if not loop.first %}
-        <form method="POST" action="{{ url_for('admin.move_grade', grade_id=g.id, direction='up') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-link p-0 text-muted" style="font-size:.6rem;line-height:1.1"
-                  title="{{ _('Mover para cima') }}"><i class="bi bi-chevron-up"></i></button>
-        </form>
-        {% else %}
-        <span style="font-size:.6rem;line-height:1.1;visibility:hidden"><i class="bi bi-chevron-up"></i></span>
-        {% endif %}
-        {% if not loop.last %}
-        <form method="POST" action="{{ url_for('admin.move_grade', grade_id=g.id, direction='down') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="btn btn-link p-0 text-muted" style="font-size:.6rem;line-height:1.1"
-                  title="{{ _('Mover para baixo') }}"><i class="bi bi-chevron-down"></i></button>
-        </form>
-        {% else %}
-        <span style="font-size:.6rem;line-height:1.1;visibility:hidden"><i class="bi bi-chevron-down"></i></span>
-        {% endif %}
+        <button class="btn btn-link p-0 text-muted" style="font-size:.6rem;line-height:1.1;{% if loop.first %}visibility:hidden{% endif %}"
+                title="{{ _('Mover para cima') }}" data-move-dir="up"
+                onclick="moveGrade({{ g.id }}, 'up', this)">
+          <i class="bi bi-chevron-up"></i>
+        </button>
+        <button class="btn btn-link p-0 text-muted" style="font-size:.6rem;line-height:1.1;{% if loop.last %}visibility:hidden{% endif %}"
+                title="{{ _('Mover para baixo') }}" data-move-dir="down"
+                onclick="moveGrade({{ g.id }}, 'down', this)">
+          <i class="bi bi-chevron-down"></i>
+        </button>
       </div>
 
       {# Avatar #}
@@ -300,6 +292,13 @@
               style="font-size:.78rem"
               onclick='openSubjectModal({{ g.id }}, {{ div.id }}, {{ g.name|tojson }})'>
         <i class="bi bi-journal-bookmark me-1"></i>{{ _('Matérias') }}
+      </button>
+
+      {# Rename grade #}
+      <button class="btn btn-outline-secondary btn-sm py-1 px-2 flex-shrink-0" style="font-size:.75rem"
+              title="{{ _('Renomear turma') }}"
+              onclick="renameGradeInline({{ g.id }}, this)">
+        <i class="bi bi-pencil"></i>
       </button>
 
       {# Delete grade #}
@@ -645,7 +644,12 @@ function renderManageSubjects(divId) {
   }
   body.innerHTML = sector.subjects.map(s => `
     <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom" id="ms-subj-${s.id}">
-      <span style="flex:1;font-size:.88rem;color:#1e293b">${s.name}</span>
+      <span style="flex:1;font-size:.88rem;color:#1e293b" id="ms-subj-name-${s.id}">${s.name}</span>
+      <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.75rem"
+              title="{{ _('Renomear matéria') }}"
+              onclick="renameSubjectInModal(${s.id}, ${divId}, this)">
+        <i class="bi bi-pencil"></i>
+      </button>
       <button class="btn btn-outline-danger btn-sm py-0 px-2" style="font-size:.75rem"
               title="{{ _('Excluir matéria') }}"
               onclick="deleteSubjectFromSector(${s.id}, ${divId})">
@@ -842,6 +846,160 @@ function closeAndOpenManageSubjects(divId) {
   panelEl.addEventListener('hidden.bs.modal', () => {
     openManageSubjects(divId, sector ? sector.name : '');
   }, { once: true });
+}
+
+// ── Grade reorder via AJAX (no page reload) ───────────────────────────────────
+async function moveGrade(gradeId, direction, btn) {
+  btn.disabled = true;
+  try {
+    const resp = await fetch(`/admin/grades/${gradeId}/move/${direction}`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (resp.ok) {
+      const row = document.getElementById(`grade-row-${gradeId}`);
+      if (direction === 'up') {
+        const prev = row.previousElementSibling;
+        if (prev) row.parentNode.insertBefore(row, prev);
+      } else {
+        const next = row.nextElementSibling;
+        if (next) row.parentNode.insertBefore(next, row);
+      }
+      refreshGradeArrows(row.parentNode);
+    }
+  } catch {}
+  btn.disabled = false;
+}
+
+function refreshGradeArrows(container) {
+  const rows = [...container.querySelectorAll('.grade-row')];
+  rows.forEach((row, i) => {
+    const upBtn   = row.querySelector('[data-move-dir="up"]');
+    const downBtn = row.querySelector('[data-move-dir="down"]');
+    if (upBtn)   upBtn.style.visibility   = i === 0                  ? 'hidden' : '';
+    if (downBtn) downBtn.style.visibility = i === rows.length - 1    ? 'hidden' : '';
+  });
+}
+
+// ── Inline rename grade ───────────────────────────────────────────────────────
+function renameGradeInline(gradeId, triggerBtn) {
+  const row = document.getElementById(`grade-row-${gradeId}`);
+  const nameSpan = row.querySelector('.grade-name');
+  if (!nameSpan || nameSpan.querySelector('input')) return;
+
+  const currentName = nameSpan.textContent.trim();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.className = 'form-control form-control-sm d-inline-block';
+  input.style.cssText = 'width:130px;font-size:.82rem;padding:1px 6px';
+  nameSpan.textContent = '';
+  nameSpan.appendChild(input);
+  triggerBtn.disabled = true;
+  input.focus();
+  input.select();
+
+  let saved = false;
+  async function save() {
+    if (saved) return;
+    saved = true;
+    const newName = input.value.trim();
+    if (!newName || newName === currentName) {
+      nameSpan.textContent = currentName;
+      triggerBtn.disabled = false;
+      return;
+    }
+    input.disabled = true;
+    try {
+      const resp = await fetch(`/admin/grades/${gradeId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ name: newName })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.ok) {
+        nameSpan.textContent = data.name;
+        const avatar = row.querySelector('.grade-avatar');
+        if (avatar) avatar.textContent = data.name[0].toUpperCase();
+      } else {
+        nameSpan.textContent = currentName;
+        alert(data.error || '{{ _("Erro ao renomear.") }}');
+      }
+    } catch {
+      nameSpan.textContent = currentName;
+    }
+    triggerBtn.disabled = false;
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { saved = true; nameSpan.textContent = currentName; triggerBtn.disabled = false; }
+  });
+  input.addEventListener('blur', save);
+}
+
+// ── Inline rename subject (inside manage-subjects modal) ─────────────────────
+function renameSubjectInModal(subjectId, divId, triggerBtn) {
+  const nameSpan = document.getElementById(`ms-subj-name-${subjectId}`);
+  if (!nameSpan || nameSpan.querySelector('input')) return;
+
+  const currentName = nameSpan.textContent.trim();
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.className = 'form-control form-control-sm';
+  input.style.cssText = 'font-size:.85rem;padding:1px 6px';
+  nameSpan.textContent = '';
+  nameSpan.appendChild(input);
+  triggerBtn.disabled = true;
+  input.focus();
+  input.select();
+
+  let saved = false;
+  async function save() {
+    if (saved) return;
+    saved = true;
+    const newName = input.value.trim();
+    if (!newName || newName === currentName) {
+      nameSpan.textContent = currentName;
+      triggerBtn.disabled = false;
+      return;
+    }
+    const row = document.getElementById(`ms-subj-${subjectId}`);
+    if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+    try {
+      const resp = await fetch(`/admin/subjects/${subjectId}/rename`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ name: newName })
+      });
+      const data = await resp.json();
+      if (resp.ok && data.ok) {
+        const subj = SECTORS_MAP[divId].subjects.find(s => s.id === subjectId);
+        if (subj) subj.name = data.name;
+        const sector = SECTORS_MAP[divId];
+        Object.keys(sector.grades).forEach(gid => updateGradePills(parseInt(gid), divId));
+        updateSectorMeta(divId);
+        renderManageSubjects(divId);
+        if (_curDivId === divId) renderSubjectPanel(_curGradeId, divId);
+      } else {
+        nameSpan.textContent = currentName;
+        alert(data.error || '{{ _("Erro ao renomear.") }}');
+        if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; }
+        triggerBtn.disabled = false;
+      }
+    } catch {
+      nameSpan.textContent = currentName;
+      if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; }
+      triggerBtn.disabled = false;
+    }
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { saved = true; nameSpan.textContent = currentName; triggerBtn.disabled = false; }
+  });
+  input.addEventListener('blur', save);
 }
 
 // ── Auto-focus new sector modal ───────────────────────────────────────────────

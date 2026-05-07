@@ -74,7 +74,6 @@ def get_slots(event_id, student_id):
             booking_id = None
         else:
             conflict = any(
-                s != slot.start_datetime and
                 s < slot.end_datetime and e > slot.start_datetime
                 for s, e in my_times
             )

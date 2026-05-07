@@ -15,10 +15,10 @@
 thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
 
 /* ── Time header cells ───────────────────────────────────── */
-.time-header { min-width: 72px; font-size: .72rem; }
+.time-header { min-width: 72px; font-size: .72rem; white-space: nowrap; }
 
 /* ── Slot cells ──────────────────────────────────────────── */
-.slot-cell { min-width: 72px; height: 60px; }
+.slot-cell { height: 60px; }
 .slot-time-label { font-size: .68rem; line-height: 1.25; }
 
 .slot-available  { background: #f8f9fa; cursor: pointer; transition: background .12s; }
@@ -316,28 +316,22 @@ function renderGrid() {
   /* ---------- filter slots to active day ---------- */
   const daySlots = activeDayId ? allSlots.filter(s => s.day_id === activeDayId) : allSlots;
 
-  /* ---------- collect unique teachers & times ---------- */
+  /* ---------- collect teachers ---------- */
   const teachers = {};
-  const timesSet  = new Set();
   daySlots.forEach(s => {
     if (!teachers[s.teacher_id])
       teachers[s.teacher_id] = { name: s.teacher_name, subject: s.subject };
-    timesSet.add(s.start);
   });
-
-  /* Build teacher map across ALL days for the filter modal */
   const allTeachersMap = {};
   allSlots.forEach(s => {
     if (!allTeachersMap[s.teacher_id])
       allTeachersMap[s.teacher_id] = { name: s.teacher_name, subject: s.subject };
   });
-
-  const sortedTimes = [...timesSet].sort();
-  const teacherIds  = Object.keys(teachers)
+  const teacherIds = Object.keys(teachers)
     .filter(tid => !hiddenSubjects.has(teachers[tid].subject) && !hiddenTeachers.has(tid));
 
   /* ---------- empty state ---------- */
-  if (!teacherIds.length || !sortedTimes.length) {
+  if (!teacherIds.length || !daySlots.length) {
     document.getElementById('noSlots').classList.remove('d-none');
     document.getElementById('slotGrid').classList.add('d-none');
     renderSidebar([]);
@@ -346,17 +340,45 @@ function renderGrid() {
   }
   document.getElementById('noSlots').classList.add('d-none');
   document.getElementById('slotGrid').classList.remove('d-none');
-
   buildFilterModal(allTeachersMap);
 
-  /* ---------- slot lookup map (active day only) ---------- */
+  /* ---------- timeline parameters ---------- */
+  const isoToMin = iso => parseInt(iso.slice(11,13)) * 60 + parseInt(iso.slice(14,16));
+  const minToHHMM = m => String(Math.floor(m / 60) % 24).padStart(2,'0') + ':'
+                       + String(m % 60).padStart(2,'0');
+  const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+
+  const getDur = s => (isoToMin(s.end) - isoToMin(s.start) + 1440) % 1440;
+  const uniqueDurs = [...new Set(daySlots.map(getDur))].filter(d => d > 0);
+  const baseUnit   = Math.max(1, uniqueDurs.reduce(gcd));
+  const defaultDur = Math.min(...uniqueDurs);
+
+  const COL_W = Math.max(18, Math.round(72 * baseUnit / defaultDur));
+
+  const tStartMin = Math.min(...daySlots.map(s => isoToMin(s.start)));
+  const tEndMin   = Math.max(...daySlots.map(s => isoToMin(s.end)));
+  const totalMin  = tEndMin - tStartMin;
+
+  const baseColumns = [];
+  for (let m = 0; m < totalMin; m += baseUnit) baseColumns.push(m);
+
+  /* ---------- slot lookup: tid_offsetMin → slot ---------- */
   const slotMap = {};
-  daySlots.forEach(s => { slotMap[`${s.teacher_id}_${s.start}`] = s; });
+  daySlots.forEach(s => {
+    slotMap[`${s.teacher_id}_${isoToMin(s.start) - tStartMin}`] = s;
+  });
 
-  /* ---------- times already booked by me (across ALL days) ---------- */
-  const bookedTimes = new Set(allSlots.filter(s => s.status === 'booked_by_me').map(s => s.start));
+  /* ---------- booked ranges ---------- */
+  const bookedRanges = allSlots
+    .filter(s => s.status === 'booked_by_me')
+    .map(s => ({ start: isoToMin(s.start), end: isoToMin(s.end) }));
+  const isTimeConflict = (sMin, eMin) => bookedRanges.some(b => b.start < eMin && b.end > sMin);
+  const isColCovered   = offsetMin => {
+    const absMin = tStartMin + offsetMin;
+    return bookedRanges.some(b => b.start <= absMin && b.end > absMin);
+  };
 
-  /* ---------- header row: [Teacher] [time0] [time1] … ---------- */
+  /* ---------- header row ---------- */
   const head = document.getElementById('gridHead');
   head.innerHTML = '';
   const hr = head.insertRow();
@@ -366,13 +388,17 @@ function renderGrid() {
   thLabel.textContent = MSG_TEACHER_HDR;
   hr.appendChild(thLabel);
 
-  sortedTimes.forEach((time, tIdx) => {
+  const majorSpan = Math.max(1, Math.round(defaultDur / baseUnit));
+  for (let m = 0; m < totalMin; m += defaultDur) {
     const th = document.createElement('th');
     th.className = 'time-header text-center align-middle';
-    th.setAttribute('data-time-idx', tIdx);
-    th.textContent = fmtTime(time);
+    if (majorSpan > 1) th.colSpan = majorSpan;
+    th.style.minWidth = (COL_W * majorSpan) + 'px';
+    th.dataset.colStart = m;
+    th.dataset.colEnd   = m + defaultDur;
+    th.textContent = minToHHMM(tStartMin + m);
     hr.appendChild(th);
-  });
+  }
 
   /* ---------- one row per teacher ---------- */
   const body = document.getElementById('gridBody');
@@ -381,79 +407,92 @@ function renderGrid() {
   teacherIds.forEach(tid => {
     const tr = body.insertRow();
 
-    /* teacher name + subject cell */
     const tc = tr.insertCell();
     tc.className = 'teacher-sticky align-middle ps-2';
     tc.innerHTML = `<div class="fw-semibold small lh-sm">${teachers[tid].name}</div>`
                  + `<div class="text-primary" style="font-size:.68rem">${teachers[tid].subject}</div>`;
 
-    /* one cell per time slot */
-    sortedTimes.forEach((time, tIdx) => {
-      const td  = tr.insertCell();
-      td.className = 'slot-cell text-center align-middle p-1';
-      td.setAttribute('data-time-idx', tIdx);
+    let colIdx = 0;
+    while (colIdx < baseColumns.length) {
+      const offsetMin = baseColumns[colIdx];
+      const slot      = slotMap[`${tid}_${offsetMin}`];
 
-      const slot = slotMap[`${tid}_${time}`];
-      const timeBooked = bookedTimes.has(time);
+      if (slot) {
+        const slotDur = getDur(slot);
+        const span    = Math.max(1, Math.round(slotDur / baseUnit));
 
-      if (!slot) {
-        td.classList.add(timeBooked ? 'slot-blocked' : 'slot-empty');
-        return;
-      }
+        const td = tr.insertCell();
+        td.className = 'slot-cell text-center align-middle p-1';
+        if (span > 1) td.colSpan = span;
+        td.dataset.colStart = offsetMin;
+        td.dataset.colEnd   = offsetMin + slotDur;
 
-      const timeLabel = `<div class="slot-time-label">
-        <span class="fw-semibold d-block">${fmtTime(slot.start)}</span>
-        <span class="text-muted">${fmtTime(slot.end)}</span>
-      </div>`;
+        const sMin = isoToMin(slot.start);
+        const eMin = isoToMin(slot.end);
+        const timeBooked = isTimeConflict(sMin, eMin);
 
-      switch (slot.status) {
-        case 'available': {
-          const bookDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
-          const pastDeadline = new Date() >= bookDeadline;
-          if (timeBooked) {
-            td.classList.add('slot-blocked');
-            td.innerHTML = timeLabel;
-          } else if (pastDeadline) {
-            td.classList.add('slot-locked');
-            td.title = '{{ _('Prazo de agendamento encerrado') }}';
-            td.innerHTML = `<i class="bi bi-lock-fill d-block" style="font-size:.75rem;opacity:.5"></i>${timeLabel}`;
-          } else {
-            td.classList.add('slot-available');
-            td.innerHTML = timeLabel;
-            td.addEventListener('click',       () => bookSlot(slot.slot_id, td));
-            td.addEventListener('mouseenter',  () => highlightCol(tIdx, true));
-            td.addEventListener('mouseleave',  () => highlightCol(tIdx, false));
+        const timeLabel = `<div class="slot-time-label">
+          <span class="fw-semibold d-block">${fmtTime(slot.start)}</span>
+          <span class="text-muted">${fmtTime(slot.end)}</span>
+        </div>`;
+
+        switch (slot.status) {
+          case 'available': {
+            const bookDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
+            const pastDeadline = new Date() >= bookDeadline;
+            if (timeBooked) {
+              td.classList.add('slot-blocked');
+              td.innerHTML = timeLabel;
+            } else if (pastDeadline) {
+              td.classList.add('slot-locked');
+              td.title = '{{ _('Prazo de agendamento encerrado') }}';
+              td.innerHTML = `<i class="bi bi-lock-fill d-block" style="font-size:.75rem;opacity:.5"></i>${timeLabel}`;
+            } else {
+              td.classList.add('slot-available');
+              td.innerHTML = timeLabel;
+              td.addEventListener('click',      () => bookSlot(slot.slot_id, td));
+              td.addEventListener('mouseenter', () => highlightCols(offsetMin, offsetMin + slotDur, true));
+              td.addEventListener('mouseleave', () => highlightCols(offsetMin, offsetMin + slotDur, false));
+            }
+            break;
           }
-          break;
+          case 'booked_by_me': {
+            td.classList.add('slot-booked-me');
+            td.innerHTML = `<i class="bi bi-check-circle-fill text-success d-block mb-1" style="font-size:1rem"></i>${timeLabel}`;
+            const cancelDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
+            if (new Date() < cancelDeadline) {
+              td.classList.add('slot-cancellable');
+              td.addEventListener('click',      () => cancelSlot(slot.booking_id, td));
+              td.addEventListener('mouseenter', () => highlightCols(offsetMin, offsetMin + slotDur, true));
+              td.addEventListener('mouseleave', () => highlightCols(offsetMin, offsetMin + slotDur, false));
+            }
+            break;
+          }
+          case 'booked_by_others':
+            td.classList.add('slot-taken');
+            td.innerHTML = `<i class="bi bi-x-lg"></i>`;
+            break;
+          case 'conflict':
+            td.classList.add(timeBooked ? 'slot-blocked' : 'slot-conflict');
+            if (!timeBooked) td.title = "{{ _('Conflito de horário') }}";
+            break;
         }
 
-        case 'booked_by_me': {
-          td.classList.add('slot-booked-me');
-          td.innerHTML = `<i class="bi bi-check-circle-fill text-success d-block mb-1" style="font-size:1rem"></i>${timeLabel}`;
-          const cancelDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
-          if (new Date() < cancelDeadline) {
-            td.classList.add('slot-cancellable');
-            td.addEventListener('click',      () => cancelSlot(slot.booking_id, td));
-            td.addEventListener('mouseenter', () => highlightCol(tIdx, true));
-            td.addEventListener('mouseleave', () => highlightCol(tIdx, false));
-          }
-          break;
-        }
-
-        case 'booked_by_others':
-          td.classList.add('slot-taken');
-          td.innerHTML = `<i class="bi bi-x-lg"></i>`;
-          break;
-
-        case 'conflict':
-          td.classList.add(timeBooked ? 'slot-blocked' : 'slot-conflict');
-          if (!timeBooked) td.title = "{{ _('Conflito de horário') }}";
-          break;
+        colIdx += span;
+      } else {
+        const td = tr.insertCell();
+        td.className = 'slot-cell text-center align-middle p-1';
+        td.style.width    = COL_W + 'px';
+        td.style.minWidth = COL_W + 'px';
+        td.dataset.colStart = offsetMin;
+        td.dataset.colEnd   = offsetMin + baseUnit;
+        td.classList.add(isColCovered(offsetMin) ? 'slot-blocked' : 'slot-empty');
+        colIdx += 1;
       }
-    });
+    }
   });
 
-  /* ---------- booked meetings sidebar ---------- */
+  /* ---------- sidebar ---------- */
   renderSidebar(
     allSlots
       .filter(s => s.status === 'booked_by_me')
@@ -578,10 +617,14 @@ function updateFilterBadge() {
   badge.classList.toggle('d-none', count === 0);
 }
 
-/* ── Column highlight on hover ───────────────────────────── */
-function highlightCol(tIdx, on) {
-  document.querySelectorAll(`[data-time-idx="${tIdx}"]`)
-    .forEach(el => el.classList.toggle('col-hover', on));
+/* ── Column highlight on hover (by time range) ───────────── */
+function highlightCols(startOffsetMin, endOffsetMin, on) {
+  document.querySelectorAll('[data-col-start]').forEach(el => {
+    const cs = parseInt(el.dataset.colStart);
+    const ce = parseInt(el.dataset.colEnd);
+    if (cs < endOffsetMin && ce > startOffsetMin)
+      el.classList.toggle('col-hover', on);
+  });
 }
 
 /* ── Helpers ─────────────────────────────────────────────── */
