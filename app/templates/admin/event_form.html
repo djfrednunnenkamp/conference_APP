@@ -154,7 +154,7 @@
           {% for div in divisions %}
           {% set dk = div.id | string %}
           {% set esect = existing_sectors.get(dk, {}) %}
-          <div class="ev-sector-item{% if event or esect %} open{% endif %}"
+          <div class="ev-sector-item"
                data-div-id="{{ div.id }}" id="evSector_{{ div.id }}">
 
             {# ── Header ─────────────────────────────────────────────── #}
