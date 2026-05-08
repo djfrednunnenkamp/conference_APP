@@ -111,6 +111,31 @@
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1">
+              {% if is_past %}
+              {# ── Archive: read-only view, copy, delete ── #}
+              <a href="{{ url_for('admin.event_bookings', id=event.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Ver agendamentos') }}">
+                <i class="bi bi-eye"></i>
+              </a>
+              {% if current_user.role == 'admin' %}
+              <form method="POST" action="{{ url_for('admin.copy_event', event_id=event.id) }}" class="d-inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-primary btn-sm" title="{{ _('Copiar evento') }}">
+                  <i class="bi bi-copy"></i>
+                </button>
+              </form>
+              <form method="POST" action="{{ url_for('admin.delete_event', id=event.id) }}" class="d-inline"
+                    data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
+                    data-pan-title="{{ _('Excluir evento permanentemente') }}"
+                    data-pan-danger="1" data-pan-confirm-text="{{ _('Excluir') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-outline-danger btn-sm" title="{{ _('Excluir') }}">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+              {% else %}
+              {# ── Active: full controls ── #}
               {% if event.status == 'published' %}
               <button type="button" class="btn btn-outline-secondary btn-sm"
                       title="{{ _('Editar') }}"
@@ -176,6 +201,7 @@
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
+              {% endif %}
               {% endif %}
             </div>
           </td>

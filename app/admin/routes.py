@@ -561,12 +561,14 @@ def edit_teacher(id):
         db.session.commit()
         flash(_("Professor atualizado."), "success")
         return redirect(url_for("admin.teachers"))
+    past_conferences = _past_conferences_for_teacher(user.id)
     return render_template("admin/teacher_form.html",
                            form=form,
                            grade_subjects_by_sector=grade_subjects_by_sector,
                            sg_data_js=_sg_data_js(grade_subjects_by_sector),
                            existing_sgs=existing_sgs,
-                           teacher=user)
+                           teacher=user,
+                           past_conferences=past_conferences)
 
 
 @admin_bp.route("/teachers/<int:id>/resend-invite", methods=["POST"])
@@ -693,7 +695,9 @@ def edit_guardian(id):
             db.session.commit()
             flash(_("Responsável atualizado."), "success")
             return redirect(url_for("admin.guardians"))
-    return render_template("admin/guardian_form.html", form=form, guardian=user)
+    past_conferences = _past_conferences_for_guardian(user.id)
+    return render_template("admin/guardian_form.html", form=form, guardian=user,
+                           past_conferences=past_conferences)
 
 
 @admin_bp.route("/guardians/new", methods=["POST"])
@@ -2669,10 +2673,12 @@ def edit_student(id):
                           .join(Subject).order_by(Subject.name).all())
         excluded_ids = {e.subject_id for e in
                         StudentSubjectExclusion.query.filter_by(student_id=user.id).all()}
+    past_conferences = _past_conferences_for_student(user.id)
     return render_template("admin/student_form.html", form=form, student=user,
                            is_new=is_new,
                            guardians=guardians, available_guardians=available_guardians,
-                           grade_subjects=grade_subjects, excluded_ids=excluded_ids)
+                           grade_subjects=grade_subjects, excluded_ids=excluded_ids,
+                           past_conferences=past_conferences)
 
 
 @admin_bp.route("/students/<int:student_id>/subjects/<int:subject_id>/toggle", methods=["POST"])
@@ -2765,6 +2771,76 @@ def update_guardian_from_student(student_id, guardian_id):
     return redirect(url_for("admin.edit_student", id=student_id))
 
 
+# ── Past-conference helpers ──────────────────────────────────────────────────
+
+def _past_event_filter():
+    today = date_type.today()
+    return db.or_(ConferenceEvent.status == "closed", ConferenceDay.date < today)
+
+
+def _past_conferences_for_guardian(guardian_id):
+    rows = (
+        db.session.query(Booking, Slot, ConferenceDay, ConferenceEvent)
+        .join(Slot, Slot.id == Booking.slot_id)
+        .join(ConferenceDay, ConferenceDay.id == Slot.day_id)
+        .join(ConferenceEvent, ConferenceEvent.id == ConferenceDay.event_id)
+        .filter(Booking.booked_by_id == guardian_id, Booking.cancelled_at == None,
+                _past_event_filter())
+        .order_by(ConferenceEvent.id, ConferenceDay.date, Slot.start_datetime)
+        .all()
+    )
+    events_map = {}
+    for booking, slot, day, event in rows:
+        if event.id not in events_map:
+            events_map[event.id] = {"event": event, "meetings": []}
+        events_map[event.id]["meetings"].append(
+            {"student": booking.student, "teacher": slot.teacher, "day": day, "slot": slot}
+        )
+    return list(events_map.values())
+
+
+def _past_conferences_for_student(student_id):
+    rows = (
+        db.session.query(Booking, Slot, ConferenceDay, ConferenceEvent)
+        .join(Slot, Slot.id == Booking.slot_id)
+        .join(ConferenceDay, ConferenceDay.id == Slot.day_id)
+        .join(ConferenceEvent, ConferenceEvent.id == ConferenceDay.event_id)
+        .filter(Booking.student_id == student_id, Booking.cancelled_at == None,
+                _past_event_filter())
+        .order_by(ConferenceEvent.id, ConferenceDay.date, Slot.start_datetime)
+        .all()
+    )
+    events_map = {}
+    for booking, slot, day, event in rows:
+        if event.id not in events_map:
+            events_map[event.id] = {"event": event, "meetings": []}
+        events_map[event.id]["meetings"].append(
+            {"teacher": slot.teacher, "day": day, "slot": slot}
+        )
+    return list(events_map.values())
+
+
+def _past_conferences_for_teacher(teacher_id):
+    rows = (
+        db.session.query(Slot, ConferenceDay, ConferenceEvent, Booking)
+        .join(ConferenceDay, ConferenceDay.id == Slot.day_id)
+        .join(ConferenceEvent, ConferenceEvent.id == ConferenceDay.event_id)
+        .outerjoin(Booking, Booking.slot_id == Slot.id)
+        .filter(Slot.teacher_id == teacher_id, Slot.is_booked == True,
+                Slot.is_break == False, _past_event_filter())
+        .order_by(ConferenceEvent.id, ConferenceDay.date, Slot.start_datetime)
+        .all()
+    )
+    events_map = {}
+    for slot, day, event, booking in rows:
+        if event.id not in events_map:
+            events_map[event.id] = {"event": event, "meetings": []}
+        events_map[event.id]["meetings"].append(
+            {"student": booking.student if booking else None, "day": day, "slot": slot}
+        )
+    return list(events_map.values())
+
+
 # ── Events ─────────────────────────────────────────────────────────────────────
 
 @admin_bp.route("/events")
@@ -2773,6 +2849,52 @@ def update_guardian_from_student(student_id, guardian_id):
 def events():
     all_events = ConferenceEvent.query.order_by(ConferenceEvent.name).all()
     return render_template("admin/events.html", events=all_events, today=date_type.today())
+
+
+@admin_bp.route("/events/<int:event_id>/copy", methods=["POST"])
+@login_required
+@admin_required
+def copy_event(event_id):
+    src = ConferenceEvent.query.get_or_404(event_id)
+    new_event = ConferenceEvent(
+        name=f"{src.name} cópia",
+        student_booking_allowed=src.student_booking_allowed,
+        allow_duplicate_teacher_booking=src.allow_duplicate_teacher_booking,
+        cancel_deadline_hours=src.cancel_deadline_hours,
+        status="draft",
+    )
+    db.session.add(new_event)
+    db.session.flush()
+    for sector in src.sectors:
+        new_sector = EventSector(
+            event_id=new_event.id,
+            division_id=sector.division_id,
+            start_time=sector.start_time,
+            end_time=sector.end_time,
+            slot_duration_minutes=sector.slot_duration_minutes,
+            break_minutes=sector.break_minutes,
+        )
+        db.session.add(new_sector)
+        db.session.flush()
+        for tc in sector.teacher_configs:
+            db.session.add(EventSectorTeacher(
+                sector_id=new_sector.id,
+                teacher_id=tc.teacher_id,
+                slot_duration_minutes=tc.slot_duration_minutes,
+            ))
+    for day in src.days:
+        db.session.add(ConferenceDay(
+            event_id=new_event.id,
+            division_id=day.division_id,
+            date=day.date,
+            start_time=day.start_time,
+            end_time=day.end_time,
+            slot_duration_minutes=day.slot_duration_minutes,
+            break_minutes=day.break_minutes,
+        ))
+    db.session.commit()
+    flash(_("Evento copiado como rascunho."), "success")
+    return redirect(url_for("admin.edit_event", id=new_event.id))
 
 
 def _has_at_least_one_day():

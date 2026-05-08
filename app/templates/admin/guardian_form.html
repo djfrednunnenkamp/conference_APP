@@ -55,4 +55,41 @@
   </div>
   {% endif %}
 </div>
+
+{% if past_conferences %}
+<div class="mt-4">
+  <h6 class="fw-bold text-muted mb-3 text-uppercase" style="font-size:.72rem;letter-spacing:.06em">
+    <i class="bi bi-archive me-1"></i>{{ _('Conferências passadas') }}
+  </h6>
+  {% for pc in past_conferences %}
+  <div class="card shadow-sm mb-3">
+    <div class="card-header py-2 d-flex align-items-center justify-content-between">
+      <span class="fw-semibold small">{{ pc.event.name }}</span>
+      {% set ev_days = pc.event.days %}
+      {% if ev_days %}
+      <span class="text-muted small">
+        {% if ev_days[0].date == ev_days[-1].date %}{{ ev_days[0].date.strftime('%d/%m/%Y') }}
+        {% else %}{{ ev_days[0].date.strftime('%d/%m') }} – {{ ev_days[-1].date.strftime('%d/%m/%Y') }}{% endif %}
+      </span>
+      {% endif %}
+    </div>
+    <ul class="list-group list-group-flush">
+      {% for m in pc.meetings %}
+      <li class="list-group-item py-2 small d-flex justify-content-between align-items-center">
+        <span>
+          <span class="fw-semibold">{{ m.student.full_name }}</span>
+          <span class="text-muted mx-1">·</span>
+          {{ m.teacher.full_name }}
+        </span>
+        <span class="text-muted">
+          {{ m.day.date.strftime('%d/%m') }}
+          {{ m.slot.start_datetime.strftime('%H:%M') }}–{{ m.slot.end_datetime.strftime('%H:%M') }}
+        </span>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}
