@@ -2894,7 +2894,7 @@ def copy_event(event_id):
         ))
     db.session.commit()
     flash(_("Evento copiado como rascunho."), "success")
-    return redirect(url_for("admin.edit_event", id=new_event.id))
+    return redirect(url_for("admin.edit_event", id=new_event.id, is_new=1))
 
 
 def _has_at_least_one_day():
@@ -2934,7 +2934,7 @@ def new_event():
             _save_event_sectors(event, conflict_action='keep')
             db.session.commit()
             flash(_("Evento criado e horários gerados."), "success")
-            return redirect(url_for("admin.edit_event", id=event.id))
+            return redirect(url_for("admin.edit_event", id=event.id, is_new=1))
     sector_teachers_js = _build_sector_teachers_js(divisions)
     # Preserve submitted form data on validation error
     existing_sectors = {}
@@ -3042,6 +3042,7 @@ def edit_event(id):
         TeacherBreak.query.join(ConferenceDay, TeacherBreak.day_id == ConferenceDay.id)
         .filter(ConferenceDay.event_id == id).all()
     })
+    is_new = request.args.get('is_new') == '1'
     return render_template("admin/event_form.html",
                            form=form, event=event,
                            divisions=divisions,
@@ -3052,7 +3053,8 @@ def edit_event(id):
                            absent_set_list=absent_set_list,
                            absent_set=absent_set,
                            secretary_division_ids=secretary_division_ids,
-                           teachers_with_breaks=teachers_with_breaks)
+                           teachers_with_breaks=teachers_with_breaks,
+                           is_new=is_new)
 
 
 @admin_bp.route("/events/<int:id>/publish", methods=["POST"])
@@ -3171,6 +3173,8 @@ def event_bookings(id):
     students_list  = sorted({(b.student_id, b.student.full_name) for b in bookings if b.student}, key=lambda x: x[1])
     guardians_list = sorted({(gid, guardians_map[gid].full_name) for gid in guardian_ids if gid in guardians_map}, key=lambda x: x[1])
 
+    today = date_type.today()
+    is_past = (event.status == 'closed') or (bool(event.days) and event.days[-1].date < today)
     return render_template("admin/event_bookings.html",
                            event=event, bookings=bookings,
                            teacher_ids_with_bookings=teacher_ids_with_bookings,
@@ -3178,7 +3182,58 @@ def event_bookings(id):
                            teachers_list=teachers_list,
                            students_list=students_list,
                            guardians_list=guardians_list,
-                           guardian_ids_by_student=guardian_ids_by_student)
+                           guardian_ids_by_student=guardian_ids_by_student,
+                           is_past=is_past)
+
+
+@admin_bp.route("/events/<int:id>/export-students.csv")
+@login_required
+@secretary_or_admin_required
+def export_event_students(id):
+    event = ConferenceEvent.query.get_or_404(id)
+    bookings = (Booking.query
+                .join(Slot).join(ConferenceDay)
+                .filter(ConferenceDay.event_id == id, Booking.cancelled_at == None)
+                .all())
+    # Count meetings per student
+    counts = {}
+    students = {}
+    for b in bookings:
+        sid = b.student_id
+        counts[sid] = counts.get(sid, 0) + 1
+        if sid not in students:
+            students[sid] = b.student
+
+    threshold  = max(1, int(request.args.get('threshold', 1) or 1))
+    mode       = request.args.get('mode', 'all')   # all | gte | lte
+    inc_count  = request.args.get('inc_count',  '0') == '1'
+    inc_status = request.args.get('inc_status', '1') == '1'
+
+    rows = []
+    for sid, student in students.items():
+        n = counts[sid]
+        if mode == 'gte' and n < threshold:
+            continue
+        if mode == 'lte' and n > threshold:
+            continue
+        row = {'Nome': student.first_name, 'Sobrenome': student.last_name,
+               'E-mail': student.email}
+        if inc_count:
+            row['Reuniões'] = n
+        if inc_status:
+            row['Status'] = _('Fez') if n >= threshold else _('Não fez')
+        rows.append(row)
+
+    rows.sort(key=lambda r: (r['Sobrenome'], r['Nome']))
+    output = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+    safe_name = re.sub(r'[^\w\-]', '_', event.name)
+    return Response(output.getvalue(), mimetype='text/csv',
+                    headers={'Content-Disposition':
+                             f'attachment; filename="alunos_{safe_name}.csv"'})
 
 
 @admin_bp.route("/events/<int:id>/print")

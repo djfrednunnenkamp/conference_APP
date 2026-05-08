@@ -278,9 +278,18 @@
                 {% if event and event.status != 'draft' %}disabled{% endif %}>
           <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
         </button>
+        {% if is_new and event and event.status == 'draft' %}
+        <form method="POST" action="{{ url_for('admin.delete_event', id=event.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline-danger">
+            <i class="bi bi-x-circle me-1"></i>{{ _('Descartar') }}
+          </button>
+        </form>
+        {% else %}
         <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary">
           {{ _('Cancelar') }}
         </a>
+        {% endif %}
       </div>
 
     </div>{# /col-lg-8 #}
