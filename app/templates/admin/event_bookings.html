@@ -22,6 +22,23 @@
 .filter-chip-guardian        { border-color: #059669; color: #059669; }
 .filter-chip-guardian.active { background: #059669; border-color: #059669; }
 .stat-card { border-radius: 12px; padding: 14px 18px; }
+/* export modal chips */
+.exp-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  border: 1.5px solid #e2e8f0; background: #f8fafc; color: #475569;
+  border-radius: 20px; padding: .3rem .85rem; font-size: .82rem;
+  font-weight: 500; cursor: pointer; user-select: none;
+  transition: background .12s, border-color .12s, color .12s;
+  white-space: nowrap;
+}
+.exp-chip:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.exp-chip.active { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+.exp-chip.active.green { background: #f0fdf4; border-color: #86efac; color: #15803d; }
+.exp-chip i { font-size: .78rem; }
+.exp-section-label {
+  font-size: .7rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: #94a3b8; margin-bottom: .6rem;
+}
 </style>
 {% endblock %}
 
@@ -280,41 +297,45 @@
 {# ── Export students modal (archive only) ── #}
 {% if is_past %}
 <div class="modal fade" id="exportStudentsModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:440px">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
     <div class="modal-content">
       <div class="modal-header py-2">
         <h6 class="modal-title fw-semibold">
-          <i class="bi bi-file-earmark-arrow-down me-2"></i>{{ _('Exportar Alunos — CSV') }}
+          <i class="bi bi-file-earmark-arrow-down me-2"></i>{{ _('Exportar Alunos') }}
         </h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body pb-2">
 
-        <p class="text-muted small mb-3">{{ _('Colunas a incluir:') }}</p>
+        {# ── Colunas extras ── #}
+        <div class="exp-section-label"><i class="bi bi-table me-1"></i>{{ _('Colunas extras') }}</div>
         <div class="d-flex flex-wrap gap-2 mb-3">
-          <label class="form-check form-check-inline m-0">
-            <input class="form-check-input exp-col" type="checkbox" id="expColCount">
-            <span class="form-check-label small">{{ _('Nº de reuniões') }}</span>
-          </label>
-          <label class="form-check form-check-inline m-0">
-            <input class="form-check-input exp-col" type="checkbox" id="expColStatus" checked>
-            <span class="form-check-label small">{{ _('Status (fez / não fez)') }}</span>
-          </label>
+          <span class="exp-chip" id="chipCount" data-active="0">
+            <i class="bi bi-hash"></i>{{ _('Nº de reuniões') }}
+          </span>
+          <span class="exp-chip active" id="chipStatus" data-active="1">
+            <i class="bi bi-check2-circle"></i>{{ _('Status fez / não fez') }}
+          </span>
         </div>
 
-        <hr class="my-2">
-        <p class="text-muted small mb-2">{{ _('Limite de reuniões para "fez":') }}</p>
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <input type="number" id="expThreshold" class="form-control form-control-sm" min="1" value="1" style="max-width:90px">
-          <span class="text-muted small">{{ _('reuniões') }}</span>
+        {# ── Seção de limite — aparece quando Status está ativo ── #}
+        <div id="expThresholdSection">
+          <div class="exp-section-label"><i class="bi bi-sliders me-1"></i>{{ _('Limite de reuniões') }}</div>
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="text-muted small">{{ _('"Fez" = ') }}</span>
+            <input type="number" id="expThreshold" class="form-control form-control-sm text-center fw-semibold"
+                   min="1" value="1" style="width:64px">
+            <span class="text-muted small">{{ _('ou mais reuniões') }}</span>
+          </div>
+
+          <div class="exp-section-label"><i class="bi bi-funnel me-1"></i>{{ _('Baixar') }}</div>
+          <div class="d-flex flex-wrap gap-2">
+            <span class="exp-chip active green" id="expModeAll"  data-mode="all">{{ _('Todos') }}</span>
+            <span class="exp-chip"              id="expModeGte"  data-mode="gte">≥ <span class="exp-n">1</span> {{ _('reuniões') }}</span>
+            <span class="exp-chip"              id="expModeLte"  data-mode="lte">< <span class="exp-n">1</span> {{ _('reunião') }}</span>
+          </div>
         </div>
 
-        <p class="text-muted small mb-2">{{ _('Filtrar quem baixar:') }}</p>
-        <div class="d-flex gap-2 flex-wrap" id="expModeGroup">
-          <button type="button" class="btn btn-sm btn-primary exp-mode-btn" data-mode="all">{{ _('Todos') }}</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary exp-mode-btn" data-mode="gte">N {{ _('ou mais') }}</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary exp-mode-btn" data-mode="lte">N {{ _('ou menos') }}</button>
-        </div>
       </div>
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
@@ -490,25 +511,74 @@ document.addEventListener("DOMContentLoaded", () => { updatePrintLabels(); apply
 {% if is_past %}
 // ── Export students modal ──────────────────────────────────────────────────
 const EXPORT_STUDENTS_URL = "{{ url_for('admin.export_event_students', id=event.id) }}";
-let expMode = 'all';
-document.querySelectorAll('.exp-mode-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    expMode = btn.dataset.mode;
-    document.querySelectorAll('.exp-mode-btn').forEach(b => {
-      b.className = b.dataset.mode === expMode
-        ? 'btn btn-sm btn-primary exp-mode-btn'
-        : 'btn btn-sm btn-outline-secondary exp-mode-btn';
-    });
+
+let expMode       = 'all';
+let expStatusOn   = true;
+let expCountOn    = false;
+
+const chipCount    = document.getElementById('chipCount');
+const chipStatus   = document.getElementById('chipStatus');
+const thresholdSec = document.getElementById('expThresholdSection');
+const thresholdInp = document.getElementById('expThreshold');
+const modeChips    = [
+  document.getElementById('expModeAll'),
+  document.getElementById('expModeGte'),
+  document.getElementById('expModeLte'),
+];
+
+function syncThresholdLabels() {
+  const n = parseInt(thresholdInp.value) || 1;
+  document.querySelectorAll('.exp-n').forEach(el => el.textContent = n);
+}
+
+function syncModeChips() {
+  modeChips.forEach(c => {
+    const on = c.dataset.mode === expMode;
+    c.classList.toggle('active', on);
+    c.classList.toggle('green', on && c.dataset.mode === 'all');
+  });
+}
+
+function syncStatusSection() {
+  thresholdSec.style.display = expStatusOn ? '' : 'none';
+}
+
+// Column chips
+chipCount.addEventListener('click', () => {
+  expCountOn = !expCountOn;
+  chipCount.dataset.active = expCountOn ? '1' : '0';
+  chipCount.classList.toggle('active', expCountOn);
+});
+chipStatus.addEventListener('click', () => {
+  expStatusOn = !expStatusOn;
+  chipStatus.dataset.active = expStatusOn ? '1' : '0';
+  chipStatus.classList.toggle('active', expStatusOn);
+  syncStatusSection();
+});
+
+// Mode chips
+modeChips.forEach(c => {
+  c.addEventListener('click', () => {
+    expMode = c.dataset.mode;
+    syncModeChips();
   });
 });
+
+// Threshold input → update labels
+thresholdInp.addEventListener('input', syncThresholdLabels);
+
+// Download
 document.getElementById('doExportStudents').addEventListener('click', () => {
-  const threshold  = document.getElementById('expThreshold').value || 1;
-  const incCount   = document.getElementById('expColCount').checked  ? '1' : '0';
-  const incStatus  = document.getElementById('expColStatus').checked ? '1' : '0';
-  const qs = `threshold=${threshold}&mode=${expMode}&inc_count=${incCount}&inc_status=${incStatus}`;
+  const threshold = thresholdInp.value || 1;
+  const qs = `threshold=${threshold}&mode=${expMode}&inc_count=${expCountOn?'1':'0'}&inc_status=${expStatusOn?'1':'0'}`;
   window.location.href = `${EXPORT_STUDENTS_URL}?${qs}`;
   bootstrap.Modal.getInstance(document.getElementById('exportStudentsModal')).hide();
 });
+
+// Init
+syncThresholdLabels();
+syncModeChips();
+syncStatusSection();
 {% endif %}
 </script>
 {% endblock %}
