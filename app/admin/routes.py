@@ -2347,9 +2347,10 @@ def edit_event(id):
         if not _has_at_least_one_day():
             flash(_("Adicione pelo menos 1 dia de reunião (com data, início e fim) em qualquer setor."), "warning")
         else:
-            event.name                    = form.name.data
-            event.student_booking_allowed = form.student_booking_allowed.data
-            event.cancel_deadline_hours   = form.cancel_deadline_hours.data
+            event.name                            = form.name.data
+            event.student_booking_allowed         = form.student_booking_allowed.data
+            event.allow_duplicate_teacher_booking = request.form.get('allow_duplicate_teacher_booking') == 'on'
+            event.cancel_deadline_hours           = form.cancel_deadline_hours.data
             conflict_action = request.form.get('conflict_action', 'keep')
             protected = _save_event_sectors(event, conflict_action=conflict_action)
             db.session.commit()
@@ -2406,6 +2407,12 @@ def publish_event(id):
 @admin_required
 def update_event_meta(id):
     event = ConferenceEvent.query.get_or_404(id)
+    if request.is_json:
+        data = request.get_json()
+        event.student_booking_allowed         = bool(data.get('student_booking_allowed', False))
+        event.allow_duplicate_teacher_booking = bool(data.get('allow_duplicate_teacher_booking', False))
+        db.session.commit()
+        return jsonify({"ok": True})
     event.student_booking_allowed = request.form.get('student_booking_allowed') == 'y'
     db.session.commit()
     flash(_("Configuração atualizada."), "success")

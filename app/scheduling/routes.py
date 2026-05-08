@@ -112,6 +112,7 @@ def get_slots(event_id, student_id):
         "slots": result,
         "days": days_list,
         "cancel_deadline_hours": event.cancel_deadline_hours,
+        "allow_duplicate_teacher_booking": event.allow_duplicate_teacher_booking,
         "all_teachers": all_teachers,
     })
 

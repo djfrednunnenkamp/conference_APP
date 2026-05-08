@@ -159,8 +159,9 @@ class ConferenceEvent(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
-    student_booking_allowed = db.Column(db.Boolean, default=False, nullable=False)
-    cancel_deadline_hours = db.Column(db.Integer, default=24, nullable=False)
+    student_booking_allowed           = db.Column(db.Boolean, default=False, nullable=False)
+    allow_duplicate_teacher_booking   = db.Column(db.Boolean, default=False, nullable=False)
+    cancel_deadline_hours             = db.Column(db.Integer, default=24, nullable=False)
     status = db.Column(db.Enum("draft", "published", "closed"), default="draft", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 

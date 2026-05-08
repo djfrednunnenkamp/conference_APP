@@ -261,6 +261,7 @@ const MSG_NO_BOOKINGS   = "{{ _('Nenhuma reunião agendada ainda.') }}";
 const MSG_TEACHER_HDR   = "{{ _('Professor') }}";
 
 let allSlots = [], allTeachers = [], allDays = [], activeDayId = null, cancelDeadlineHours = 0;
+let allowDuplicateTeacher = false;
 let hiddenSubjects = new Set(), hiddenTeachers = new Set();
 let filterModalBuilt = false;
 
@@ -270,10 +271,11 @@ async function fetchSlots() {
   try {
     const res  = await fetch(`/scheduling/slots/${EVENT_ID}/${STUDENT_ID}`);
     const data = await res.json();
-    allSlots            = data.slots || [];
-    allTeachers         = data.all_teachers || [];
-    allDays             = data.days || [];
-    cancelDeadlineHours = data.cancel_deadline_hours || 0;
+    allSlots               = data.slots || [];
+    allTeachers            = data.all_teachers || [];
+    allDays                = data.days || [];
+    cancelDeadlineHours    = data.cancel_deadline_hours || 0;
+    allowDuplicateTeacher  = data.allow_duplicate_teacher_booking || false;
     // Select first active day by default (only on first load)
     if (activeDayId === null) {
       const firstActive = allDays.find(d => d.is_active);
@@ -647,13 +649,16 @@ function fmtTime(iso) {
 let pendingBook = null; // { slotId, cell } — aguarda confirmação do modal
 
 async function bookSlot(slotId, cell) {
-  // Verifica se já tem reunião com este professor
   const slot = allSlots.find(s => s.slot_id === slotId);
   if (slot) {
     const alreadyBooked = allSlots.some(
       s => s.teacher_id === slot.teacher_id && s.status === 'booked_by_me'
     );
     if (alreadyBooked) {
+      if (!allowDuplicateTeacher) {
+        await panAlert({ body: '{{ _('Já existe uma reunião agendada com este professor. Reuniões duplas não são permitidas neste evento.') }}', type: 'warning' });
+        return;
+      }
       document.getElementById('dupTeacherName').textContent = slot.teacher_name;
       pendingBook = { slotId, cell };
       bootstrap.Modal.getOrCreateInstance(document.getElementById('dupTeacherModal')).show();

@@ -97,10 +97,22 @@
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1">
+              {% if event.status == 'published' %}
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      title="{{ _('Editar') }}"
+                      onclick="openQuickEdit({{ event.id }}, '{{ event.name|e }}', {{ event.student_booking_allowed|tojson }}, {{ event.allow_duplicate_teacher_booking|tojson }})">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <a href="{{ url_for('admin.edit_event', id=event.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Presenças de professores') }}">
+                <i class="bi bi-people"></i>
+              </a>
+              {% else %}
               <a href="{{ url_for('admin.edit_event', id=event.id) }}"
                  class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
                 <i class="bi bi-pencil"></i>
               </a>
+              {% endif %}
               <a href="{{ url_for('admin.event_bookings', id=event.id) }}"
                  class="btn btn-outline-secondary btn-sm" title="{{ _('Agendamentos') }}">
                 <i class="bi bi-list-check"></i>
@@ -168,6 +180,41 @@
   <i class="bi bi-search me-1"></i>{{ _('Nenhum resultado para os filtros aplicados.') }}
 </p>
 
+{# ── Quick-edit modal (published events) ── #}
+<div class="modal fade" id="quickEditModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-pencil me-2"></i><span id="qeTitle"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pb-2">
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="qeStudentBooking">
+          <label class="form-check-label small fw-semibold" for="qeStudentBooking">
+            {{ _('Permitir agendamento por alunos') }}
+          </label>
+        </div>
+        <div class="form-check form-switch mb-1">
+          <input class="form-check-input" type="checkbox" id="qeDuplicateTeacher">
+          <label class="form-check-label small fw-semibold" for="qeDuplicateTeacher">
+            {{ _('Permitir reunião dupla com o mesmo professor') }}
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer py-2 gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="qeSaveBtn">
+          <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script>
@@ -208,5 +255,36 @@ searchInput.addEventListener('input', applyFilters);
 statusFilter.addEventListener('change', applyFilters);
 daysFilter.addEventListener('change', applyFilters);
 applyFilters();
+
+const CSRF = "{{ csrf_token() }}";
+let qeEventId = null;
+
+function openQuickEdit(eventId, name, studentBooking, duplicateTeacher) {
+  qeEventId = eventId;
+  document.getElementById('qeTitle').textContent = name;
+  document.getElementById('qeStudentBooking').checked   = studentBooking;
+  document.getElementById('qeDuplicateTeacher').checked = duplicateTeacher;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('quickEditModal')).show();
+}
+
+document.getElementById('qeSaveBtn').addEventListener('click', async function() {
+  if (!qeEventId) return;
+  this.disabled = true;
+  const res = await fetch(`/admin/events/${qeEventId}/update_meta`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({
+      student_booking_allowed:         document.getElementById('qeStudentBooking').checked,
+      allow_duplicate_teacher_booking: document.getElementById('qeDuplicateTeacher').checked,
+    })
+  });
+  this.disabled = false;
+  if (res.ok) {
+    bootstrap.Modal.getInstance(document.getElementById('quickEditModal')).hide();
+    location.reload();
+  } else {
+    await panAlert({ body: '{{ _('Erro ao salvar.') }}', type: 'danger' });
+  }
+});
 </script>
 {% endblock %}
