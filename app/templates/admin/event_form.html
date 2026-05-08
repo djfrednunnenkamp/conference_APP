@@ -715,7 +715,7 @@ function renderTeacherList(divId) {
         <span class="small text-muted">min</span>
       </div>
       ${EVENT_ID_FORM ? `<button type="button"
-               class="btn btn-sm flex-shrink-0 ev-break-btn ${TEACHERS_WITH_BREAKS.has(t.id) ? 'btn-warning' : 'btn-outline-secondary'}"
+               class="btn btn-sm flex-shrink-0 ev-break-btn ${TEACHERS_WITH_BREAKS.has(t.id) ? 'btn-warning' : 'btn-outline-secondary'} ${checked ? '' : 'd-none'}"
                data-always-enabled="1"
                data-teacher-id="${t.id}"
                data-teacher-name="${t.name.replace(/"/g, '&quot;')}"
@@ -733,6 +733,8 @@ function renderTeacherList(divId) {
     row.querySelector('.ev-teacher-check').addEventListener('change', function () {
       const wrap = document.getElementById(`evDur_${divId}_${t.id}`);
       if (wrap) wrap.classList.toggle('d-none', !this.checked);
+      const breakBtn = row.querySelector('.ev-break-btn');
+      if (breakBtn) breakBtn.classList.toggle('d-none', !this.checked);
       updateTeacherBadge(divId);
     });
     container.appendChild(row);
