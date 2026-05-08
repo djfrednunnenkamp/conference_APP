@@ -2893,6 +2893,12 @@ def edit_event(id):
     ]
     absent_set_list = [[d, t] for d, t in absent_set]
     secretary_division_ids = list(get_secretary_division_ids()) if current_user.role == 'secretary' else []
+    # Teacher IDs that have at least one break in this event
+    teachers_with_breaks = list({
+        tb.teacher_id for tb in
+        TeacherBreak.query.join(ConferenceDay, TeacherBreak.day_id == ConferenceDay.id)
+        .filter(ConferenceDay.event_id == id).all()
+    })
     return render_template("admin/event_form.html",
                            form=form, event=event,
                            divisions=divisions,
@@ -2902,7 +2908,8 @@ def edit_event(id):
                            all_teachers_data=all_teachers_data,
                            absent_set_list=absent_set_list,
                            absent_set=absent_set,
-                           secretary_division_ids=secretary_division_ids)
+                           secretary_division_ids=secretary_division_ids,
+                           teachers_with_breaks=teachers_with_breaks)
 
 
 @admin_bp.route("/events/<int:id>/publish", methods=["POST"])

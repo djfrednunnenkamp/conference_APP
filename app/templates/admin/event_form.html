@@ -528,6 +528,9 @@ const EXISTING_SECTORS   = {{ existing_sectors   | tojson }};
 // Secretary sector restriction (empty = admin = no restriction)
 const SECRETARY_DIV_IDS = {{ secretary_division_ids | tojson if secretary_division_ids is defined else '[]' }};
 
+// Teachers that have at least one break set in this event
+const TEACHERS_WITH_BREAKS = new Set({{ teachers_with_breaks | tojson if teachers_with_breaks is defined else '[]' }});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTOR ACCORDION
 // ─────────────────────────────────────────────────────────────────────────────
@@ -712,7 +715,7 @@ function renderTeacherList(divId) {
         <span class="small text-muted">min</span>
       </div>
       ${EVENT_ID_FORM ? `<button type="button"
-               class="btn btn-sm btn-outline-secondary flex-shrink-0 ev-break-btn"
+               class="btn btn-sm flex-shrink-0 ev-break-btn ${TEACHERS_WITH_BREAKS.has(t.id) ? 'btn-warning' : 'btn-outline-secondary'}"
                data-always-enabled="1"
                data-teacher-id="${t.id}"
                data-teacher-name="${t.name.replace(/"/g, '&quot;')}"
@@ -1305,6 +1308,18 @@ async function toggleBreak(dayId, startTime, btn) {
         btn.className = 'btn btn-sm btn-outline-secondary';
         btn.title = '{{ _('Disponível — clique para marcar como intervalo') }}';
       }
+      // Check if teacher now has any breaks across all days
+      const hasAny = breakPopupData.days.some(d => d.slots.some(s => s.is_break));
+      if (hasAny) TEACHERS_WITH_BREAKS.add(breakPopupTeacherId);
+      else         TEACHERS_WITH_BREAKS.delete(breakPopupTeacherId);
+      // Update the coffee button colour in the teacher list
+      document.querySelectorAll(`.ev-break-btn[data-teacher-id="${breakPopupTeacherId}"]`).forEach(b => {
+        b.className = b.className
+          .replace('btn-warning', 'btn-outline-secondary')
+          .replace('btn-outline-secondary', hasAny ? 'btn-warning' : 'btn-outline-secondary');
+        b.classList.remove('btn-warning', 'btn-outline-secondary');
+        b.classList.add(hasAny ? 'btn-warning' : 'btn-outline-secondary');
+      });
     }
   } finally {
     btn.disabled = false;
