@@ -3441,21 +3441,19 @@ def _generate_all_slots_for_event(event):
 @secretary_or_admin_required
 def notify(event_id):
     event = ConferenceEvent.query.get_or_404(event_id)
-    form = NotifyForm()
-    grade_choices = [(0, _("Todas as turmas"))] + [(g.id, g.name) for g in GradeGroup.query.order_by(GradeGroup.name).all()]
-    form.grade_group_id.choices = grade_choices
-
-    if form.validate_on_submit():
-        guardians = _get_notify_recipients(form, event_id)
+    if request.method == "POST":
+        params = {k: request.form.get(k, '') for k in
+                  ('recipient_type', 'division_id', 'grade_id', 'min_children', 'not_notified')}
+        recipients = _get_notify_recipients_v2(params, event_id)
         sent = 0
-        for guardian in guardians:
+        for user in recipients:
             token = None
-            if not guardian.has_password():
-                token = generate_token(guardian.email, salt="invite")
-                guardian.invite_token = token
-                guardian.invite_sent_at = datetime.utcnow()
+            if not user.has_password():
+                token = generate_token(user.email, salt="invite")
+                user.invite_token = token
+                user.invite_sent_at = datetime.utcnow()
             try:
-                send_conference_info_email(guardian, event, token)
+                send_conference_info_email(user, event, token)
                 sent += 1
             except Exception:
                 pass
@@ -3463,36 +3461,79 @@ def notify(event_id):
         flash(_("%(count)s e-mails enviados.", count=sent), "success")
         return redirect(url_for("admin.events"))
 
-    preview_count = 0
-    if request.method == "POST":
-        preview_count = len(_get_notify_recipients(form, event_id))
+    divisions = Division.query.order_by(Division.order, Division.name).all()
+    divisions_js = [
+        {"id": d.id, "name": d.name,
+         "grades": [{"id": g.id, "name": g.name}
+                    for g in sorted(d.grade_groups, key=lambda g: g.name)]}
+        for d in divisions
+    ]
+    return render_template("admin/notify.html", event=event, divisions_js=divisions_js)
 
-    return render_template("admin/notify.html", form=form, event=event, preview_count=preview_count)
+
+@admin_bp.route("/events/<int:event_id>/notify/preview")
+@login_required
+@secretary_or_admin_required
+def notify_preview(event_id):
+    ConferenceEvent.query.get_or_404(event_id)
+    params = {k: request.args.get(k, '') for k in
+              ('recipient_type', 'division_id', 'grade_id', 'min_children', 'not_notified')}
+    recipients = _get_notify_recipients_v2(params, event_id)
+    return jsonify({"count": len(recipients)})
 
 
-def _get_notify_recipients(form, event_id):
-    query = User.query.filter_by(role="guardian", is_active=True)
-    guardians = query.order_by(User.last_name, User.first_name).all()
+def _get_notify_recipients_v2(params, event_id):
+    recipient_type = params.get('recipient_type') or 'guardian'
+    division_id    = int(params.get('division_id') or 0)
+    grade_id       = int(params.get('grade_id') or 0)
+    min_children   = int(params.get('min_children') or 1)
+    not_notified   = params.get('not_notified') == '1'
+
+    # Resolve the set of grade_group_ids to filter by
+    if grade_id:
+        grade_ids = {grade_id}
+    elif division_id:
+        grade_ids = {g.id for g in GradeGroup.query.filter_by(division_id=division_id).all()}
+    else:
+        grade_ids = None  # no grade filter
+
+    # Collect students in scope
+    sq = User.query.filter_by(role='student', is_active=True)
+    if grade_ids is not None:
+        sq = sq.join(StudentProfile, StudentProfile.user_id == User.id)\
+               .filter(StudentProfile.grade_group_id.in_(grade_ids))
+    students = sq.order_by(User.last_name, User.first_name).all()
+    student_ids = {s.id for s in students}
+
     result = []
-    for g in guardians:
-        if form.all_guardians.data:
+
+    # Students
+    if recipient_type in ('student', 'both'):
+        for s in students:
+            if not_notified:
+                if EmailNotification.query.filter_by(recipient_id=s.id, event_id=event_id).first():
+                    continue
+            result.append(s)
+
+    # Guardians
+    if recipient_type in ('guardian', 'both'):
+        if grade_ids is not None:
+            # Only guardians linked to students in scope
+            gids = {gs.guardian_id for gs in
+                    GuardianStudent.query.filter(GuardianStudent.student_id.in_(student_ids)).all()}
+            gq = User.query.filter(User.id.in_(gids), User.role == 'guardian', User.is_active == True)
+        else:
+            gq = User.query.filter_by(role='guardian', is_active=True)
+        guardians = gq.order_by(User.last_name, User.first_name).all()
+
+        for g in guardians:
+            child_count = GuardianStudent.query.filter_by(guardian_id=g.id).count()
+            if child_count < min_children:
+                continue
+            if not_notified:
+                if EmailNotification.query.filter_by(recipient_id=g.id, event_id=event_id).first():
+                    continue
             result.append(g)
-            continue
-        if form.not_yet_notified.data:
-            already = EmailNotification.query.filter_by(recipient_id=g.id, event_id=event_id).first()
-            if not already:
-                result.append(g)
-                continue
-        if form.multiple_children.data:
-            count = GuardianStudent.query.filter_by(guardian_id=g.id).count()
-            if count >= 2:
-                result.append(g)
-                continue
-        if form.grade_group_id.data:
-            for gs in g.guardian_students:
-                sp = StudentProfile.query.filter_by(user_id=gs.student_id).first()
-                if sp and sp.grade_group_id == form.grade_group_id.data:
-                    result.append(g)
-                    break
+
     seen = set()
-    return [g for g in result if not (g.id in seen or seen.add(g.id))]
+    return [r for r in result if not (r.id in seen or seen.add(r.id))]

@@ -1,60 +1,284 @@
 {% extends "base.html" %}
 {% block title %}{{ _('Notificar') }} – {{ event.name }}{% endblock %}
+
+{% block head %}
+<style>
+.nf-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.25rem 1.4rem;
+  margin-bottom: .85rem;
+}
+.nf-card-title {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #94a3b8;
+  margin-bottom: .85rem;
+}
+/* chip toggle */
+.nf-chip {
+  display: inline-flex; align-items: center; gap: .35rem;
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  border-radius: 20px;
+  padding: .3rem .85rem;
+  font-size: .82rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: background .12s, border-color .12s, color .12s;
+  white-space: nowrap;
+}
+.nf-chip:hover { background: #f1f5f9; border-color: #cbd5e1; }
+.nf-chip.active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.nf-chip.active.green {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
+}
+.nf-chip.active.purple {
+  background: #faf5ff;
+  border-color: #d8b4fe;
+  color: #7c3aed;
+}
+.nf-chip i { font-size: .78rem; }
+
+/* preview bar */
+.nf-preview-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: .7rem 0;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.nf-count-box {
+  display: flex;
+  align-items: baseline;
+  gap: .4rem;
+}
+.nf-count-num {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1;
+  transition: color .2s;
+}
+.nf-count-num.loading { color: #94a3b8; }
+.nf-count-label { font-size: .82rem; color: #64748b; }
+
+/* toggle switch */
+.nf-toggle-wrap {
+  display: flex; align-items: center; gap: .6rem; cursor: pointer;
+}
+.nf-toggle-wrap input[type=checkbox] { width: 1.1rem; height: 1.1rem; cursor: pointer; }
+.nf-toggle-label { font-size: .85rem; color: #334155; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-  <h4 class="fw-bold mb-0">{{ _('Notificar Responsáveis') }} – {{ event.name }}</h4>
-  <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary btn-sm">{{ _('Voltar') }}</a>
-</div>
-<div class="row g-4">
-  <div class="col-md-6">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <form method="POST" novalidate>
-          {{ form.hidden_tag() }}
-          <h6 class="fw-semibold mb-3">{{ _('Filtros de destinatários') }}</h6>
-          <div class="form-check mb-2">
-            {{ form.all_guardians(class="form-check-input") }}
-            <label class="form-check-label">{{ _('Todos os responsáveis') }}</label>
-          </div>
-          <div class="form-check mb-2">
-            {{ form.not_yet_notified(class="form-check-input") }}
-            <label class="form-check-label">{{ _('Ainda não notificados para este evento') }}</label>
-          </div>
-          <div class="form-check mb-2">
-            {{ form.multiple_children(class="form-check-input") }}
-            <label class="form-check-label">{{ _('Responsáveis com 2 ou mais filhos') }}</label>
-          </div>
-          <div class="mb-3 mt-3">
-            <label class="form-label">{{ _('Por turma') }}</label>
-            {{ form.grade_group_id(class="form-select") }}
-          </div>
-
-          {% if preview_count %}
-          <div class="alert alert-info py-2">
-            <strong>{{ preview_count }}</strong> {{ _('responsável(is) correspondem aos filtros.') }}
-          </div>
-          {% endif %}
-
-          <div class="d-flex gap-2">
-            <button type="submit" name="preview" class="btn btn-outline-primary">{{ _('Ver quantidade') }}</button>
-            <button type="submit" class="btn btn-success">{{ _('Enviar e-mails') }}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="card shadow-sm">
-      <div class="card-header fw-semibold">{{ _('Lógica de envio') }}</div>
-      <div class="card-body text-muted small">
-        <ul class="mb-0">
-          <li>{{ _('Responsáveis que ainda não criaram senha recebem um link de primeiro acesso (válido por 72h).') }}</li>
-          <li>{{ _('Responsáveis com conta ativa recebem um link de login.') }}</li>
-          <li>{{ _('O idioma do e-mail segue a preferência de cada responsável.') }}</li>
-          <li>{{ _('Todos os envios são registrados no histórico.') }}</li>
-        </ul>
-      </div>
-    </div>
+<div class="d-flex align-items-center gap-2 mb-3">
+  <a href="{{ url_for('admin.events') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div>
+    <h4 class="fw-bold mb-0">{{ _('Notificar') }}</h4>
+    <div class="text-muted small">{{ event.name }}</div>
   </div>
 </div>
+
+<form method="POST" id="notifyForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="recipient_type" id="fRecipientType" value="guardian">
+  <input type="hidden" name="division_id"    id="fDivisionId"    value="0">
+  <input type="hidden" name="grade_id"       id="fGradeId"       value="0">
+  <input type="hidden" name="min_children"   id="fMinChildren"   value="1">
+  <input type="hidden" name="not_notified"   id="fNotNotified"   value="0">
+
+  {# ── Sticky preview bar ── #}
+  <div class="nf-preview-bar">
+    <div class="nf-count-box">
+      <span class="nf-count-num" id="previewNum">—</span>
+      <span class="nf-count-label">{{ _('destinatário(s)') }}</span>
+    </div>
+    <button type="submit" class="btn btn-success btn-sm px-4" id="sendBtn" disabled>
+      <i class="bi bi-send me-1"></i>{{ _('Enviar e-mails') }}
+    </button>
+  </div>
+
+  {# ── Destinatários ── #}
+  <div class="nf-card">
+    <div class="nf-card-title"><i class="bi bi-people me-1"></i>{{ _('Destinatários') }}</div>
+    <div class="d-flex flex-wrap gap-2" id="chipRecipient">
+      <span class="nf-chip active" data-val="guardian">
+        <i class="bi bi-person-heart"></i>{{ _('Responsáveis') }}
+      </span>
+      <span class="nf-chip" data-val="student">
+        <i class="bi bi-mortarboard"></i>{{ _('Alunos') }}
+      </span>
+      <span class="nf-chip" data-val="both">
+        <i class="bi bi-people-fill"></i>{{ _('Ambos') }}
+      </span>
+    </div>
+  </div>
+
+  {# ── Setor ── #}
+  <div class="nf-card">
+    <div class="nf-card-title"><i class="bi bi-diagram-3 me-1"></i>{{ _('Setor') }}</div>
+    <div class="d-flex flex-wrap gap-2" id="chipDivision">
+      <span class="nf-chip active green" data-val="0">{{ _('Todos os setores') }}</span>
+      {% for d in divisions_js %}
+      <span class="nf-chip" data-val="{{ d.id }}">{{ d.name }}</span>
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Turma ── #}
+  <div class="nf-card">
+    <div class="nf-card-title"><i class="bi bi-people me-1"></i>{{ _('Turma') }}</div>
+    <div class="d-flex flex-wrap gap-2" id="chipGrade">
+      <span class="nf-chip active green" data-val="0" data-div="0">{{ _('Todas as turmas') }}</span>
+      {% for d in divisions_js %}
+        {% for g in d.grades %}
+        <span class="nf-chip" data-val="{{ g.id }}" data-div="{{ d.id }}">{{ g.name }}</span>
+        {% endfor %}
+      {% endfor %}
+    </div>
+  </div>
+
+  {# ── Nº de filhos ── #}
+  <div class="nf-card" id="cardChildren">
+    <div class="nf-card-title"><i class="bi bi-house-heart me-1"></i>{{ _('Filhos na escola') }} <span class="text-muted fw-normal" style="text-transform:none;letter-spacing:0">({{ _('apenas responsáveis') }})</span></div>
+    <div class="d-flex flex-wrap gap-2" id="chipChildren">
+      <span class="nf-chip active green" data-val="1">{{ _('Qualquer quantidade') }}</span>
+      <span class="nf-chip" data-val="2"><i class="bi bi-2-circle"></i>{{ _('2 ou mais') }}</span>
+      <span class="nf-chip" data-val="3"><i class="bi bi-3-circle"></i>{{ _('3 ou mais') }}</span>
+    </div>
+  </div>
+
+  {# ── Outros filtros ── #}
+  <div class="nf-card">
+    <div class="nf-card-title"><i class="bi bi-funnel me-1"></i>{{ _('Outros filtros') }}</div>
+    <label class="nf-toggle-wrap">
+      <input type="checkbox" id="chkNotNotified" class="form-check-input">
+      <span class="nf-toggle-label">{{ _('Apenas quem ainda não recebeu e-mail deste evento') }}</span>
+    </label>
+  </div>
+
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PREVIEW_URL = "{{ url_for('admin.notify_preview', event_id=event.id) }}";
+const CSRF = "{{ csrf_token() }}";
+
+// ── State ────────────────────────────────────────────────────────────────────
+const state = {
+  recipient_type: 'guardian',
+  division_id: '0',
+  grade_id: '0',
+  min_children: '1',
+  not_notified: '0',
+};
+
+// ── Chip group helper ─────────────────────────────────────────────────────────
+function initChipGroup(containerId, stateKey, hiddenId, onChange) {
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('.nf-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      container.querySelectorAll('.nf-chip').forEach(c => {
+        c.classList.remove('active', 'green', 'purple');
+      });
+      chip.classList.add('active');
+      // "Todos" chips get green, others get blue (default)
+      if (chip.dataset.val === '0' || chip.dataset.val === '1') chip.classList.add('green');
+      state[stateKey] = chip.dataset.val;
+      document.getElementById(hiddenId).value = chip.dataset.val;
+      if (onChange) onChange(chip.dataset.val);
+      schedulePreview();
+    });
+  });
+}
+
+// ── Sector → filter grade chips ───────────────────────────────────────────────
+function onDivisionChange(divId) {
+  const gradeContainer = document.getElementById('chipGrade');
+  // Reset grade to "all"
+  gradeContainer.querySelectorAll('.nf-chip').forEach(c => c.classList.remove('active', 'green', 'purple'));
+  const allChip = gradeContainer.querySelector('[data-val="0"]');
+  if (allChip) { allChip.classList.add('active', 'green'); }
+  state.grade_id = '0';
+  document.getElementById('fGradeId').value = '0';
+
+  // Show/hide grade chips based on selected division
+  gradeContainer.querySelectorAll('.nf-chip[data-div]').forEach(chip => {
+    const chipDiv = chip.dataset.div;
+    chip.style.display = (divId === '0' || chipDiv === divId) ? '' : 'none';
+  });
+}
+
+// ── Recipient type → show/hide children card ──────────────────────────────────
+function onRecipientChange(val) {
+  document.getElementById('cardChildren').style.display =
+    val === 'student' ? 'none' : '';
+}
+
+// ── Init chip groups ──────────────────────────────────────────────────────────
+initChipGroup('chipRecipient', 'recipient_type', 'fRecipientType', onRecipientChange);
+initChipGroup('chipDivision',  'division_id',    'fDivisionId',    onDivisionChange);
+initChipGroup('chipGrade',     'grade_id',       'fGradeId',       null);
+initChipGroup('chipChildren',  'min_children',   'fMinChildren',   null);
+
+// ── Not-notified toggle ───────────────────────────────────────────────────────
+document.getElementById('chkNotNotified').addEventListener('change', function () {
+  state.not_notified = this.checked ? '1' : '0';
+  document.getElementById('fNotNotified').value = state.not_notified;
+  schedulePreview();
+});
+
+// ── Live preview ──────────────────────────────────────────────────────────────
+let _previewTimer = null;
+function schedulePreview() {
+  clearTimeout(_previewTimer);
+  _previewTimer = setTimeout(fetchPreview, 350);
+}
+
+async function fetchPreview() {
+  const numEl  = document.getElementById('previewNum');
+  const sendBtn = document.getElementById('sendBtn');
+  numEl.classList.add('loading');
+  numEl.textContent = '…';
+  sendBtn.disabled = true;
+  try {
+    const qs = new URLSearchParams(state).toString();
+    const res = await fetch(`${PREVIEW_URL}?${qs}`);
+    if (res.ok) {
+      const data = await res.json();
+      numEl.textContent = data.count;
+      numEl.classList.remove('loading');
+      sendBtn.disabled = data.count === 0;
+    }
+  } catch {
+    numEl.textContent = '—';
+    numEl.classList.remove('loading');
+  }
+}
+
+// Initial preview on page load
+fetchPreview();
+</script>
 {% endblock %}
