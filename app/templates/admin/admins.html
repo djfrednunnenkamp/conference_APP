@@ -131,7 +131,7 @@
           </td>
           <td class="text-muted small">{{ s.email }}</td>
           <td>
-            {% set sec_divs = div_ids_by_sec.get(s.id, set()) %}
+            {% set sec_divs = div_ids_by_sec.get(s.id) or [] %}
             {% if sec_divs %}
               {% for div in divisions if div.id in sec_divs %}
               <span class="badge bg-primary me-1" style="font-size:.7rem">{{ div.name }}</span>

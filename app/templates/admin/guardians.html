@@ -8,9 +8,11 @@
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#exportModal">
       <i class="bi bi-download me-1"></i>{{ _('Exportar') }}
     </button>
+    {% if current_user.role == 'admin' %}
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
       <i class="bi bi-upload me-1"></i>{{ _('Importar') }}
     </button>
+    {% endif %}
   </div>
 </div>
 
@@ -28,9 +30,13 @@
     <button id="bulkEmailBtn" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-envelope me-1"></i>{{ _('Enviar e-mail') }}
     </button>
+    {% if current_user.role == 'admin' %}
     <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm">
       <i class="bi bi-trash me-1"></i>{{ _('Apagar') }}
     </button>
+    {% else %}
+    <button id="bulkDeleteBtn" class="d-none"></button>
+    {% endif %}
   </div>
 </div>
 
@@ -92,6 +98,7 @@
                   <i class="bi bi-envelope-arrow-up"></i>
                 </button>
               </form>
+              {% if current_user.role == 'admin' %}
               <form method="POST" action="{{ url_for('admin.delete_guardian', id=g.id) }}"
                     class="d-inline"
                     data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
@@ -103,6 +110,7 @@
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
+              {% endif %}
             </div>
           </td>
         </tr>

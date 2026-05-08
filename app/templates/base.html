@@ -48,13 +48,11 @@
        class="pan-nav-item {% if ep in ('admin.guardians','admin.edit_guardian','admin.new_guardian') %}active{% endif %}">
       <i class="bi bi-person-heart"></i>{{ _('Responsáveis') }}
     </a>
-    {% if current_user.role == 'admin' %}
     <div class="pan-nav-section">{{ _('Acadêmico') }}</div>
     <a href="{{ url_for('admin.divisions') }}"
        class="pan-nav-item {% if 'division' in ep or 'grade' in ep or 'subject' in ep %}active{% endif %}">
       <i class="bi bi-diagram-3"></i>{{ _('Setores e Turmas') }}
     </a>
-    {% endif %}
     <div class="pan-nav-section">{{ _('Eventos') }}</div>
     <a href="{{ url_for('admin.events') }}"
        class="pan-nav-item {% if 'event' in ep %}active{% endif %}">

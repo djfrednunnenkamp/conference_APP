@@ -144,6 +144,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h4 class="fw-bold mb-0">{{ _('Setores e Turmas') }}</h4>
   <div class="d-flex gap-2 flex-wrap">
+    {% if current_user.role == 'admin' %}
     <button id="reorderToggleBtn"
             class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrows-move me-1"></i><span class="reorder-label">{{ _('Reorganizar') }}</span>
@@ -160,6 +161,7 @@
             data-bs-toggle="modal" data-bs-target="#newSectorModal">
       <i class="bi bi-plus-lg me-1"></i>{{ _('Novo setor') }}
     </button>
+    {% endif %}
   </div>
 </div>
 
@@ -173,7 +175,8 @@
   <div class="sector-header" onclick="toggleSector({{ div.id }})">
     <i class="bi bi-chevron-right sector-chevron" id="chevron-{{ div.id }}"></i>
 
-    {# Order arrows (stop click from bubbling to toggle) #}
+    {# Order arrows (stop click from bubbling to toggle) — admin only #}
+    {% if current_user.role == 'admin' %}
     <div class="order-arrows flex-column" style="gap:1px" onclick="event.stopPropagation()">
       {% if not loop.first %}
       <form method="POST" action="{{ url_for('admin.move_division', id=div.id, direction='up') }}">
@@ -194,6 +197,7 @@
       <span style="font-size:.65rem;line-height:1.1;visibility:hidden"><i class="bi bi-chevron-down"></i></span>
       {% endif %}
     </div>
+    {% endif %}
 
     <span class="sector-name">{{ div.name }}</span>
     <span class="sector-meta" id="smeta-{{ div.id }}">
@@ -204,16 +208,19 @@
 
     {# Sector action buttons — stop click from toggling expand #}
     <div class="sector-actions" onclick="event.stopPropagation()">
+      {% if current_user.role == 'admin' %}
       <button class="btn btn-outline-primary btn-sm py-0 px-2" style="font-size:.75rem"
               onclick='openAddGrade({{ div.id }}, {{ div.name|tojson }})'
               title="{{ _('Nova turma') }}">
         <i class="bi bi-people me-1"></i>{{ _('+ Turma') }}
       </button>
+      {% endif %}
       <button class="btn btn-outline-success btn-sm py-0 px-2" style="font-size:.75rem"
               onclick='openManageSubjects({{ div.id }}, {{ div.name|tojson }})'
               title="{{ _('Gerenciar matérias') }}">
         <i class="bi bi-journal-bookmark me-1"></i>{{ _('+ Matéria') }}
       </button>
+      {% if current_user.role == 'admin' %}
       <button class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size:.75rem"
               onclick='openRenameSector({{ div.id }}, {{ div.name|tojson }})'
               title="{{ _('Renomear') }}">
@@ -229,6 +236,7 @@
           <i class="bi bi-trash"></i>
         </button>
       </form>
+      {% endif %}
     </div>
   </div>
 
@@ -247,7 +255,8 @@
 
     <div class="grade-row" id="grade-row-{{ g.id }}">
 
-      {# Order arrows #}
+      {# Order arrows — admin only #}
+      {% if current_user.role == 'admin' %}
       <div class="order-arrows flex-column" style="gap:1px;flex-shrink:0">
         <button class="btn btn-link p-0 text-muted" style="font-size:.6rem;line-height:1.1;{% if loop.first %}visibility:hidden{% endif %}"
                 title="{{ _('Mover para cima') }}" data-move-dir="up"
@@ -260,6 +269,7 @@
           <i class="bi bi-chevron-down"></i>
         </button>
       </div>
+      {% endif %}
 
       {# Avatar #}
       <div class="grade-avatar">{{ g.name[0]|upper }}</div>
@@ -294,6 +304,7 @@
         <i class="bi bi-journal-bookmark me-1"></i>{{ _('Matérias') }}
       </button>
 
+      {% if current_user.role == 'admin' %}
       {# Rename grade #}
       <button class="btn btn-outline-secondary btn-sm py-1 px-2 flex-shrink-0" style="font-size:.75rem"
               title="{{ _('Renomear turma') }}"
@@ -313,6 +324,7 @@
           <i class="bi bi-trash"></i>
         </button>
       </form>
+      {% endif %}
     </div>
 
     {% endfor %}
@@ -337,12 +349,17 @@
 {# ── Empty state ── #}
 <div class="pan-empty-state mt-2">
   <div class="pan-empty-icon"><i class="bi bi-diagram-3"></i></div>
+  {% if current_user.role == 'admin' %}
   <h5 class="pan-empty-title">{{ _('Nenhum setor criado ainda') }}</h5>
   <p class="pan-empty-body">{{ _('Crie um setor para começar a organizar turmas e matérias.') }}</p>
   <button class="btn btn-primary btn-sm px-4"
           data-bs-toggle="modal" data-bs-target="#newSectorModal">
     <i class="bi bi-plus-lg me-1"></i>{{ _('Criar primeiro setor') }}
   </button>
+  {% else %}
+  <h5 class="pan-empty-title">{{ _('Nenhum setor atribuído') }}</h5>
+  <p class="pan-empty-body">{{ _('Contacte um administrador para atribuir setores à sua conta.') }}</p>
+  {% endif %}
 </div>
 {% endif %}
 

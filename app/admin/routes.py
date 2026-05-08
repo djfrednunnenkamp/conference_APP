@@ -80,10 +80,13 @@ def dashboard():
 
 @admin_bp.route("/divisions")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def divisions():
     from app import _natsort_key
     all_divisions = Division.query.order_by(Division.order, Division.name).all()
+    if current_user.role == 'secretary':
+        sec_div_ids = get_secretary_division_ids()
+        all_divisions = [d for d in all_divisions if d.id in sec_div_ids]
     active_pairs  = {(gs.grade_group_id, gs.subject_id)
                      for gs in GradeGroupSubject.query.all()}
 
@@ -245,7 +248,7 @@ def rename_grade(id):
 
 @admin_bp.route("/subjects/<int:id>/rename", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def rename_subject(id):
     subject     = Subject.query.get_or_404(id)
     data        = request.get_json(silent=True) or {}
@@ -284,7 +287,7 @@ def new_division_grade(division_id):
 
 @admin_bp.route("/divisions/<int:division_id>/subjects/new", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def new_division_subject(division_id):
     """Create a new subject inside a division."""
     Division.query.get_or_404(division_id)
@@ -311,7 +314,7 @@ def new_division_subject(division_id):
 
 @admin_bp.route("/subjects/<int:id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def delete_subject_by_id(id):
     """Delete a subject (called from divisions page)."""
     is_ajax = request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest"
@@ -400,7 +403,7 @@ def grades():
 
 @admin_bp.route("/grades/<int:grade_id>/subjects/<int:subject_id>/toggle", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def toggle_grade_subject(grade_id, subject_id):
     GradeGroup.query.get_or_404(grade_id)
     Subject.query.get_or_404(subject_id)
@@ -878,7 +881,7 @@ def new_secretary():
                 db.session.add(SecretaryDivision(secretary_id=user.id, division_id=did))
             db.session.commit()
             flash(_("Secretária criada com sucesso."), "success")
-            return redirect(url_for("admin.secretaries"))
+            return redirect(url_for("admin.admins"))
     return render_template("admin/secretary_form.html", secretary=None, divisions=divisions, selected_div_ids=set())
 
 
@@ -912,7 +915,7 @@ def edit_secretary(id):
                     db.session.add(SecretaryDivision(secretary_id=user.id, division_id=did))
             db.session.commit()
             flash(_("Secretária atualizada."), "success")
-            return redirect(url_for("admin.secretaries"))
+            return redirect(url_for("admin.admins"))
     selected_div_ids = {sd.division_id for sd in SecretaryDivision.query.filter_by(secretary_id=user.id).all()}
     return render_template("admin/secretary_form.html", secretary=user, divisions=divisions, selected_div_ids=selected_div_ids)
 
@@ -925,7 +928,7 @@ def delete_secretary(id):
     db.session.delete(user)
     db.session.commit()
     flash(_("Secretária removida."), "success")
-    return redirect(url_for("admin.secretaries"))
+    return redirect(url_for("admin.admins"))
 
 
 @admin_bp.route("/secretaries/<int:id>/resend-invite", methods=["POST"])
@@ -946,7 +949,7 @@ def resend_secretary_invite(id):
         flash(_("E-mail enviado para %(name)s.", name=user.first_name), "success")
     except Exception as e:
         flash(_("Falha ao enviar e-mail: %(err)s", err=str(e)), "danger")
-    return redirect(url_for("admin.secretaries"))
+    return redirect(url_for("admin.admins"))
 
 
 # ── Bulk actions ───────────────────────────────────────────────────────────────

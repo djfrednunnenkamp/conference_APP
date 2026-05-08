@@ -8,12 +8,14 @@
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#exportModal">
       <i class="bi bi-download me-1"></i>{{ _('Exportar') }}
     </button>
+    {% if current_user.role == 'admin' %}
     <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#importModal">
       <i class="bi bi-upload me-1"></i>{{ _('Importar') }}
     </button>
     <a href="{{ url_for('admin.new_student') }}" class="btn btn-primary btn-sm">
       <i class="bi bi-plus-lg me-1"></i>{{ _('Adicionar Aluno') }}
     </a>
+    {% endif %}
   </div>
 </div>
 
@@ -39,9 +41,13 @@
     <button id="bulkEmailBtn" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-envelope me-1"></i>{{ _('Enviar e-mail') }}
     </button>
+    {% if current_user.role == 'admin' %}
     <button id="bulkDeleteBtn" class="btn btn-outline-danger btn-sm">
       <i class="bi bi-trash me-1"></i>{{ _('Apagar') }}
     </button>
+    {% else %}
+    <button id="bulkDeleteBtn" class="d-none"></button>
+    {% endif %}
   </div>
 </div>
 
@@ -95,6 +101,7 @@
                  class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
                 <i class="bi bi-pencil"></i>
               </a>
+              {% if current_user.role == 'admin' %}
               <form method="POST" action="{{ url_for('admin.delete_student', id=s.id) }}"
                     class="d-inline"
                     data-pan-confirm="{{ _('Esta ação não pode ser desfeita.') }}"
@@ -106,6 +113,7 @@
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
+              {% endif %}
               <form method="POST" action="{{ url_for('admin.send_user_reset', user_id=s.id) }}" class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="redirect_to" value="admin.students">
