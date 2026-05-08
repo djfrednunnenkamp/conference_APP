@@ -122,6 +122,7 @@
                  class="btn btn-outline-secondary btn-sm" title="{{ _('Notificar') }}">
                 <i class="bi bi-envelope"></i>
               </a>
+              {% if current_user.role == 'admin' %}
               {% if event.status == 'draft' %}
               <form method="POST" action="{{ url_for('admin.publish_event', id=event.id) }}" class="d-inline"
                     data-pan-confirm="{{ _('Publicar gerará todos os horários e bloqueará a edição do evento.') }}"
@@ -161,6 +162,7 @@
                   <i class="bi bi-trash"></i>
                 </button>
               </form>
+              {% endif %}
             </div>
           </td>
         </tr>
