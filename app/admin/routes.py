@@ -1783,6 +1783,91 @@ def import_grades_matrix():
 
 # ── Teacher absence per event day ──────────────────────────────────────────────
 
+@admin_bp.route("/events/<int:event_id>/attendance_data")
+@login_required
+@admin_required
+def event_attendance_data(event_id):
+    event = ConferenceEvent.query.get_or_404(event_id)
+    days  = sorted(event.days, key=lambda d: d.date)
+
+    absence_records = (TeacherDayAbsence.query
+                       .join(ConferenceDay, TeacherDayAbsence.day_id == ConferenceDay.id)
+                       .filter(ConferenceDay.event_id == event_id).all())
+    absent_set = {(a.day_id, a.teacher_id) for a in absence_records}
+
+    from sqlalchemy import func
+    day_ids = [d.id for d in days]
+    counts = (db.session.query(Slot.day_id, Slot.teacher_id, func.count(Booking.id))
+              .join(Booking, (Booking.slot_id == Slot.id) & (Booking.cancelled_at == None))
+              .filter(Slot.day_id.in_(day_ids))
+              .group_by(Slot.day_id, Slot.teacher_id)
+              .all()) if day_ids else []
+    booking_counts = {f"{d}_{t}": c for d, t, c in counts}
+
+    all_teachers = (User.query.filter_by(role="teacher", is_active=True)
+                    .order_by(User.last_name, User.first_name).all())
+
+    return jsonify({
+        "days": [{"id": d.id,
+                  "date": d.date.strftime('%d/%m/%Y'),
+                  "division": d.division.name if d.division else None} for d in days],
+        "teachers": [{"id": t.id, "name": t.full_name,
+                      "initials": (t.first_name[0] + t.last_name[0]).upper()}
+                     for t in all_teachers],
+        "absent": [[a.day_id, a.teacher_id] for a in absence_records],
+        "bookings": booking_counts,
+    })
+
+
+@admin_bp.route("/events/<int:event_id>/days/<int:day_id>/absence/<int:teacher_id>/set_absent",
+                methods=["POST"])
+@login_required
+@admin_required
+def set_teacher_absent(event_id, day_id, teacher_id):
+    data           = request.get_json() or {}
+    cancel_bk      = data.get('cancel_bookings', False)
+    send_notify    = data.get('notify', False)
+
+    ConferenceDay.query.filter_by(id=day_id, event_id=event_id).first_or_404()
+    if not TeacherDayAbsence.query.filter_by(day_id=day_id, teacher_id=teacher_id).first():
+        db.session.add(TeacherDayAbsence(day_id=day_id, teacher_id=teacher_id))
+
+    cancelled_bookings = []
+    if cancel_bk:
+        cancelled_bookings = (Booking.query.join(Slot)
+                              .filter(Slot.teacher_id == teacher_id,
+                                      Slot.day_id == day_id,
+                                      Booking.cancelled_at == None).all())
+        for b in cancelled_bookings:
+            b.cancelled_at = datetime.utcnow()
+
+    db.session.commit()
+
+    sent = 0
+    if send_notify and cancelled_bookings:
+        day     = ConferenceDay.query.get(day_id)
+        event   = ConferenceEvent.query.get(event_id)
+        teacher = User.query.get(teacher_id)
+        notified = set()
+        for booking in cancelled_bookings:
+            student = User.query.get(booking.student_id)
+            if not student:
+                continue
+            for gs in student.student_guardians:
+                guardian = gs.guardian
+                if guardian.id in notified:
+                    continue
+                gids = {link.student_id for link in guardian.guardian_students}
+                g_bookings = [b for b in cancelled_bookings if b.student_id in gids]
+                try:
+                    send_teacher_absent_email(guardian, teacher, day, g_bookings, event)
+                    notified.add(guardian.id)
+                    sent += 1
+                except Exception:
+                    pass
+
+    return jsonify({"ok": True, "sent": sent})
+
 @admin_bp.route("/events/<int:event_id>/days/<int:day_id>/absence/<int:teacher_id>/toggle", methods=["POST"])
 @login_required
 @admin_required
@@ -2411,6 +2496,11 @@ def update_event_meta(id):
         data = request.get_json()
         event.student_booking_allowed         = bool(data.get('student_booking_allowed', False))
         event.allow_duplicate_teacher_booking = bool(data.get('allow_duplicate_teacher_booking', False))
+        if 'cancel_deadline_hours' in data:
+            try:
+                event.cancel_deadline_hours = max(0, int(data['cancel_deadline_hours']))
+            except (ValueError, TypeError):
+                pass
         db.session.commit()
         return jsonify({"ok": True})
     event.student_booking_allowed = request.form.get('student_booking_allowed') == 'y'

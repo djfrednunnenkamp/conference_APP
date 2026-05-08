@@ -100,13 +100,14 @@
               {% if event.status == 'published' %}
               <button type="button" class="btn btn-outline-secondary btn-sm"
                       title="{{ _('Editar') }}"
-                      onclick="openQuickEdit({{ event.id }}, '{{ event.name|e }}', {{ event.student_booking_allowed|tojson }}, {{ event.allow_duplicate_teacher_booking|tojson }})">
+                      onclick="openQuickEdit({{ event.id }}, '{{ event.name|e }}', {{ event.student_booking_allowed|tojson }}, {{ event.allow_duplicate_teacher_booking|tojson }}, {{ event.cancel_deadline_hours }})">
                 <i class="bi bi-pencil"></i>
               </button>
-              <a href="{{ url_for('admin.edit_event', id=event.id) }}"
-                 class="btn btn-outline-secondary btn-sm" title="{{ _('Presenças de professores') }}">
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      title="{{ _('Presenças de professores') }}"
+                      onclick="openAttendancePopup({{ event.id }}, '{{ event.name|e }}')">
                 <i class="bi bi-people"></i>
-              </a>
+              </button>
               {% else %}
               <a href="{{ url_for('admin.edit_event', id=event.id) }}"
                  class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
@@ -182,7 +183,7 @@
 
 {# ── Quick-edit modal (published events) ── #}
 <div class="modal fade" id="quickEditModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
     <div class="modal-content">
       <div class="modal-header py-2">
         <h6 class="modal-title fw-semibold">
@@ -197,20 +198,77 @@
             {{ _('Permitir agendamento por alunos') }}
           </label>
         </div>
-        <div class="form-check form-switch mb-1">
+        <div class="form-check form-switch mb-3">
           <input class="form-check-input" type="checkbox" id="qeDuplicateTeacher">
           <label class="form-check-label small fw-semibold" for="qeDuplicateTeacher">
             {{ _('Permitir reunião dupla com o mesmo professor') }}
           </label>
         </div>
+        <div class="mb-1">
+          <label class="form-label small fw-semibold mb-1">
+            {{ _('Bloquear agendamento (horas antes)') }}
+          </label>
+          <input type="number" id="qeDeadline" class="form-control form-control-sm" min="0" style="max-width:120px">
+          <div class="form-text">{{ _('0 = livre até o início da reunião') }}</div>
+        </div>
       </div>
-      <div class="modal-footer py-2 gap-2">
-        <button type="button" class="btn btn-outline-secondary btn-sm"
-                data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
-        <button type="button" class="btn btn-primary btn-sm" id="qeSaveBtn">
-          <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
-        </button>
+      <div class="modal-footer py-2 d-flex justify-content-between align-items-center">
+        <a id="qeFullPageLink" href="#" class="btn btn-link btn-sm text-secondary text-decoration-none p-0">
+          <i class="bi bi-box-arrow-up-right me-1"></i>{{ _('Ver página completa') }}
+        </a>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="button" class="btn btn-primary btn-sm" id="qeSaveBtn">
+            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+          </button>
+        </div>
       </div>
+    </div>
+  </div>
+</div>
+
+{# ── Attendance popup modal ── #}
+<div class="modal fade" id="attendancePopupModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-people me-2"></i><span id="attPopupTitle"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pb-1">
+        <div id="attDayBtns" class="d-flex flex-wrap gap-2 mb-3"></div>
+        <input type="text" id="attPopupSearch" class="form-control form-control-sm mb-2"
+               placeholder="{{ _('Buscar professor...') }}" autocomplete="off">
+        <div id="attPopupList" style="max-height:360px;overflow-y:auto"></div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm"
+                data-bs-dismiss="modal">{{ _('Fechar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Absence confirmation sub-modal ── #}
+<div class="modal fade" id="attConfirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:36px;height:36px;border-radius:50%;background:#fff3cd;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+          </span>
+          <h6 class="modal-title fw-semibold mb-0" style="color:var(--pan-blue)" id="attConfirmTitle"></h6>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2 pb-1">
+        <p class="mb-0 small" id="attConfirmBody"></p>
+      </div>
+      <div class="modal-footer border-0 pt-1 gap-2 flex-wrap justify-content-end" id="attConfirmFooter"></div>
     </div>
   </div>
 </div>
@@ -257,13 +315,17 @@ daysFilter.addEventListener('change', applyFilters);
 applyFilters();
 
 const CSRF = "{{ csrf_token() }}";
+
+/* ── Quick-edit modal ─────────────────────────────────────── */
 let qeEventId = null;
 
-function openQuickEdit(eventId, name, studentBooking, duplicateTeacher) {
+function openQuickEdit(eventId, name, studentBooking, duplicateTeacher, deadlineHours) {
   qeEventId = eventId;
-  document.getElementById('qeTitle').textContent = name;
-  document.getElementById('qeStudentBooking').checked   = studentBooking;
-  document.getElementById('qeDuplicateTeacher').checked = duplicateTeacher;
+  document.getElementById('qeTitle').textContent            = name;
+  document.getElementById('qeStudentBooking').checked       = studentBooking;
+  document.getElementById('qeDuplicateTeacher').checked     = duplicateTeacher;
+  document.getElementById('qeDeadline').value               = deadlineHours;
+  document.getElementById('qeFullPageLink').href            = `/admin/events/${eventId}/edit`;
   bootstrap.Modal.getOrCreateInstance(document.getElementById('quickEditModal')).show();
 }
 
@@ -276,6 +338,7 @@ document.getElementById('qeSaveBtn').addEventListener('click', async function() 
     body: JSON.stringify({
       student_booking_allowed:         document.getElementById('qeStudentBooking').checked,
       allow_duplicate_teacher_booking: document.getElementById('qeDuplicateTeacher').checked,
+      cancel_deadline_hours:           parseInt(document.getElementById('qeDeadline').value) || 0,
     })
   });
   this.disabled = false;
@@ -286,5 +349,165 @@ document.getElementById('qeSaveBtn').addEventListener('click', async function() 
     await panAlert({ body: '{{ _('Erro ao salvar.') }}', type: 'danger' });
   }
 });
+
+/* ── Attendance popup ─────────────────────────────────────── */
+let attEventId   = null;
+let attDayId     = null;
+let attDays      = [];
+let attTeachers  = [];
+let attAbsent    = new Set();   // "dayId_teacherId"
+let attBookings  = {};          // "dayId_teacherId" → count
+
+async function openAttendancePopup(eventId, name) {
+  attEventId = eventId;
+  document.getElementById('attPopupTitle').textContent = name;
+  document.getElementById('attPopupList').innerHTML =
+    '<p class="text-muted small py-2">{{ _('Carregando...') }}</p>';
+  document.getElementById('attDayBtns').innerHTML = '';
+  document.getElementById('attPopupSearch').value = '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('attendancePopupModal')).show();
+
+  const data = await fetch(`/admin/events/${eventId}/attendance_data`).then(r => r.json());
+  attDays     = data.days;
+  attTeachers = data.teachers;
+  attAbsent   = new Set(data.absent.map(([d,t]) => `${d}_${t}`));
+  attBookings = data.bookings;
+  attDayId    = attDays.length ? attDays[0].id : null;
+
+  renderAttDayBtns();
+  renderAttList('');
+}
+
+function renderAttDayBtns() {
+  const container = document.getElementById('attDayBtns');
+  container.innerHTML = '';
+  attDays.forEach(day => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn btn-sm rounded-pill ${day.id === attDayId ? 'btn-primary' : 'btn-outline-primary'}`;
+    btn.innerHTML = `<i class="bi bi-calendar3 me-1"></i>${day.date}${day.division ? ' · ' + day.division : ''}`;
+    btn.addEventListener('click', () => {
+      attDayId = day.id;
+      renderAttDayBtns();
+      renderAttList(document.getElementById('attPopupSearch').value.toLowerCase().trim());
+    });
+    container.appendChild(btn);
+  });
+}
+
+document.getElementById('attPopupSearch').addEventListener('input', function() {
+  renderAttList(this.value.toLowerCase().trim());
+});
+
+function renderAttList(query) {
+  const container = document.getElementById('attPopupList');
+  container.innerHTML = '';
+  const filtered = attTeachers.filter(t => !query || t.name.toLowerCase().includes(query));
+  if (!filtered.length) {
+    container.innerHTML = '<p class="text-muted small py-2">{{ _('Nenhum professor encontrado.') }}</p>';
+    return;
+  }
+  filtered.forEach(t => {
+    const absent = attAbsent.has(`${attDayId}_${t.id}`);
+    const div    = document.createElement('div');
+    div.className = 'd-flex align-items-center justify-content-between py-2 border-bottom';
+    div.innerHTML = `
+      <div class="d-flex align-items-center gap-2">
+        <span class="pan-avatar" style="background:var(--pan-blue);width:32px;height:32px;font-size:.7rem;flex-shrink:0">${t.initials}</span>
+        <span class="small fw-semibold">${t.name}</span>
+      </div>
+      <button type="button"
+              class="btn btn-sm ${absent ? 'btn-outline-danger' : 'btn-outline-success'} att-row-btn"
+              data-tid="${t.id}" data-tname="${t.name}">
+        <i class="bi ${absent ? 'bi-x-circle' : 'bi-check-circle'} me-1"></i>
+        ${absent ? '{{ _('Ausente') }}' : '{{ _('Presente') }}'}
+      </button>`;
+    div.querySelector('.att-row-btn').addEventListener('click', function() {
+      handleAttClick(t.id, t.name, absent, this);
+    });
+    container.appendChild(div);
+  });
+}
+
+function handleAttClick(teacherId, teacherName, currentlyAbsent, btn) {
+  if (currentlyAbsent) {
+    // Mark present — no confirmation needed
+    markTeacherPresent(teacherId, btn);
+    return;
+  }
+  // Mark absent — show confirmation
+  const bkCount = attBookings[`${attDayId}_${teacherId}`] || 0;
+  const title    = `{{ _('Marcar como ausente') }}`;
+  const body     = bkCount > 0
+    ? `<strong>${teacherName}</strong> {{ _('tem') }} ${bkCount} {{ _('reunião(ões) agendada(s) neste dia.') }}<br>{{ _('O que deseja fazer com os agendamentos?') }}`
+    : `{{ _('Marcar') }} <strong>${teacherName}</strong> {{ _('como ausente neste dia?') }}`;
+
+  document.getElementById('attConfirmTitle').textContent = title;
+  document.getElementById('attConfirmBody').innerHTML    = body;
+
+  const footer = document.getElementById('attConfirmFooter');
+  footer.innerHTML = '';
+
+  const mkBtn = (label, cls, handler) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = `btn btn-sm ${cls}`; b.textContent = label;
+    b.addEventListener('click', handler);
+    footer.appendChild(b);
+  };
+
+  mkBtn('{{ _('Cancelar') }}', 'btn-outline-secondary', () => {
+    bootstrap.Modal.getInstance(document.getElementById('attConfirmModal')).hide();
+  });
+
+  if (bkCount > 0) {
+    mkBtn('{{ _('Marcar ausente e notificar') }}', 'btn-warning', async () => {
+      bootstrap.Modal.getInstance(document.getElementById('attConfirmModal')).hide();
+      await doMarkAbsent(teacherId, teacherName, true, true, btn);
+    });
+    mkBtn('{{ _('Marcar ausente sem notificar') }}', 'btn-danger', async () => {
+      bootstrap.Modal.getInstance(document.getElementById('attConfirmModal')).hide();
+      await doMarkAbsent(teacherId, teacherName, true, false, btn);
+    });
+  } else {
+    mkBtn('{{ _('Marcar ausente') }}', 'btn-danger', async () => {
+      bootstrap.Modal.getInstance(document.getElementById('attConfirmModal')).hide();
+      await doMarkAbsent(teacherId, teacherName, false, false, btn);
+    });
+  }
+
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('attConfirmModal')).show();
+}
+
+async function doMarkAbsent(teacherId, teacherName, cancelBookings, notify, btn) {
+  btn.disabled = true;
+  const res = await fetch(
+    `/admin/events/${attEventId}/days/${attDayId}/absence/${teacherId}/set_absent`,
+    { method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ cancel_bookings: cancelBookings, notify }) }
+  );
+  btn.disabled = false;
+  if (!res.ok) { await panAlert({ body: '{{ _('Erro ao salvar.') }}', type: 'danger' }); return; }
+  const data = await res.json();
+  const key = `${attDayId}_${teacherId}`;
+  attAbsent.add(key);
+  if (cancelBookings) delete attBookings[key];
+  renderAttList(document.getElementById('attPopupSearch').value.toLowerCase().trim());
+  if (notify && data.sent > 0) {
+    await panAlert({ body: `${data.sent} {{ _('e-mail(s) enviado(s).') }}`, type: 'success' });
+  }
+}
+
+async function markTeacherPresent(teacherId, btn) {
+  btn.disabled = true;
+  const res = await fetch(
+    `/admin/events/${attEventId}/days/${attDayId}/absence/${teacherId}/toggle`,
+    { method: 'POST', headers: { 'X-CSRFToken': CSRF } }
+  );
+  btn.disabled = false;
+  if (!res.ok) return;
+  attAbsent.delete(`${attDayId}_${teacherId}`);
+  renderAttList(document.getElementById('attPopupSearch').value.toLowerCase().trim());
+}
 </script>
 {% endblock %}
