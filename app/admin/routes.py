@@ -717,7 +717,56 @@ def delete_guardian(id):
 def admins():
     admin_list = (User.query.filter_by(role="admin")
                   .order_by(User.last_name, User.first_name).all())
-    return render_template("admin/admins.html", admins=admin_list)
+    sec_list   = (User.query.filter_by(role="secretary")
+                  .order_by(User.last_name, User.first_name).all())
+    divisions  = Division.query.order_by(Division.order, Division.name).all()
+    div_ids_by_sec = {s.id: {sd.division_id for sd in SecretaryDivision.query.filter_by(secretary_id=s.id).all()}
+                      for s in sec_list}
+    return render_template("admin/admins.html", admins=admin_list,
+                           secretaries=sec_list, divisions=divisions,
+                           div_ids_by_sec=div_ids_by_sec)
+
+
+@admin_bp.route("/admins/inline-add", methods=["POST"])
+@login_required
+@admin_required
+def admins_inline_add():
+    email = request.form.get("email", "").strip().lower()
+    first = request.form.get("first_name", "").strip()
+    last  = request.form.get("last_name", "").strip()
+    if not email or not first or not last:
+        flash(_("Preencha todos os campos."), "danger")
+    elif User.query.filter_by(email=email).first():
+        flash(_("E-mail já está em uso."), "danger")
+    else:
+        user = User(email=email, role="admin", first_name=first, last_name=last, preferred_language="pt")
+        db.session.add(user)
+        db.session.commit()
+        flash(_("Administrador criado com sucesso."), "success")
+    return redirect(url_for("admin.admins"))
+
+
+@admin_bp.route("/secretaries/inline-add", methods=["POST"])
+@login_required
+@admin_required
+def secretaries_inline_add():
+    email   = request.form.get("email", "").strip().lower()
+    first   = request.form.get("first_name", "").strip()
+    last    = request.form.get("last_name", "").strip()
+    div_ids = [int(x) for x in request.form.getlist("division_ids") if x.isdigit()]
+    if not email or not first or not last:
+        flash(_("Preencha todos os campos."), "danger")
+    elif User.query.filter_by(email=email).first():
+        flash(_("E-mail já está em uso."), "danger")
+    else:
+        user = User(email=email, role="secretary", first_name=first, last_name=last, preferred_language="pt")
+        db.session.add(user)
+        db.session.flush()
+        for did in div_ids:
+            db.session.add(SecretaryDivision(secretary_id=user.id, division_id=did))
+        db.session.commit()
+        flash(_("Secretária criada com sucesso."), "success")
+    return redirect(url_for("admin.admins"))
 
 
 @admin_bp.route("/admins/new", methods=["GET", "POST"])

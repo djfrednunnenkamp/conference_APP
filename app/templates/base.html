@@ -96,12 +96,8 @@
   {% if current_user.role == 'admin' %}
   <div style="border-top:1px solid rgba(255,255,255,.1);padding:.5rem 0;flex-shrink:0">
     <a href="{{ url_for('admin.admins') }}"
-       class="pan-nav-item {% if ep in ('admin.admins','admin.new_admin','admin.edit_admin') %}active{% endif %}">
-      <i class="bi bi-person-gear"></i>{{ _('Administradores') }}
-    </a>
-    <a href="{{ url_for('admin.secretaries') }}"
-       class="pan-nav-item {% if ep in ('admin.secretaries','admin.new_secretary','admin.edit_secretary') %}active{% endif %}">
-      <i class="bi bi-person-lines-fill"></i>{{ _('Secretárias') }}
+       class="pan-nav-item {% if ep in ('admin.admins','admin.new_admin','admin.edit_admin','admin.new_secretary','admin.edit_secretary') %}active{% endif %}">
+      <i class="bi bi-people"></i>{{ _('Superusuários') }}
     </a>
   </div>
   {% endif %}
