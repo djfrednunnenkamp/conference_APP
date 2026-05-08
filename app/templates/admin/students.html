@@ -77,6 +77,20 @@
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1 flex-wrap">
+              {% if published_events %}
+                {% if published_events|length == 1 %}
+              <a href="{{ url_for('admin.admin_student_schedule', student_id=s.id, event_id=published_events[0].id) }}"
+                 class="btn btn-outline-success btn-sm" title="{{ _('Agendar reuniões') }}">
+                <i class="bi bi-calendar-plus"></i>
+              </a>
+                {% else %}
+              <button type="button" class="btn btn-outline-success btn-sm"
+                      title="{{ _('Agendar reuniões') }}"
+                      onclick="openEventPicker({{ s.id }})">
+                <i class="bi bi-calendar-plus"></i>
+              </button>
+                {% endif %}
+              {% endif %}
               <a href="{{ url_for('admin.edit_student', id=s.id) }}"
                  class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
                 <i class="bi bi-pencil"></i>
@@ -265,6 +279,39 @@
     </div>
   </div>
 </div>
+{% if published_events|length > 1 %}
+<div class="modal fade" id="eventPickerModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-calendar-event me-2"></i>{{ _('Selecionar conferência') }}
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="list-group list-group-flush">
+          {% for ev in published_events %}
+          <button type="button"
+                  class="list-group-item list-group-item-action py-3 px-3 event-pick-btn"
+                  data-event-id="{{ ev.id }}">
+            <div class="fw-semibold small">{{ ev.name }}</div>
+            {% set days = ev.days | sort(attribute='date') %}
+            {% if days %}
+            <div class="text-muted" style="font-size:.75rem">
+              {{ days[0].date.strftime('%d/%m/%Y') }}
+              {% if days|length > 1 %} – {{ days[-1].date.strftime('%d/%m/%Y') }}{% endif %}
+            </div>
+            {% endif %}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% endblock %}
 {% block scripts %}
 <script>
@@ -350,5 +397,20 @@ document.getElementById('doTemplate').addEventListener('click', function() {
   const cols = getCheckedCols('.imp-col').filter(c => c !== 'status');
   window.location.href = TEMPLATE_BASE_URL + '?cols=' + encodeURIComponent(cols.join(','));
 });
+
+{% if published_events|length > 1 %}
+let pickerStudentId = null;
+function openEventPicker(studentId) {
+  pickerStudentId = studentId;
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('eventPickerModal')).show();
+}
+document.querySelectorAll('.event-pick-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    if (pickerStudentId) {
+      window.location.href = `/admin/students/${pickerStudentId}/schedule/${this.dataset.eventId}`;
+    }
+  });
+});
+{% endif %}
 </script>
 {% endblock %}

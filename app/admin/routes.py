@@ -2026,7 +2026,21 @@ def students():
     students = query.order_by(User.last_name).all()
     from app import _natsort_key
     grades = sorted(GradeGroup.query.all(), key=lambda g: _natsort_key(g.name), reverse=True)
-    return render_template("admin/students.html", students=students, grades=grades, grade_filter=grade_filter)
+    published_events = ConferenceEvent.query.filter_by(status='published').order_by(ConferenceEvent.name).all()
+    return render_template("admin/students.html", students=students, grades=grades,
+                           grade_filter=grade_filter, published_events=published_events)
+
+
+@admin_bp.route("/students/<int:student_id>/schedule/<int:event_id>")
+@login_required
+@admin_required
+def admin_student_schedule(student_id, event_id):
+    student = User.query.get_or_404(student_id)
+    event   = ConferenceEvent.query.get_or_404(event_id)
+    if event.status != 'published':
+        flash(_("Este evento não está publicado."), "warning")
+        return redirect(url_for("admin.students"))
+    return render_template("admin/student_schedule.html", event=event, student=student)
 
 
 def _link_or_create_guardian_by_fields(student_id, email, first_name, last_name):

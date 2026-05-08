@@ -1,0 +1,538 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Agendar') }} – {{ student.full_name }}{% endblock %}
+{% block head %}
+<style>
+.teacher-sticky {
+  width: 1%; min-width: 130px; white-space: nowrap; overflow: hidden;
+  position: sticky; left: 0; z-index: 2; background: #fff;
+  border-right: 2px solid #dee2e6 !important;
+}
+thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
+.time-header { min-width: 72px; font-size: .72rem; white-space: nowrap; }
+.slot-cell { height: 60px; }
+.slot-time-label { font-size: .68rem; line-height: 1.25; }
+.slot-available  { background: #f8f9fa; cursor: pointer; transition: background .12s; }
+.slot-available:hover { background: #cfe2ff; }
+.slot-booked-me  { background: #d1e7dd; }
+.slot-cancellable { cursor: pointer; }
+.slot-cancellable:hover { background: #a3cfbb; }
+.slot-taken { background: #e9ecef; color: #adb5bd; }
+.slot-conflict {
+  background: repeating-linear-gradient(45deg, #fffbea, #fffbea 4px, #fff3cd 4px, #fff3cd 8px);
+  opacity: .75;
+}
+.slot-empty { background: transparent; border-color: #f0f0f0 !important; }
+.slot-blocked { background: #e9ecef; opacity: .45; cursor: not-allowed; }
+.col-hover { background: #dbeafe !important; }
+.booked-list { max-height: calc(100vh - 200px); overflow-y: auto; }
+.booked-item + .booked-item { border-top: 1px solid #f0f0f0; }
+.booked-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: #198754; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+</style>
+{% endblock %}
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <h4 class="fw-bold mb-0">{{ student.full_name }}</h4>
+    <small class="text-muted">
+      {{ student.student_profile.grade_group.name if student.student_profile else '' }}
+      — {{ event.name }}
+    </small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('admin.students') }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>{{ _('Voltar') }}
+    </a>
+  </div>
+</div>
+
+<div class="mb-3">
+  <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#filterModal">
+    <i class="bi bi-funnel me-1"></i>{{ _('Filtrar') }}
+    <span class="badge bg-primary ms-1 d-none" id="filterBadge">0</span>
+  </button>
+</div>
+
+<div class="row g-3 align-items-start">
+  <div class="col-auto d-none d-md-block" style="width:210px;position:sticky;top:1rem">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <span class="fw-semibold small">{{ _('Reuniões Agendadas') }}</span>
+        <span class="spinner-border spinner-border-sm text-secondary d-none" id="loadingSpinner"></span>
+      </div>
+      <div id="bookedList" class="booked-list"></div>
+    </div>
+  </div>
+
+  <div class="col" style="min-width:0">
+    <div id="dayTabs" class="d-flex gap-2 mb-3 flex-wrap d-none"></div>
+    <div class="d-flex flex-wrap gap-1 mb-2 align-items-center" style="row-gap:.3rem">
+      <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ _('Disponível') }}</span>
+      <span class="badge bg-success" style="font-size:.7rem">{{ _('Agendado') }}</span>
+      <span class="badge bg-secondary" style="font-size:.7rem">{{ _('Ocupado') }}</span>
+      <span class="badge bg-warning text-dark" style="font-size:.7rem">{{ _('Conflito') }}</span>
+      <small class="ms-auto text-muted" style="font-size:.7rem" id="lastUpdated"></small>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-bordered table-sm mb-0" id="slotGrid">
+        <thead id="gridHead" class="table-light"></thead>
+        <tbody id="gridBody"></tbody>
+      </table>
+    </div>
+    <div id="noSlots" class="alert alert-info d-none mt-2">
+      {{ _('Nenhum horário disponível para este aluno.') }}
+    </div>
+  </div>
+</div>
+
+<div class="d-md-none" style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:1055">
+  <button class="btn btn-primary rounded-pill shadow-lg"
+          style="padding:.55rem 1.1rem;font-size:.875rem"
+          data-bs-toggle="offcanvas" data-bs-target="#mobileBookedOffcanvas">
+    <i class="bi bi-list-check me-1"></i>
+    <span id="mobileBookedCount">0</span>
+  </button>
+</div>
+<div class="offcanvas offcanvas-bottom d-md-none" tabindex="-1" id="mobileBookedOffcanvas"
+     style="height:60vh;border-radius:16px 16px 0 0">
+  <div class="offcanvas-header border-bottom py-2">
+    <h6 class="offcanvas-title fw-semibold"><i class="bi bi-list-check me-2"></i>{{ _('Reuniões Agendadas') }}</h6>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body p-0" id="mobileBookedList" style="overflow-y:auto"></div>
+</div>
+
+<div class="modal fade" id="dupTeacherModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:36px;height:36px;border-radius:50%;background:#fff3cd;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+          </span>
+          <h6 class="modal-title fw-semibold mb-0" style="color:var(--pan-blue)">{{ _('Reunião duplicada') }}</h6>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <p class="mb-0" style="font-size:.875rem;color:var(--pan-text-muted)">
+          {{ _('Já existe uma reunião agendada com') }}
+          <strong id="dupTeacherName" style="color:var(--pan-blue)"></strong>.
+          {{ _('Deseja agendar outra reunião com este professor?') }}
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-0 gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Não, cancelar') }}</button>
+        <button type="button" class="btn btn-primary btn-sm" id="dupConfirmBtn">
+          <i class="bi bi-check-lg me-1"></i>{{ _('Sim, agendar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-bold"><i class="bi bi-funnel me-1"></i>{{ _('Filtrar') }}</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-tabs mb-3">
+          <li class="nav-item">
+            <button class="nav-link active small fw-semibold px-3" data-bs-toggle="tab" data-bs-target="#tabSubjects">{{ _('Matérias') }}</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link small fw-semibold px-3" data-bs-toggle="tab" data-bs-target="#tabTeachers">{{ _('Professores') }}</button>
+          </li>
+        </ul>
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="tabSubjects">
+            <div id="subjectToggles" class="d-flex flex-wrap gap-2 py-1"></div>
+          </div>
+          <div class="tab-pane fade" id="tabTeachers">
+            <input type="text" id="teacherSearch" class="form-control form-control-sm mb-2" placeholder="{{ _('Buscar professor...') }}" autocomplete="off">
+            <div id="teacherToggles" class="d-flex flex-wrap gap-2 py-1"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer py-2 d-flex justify-content-between">
+        <button class="btn btn-link btn-sm text-secondary text-decoration-none p-0" id="clearFiltersBtn">
+          <i class="bi bi-x-circle me-1"></i>{{ _('Limpar filtros') }}
+        </button>
+        <button class="btn btn-primary btn-sm" data-bs-dismiss="modal">{{ _('Fechar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const EVENT_ID   = {{ event.id }};
+const STUDENT_ID = {{ student.id }};
+const BOOK_URL   = "{{ url_for('scheduling.book') }}";
+const CANCEL_URL = "{{ url_for('scheduling.cancel', booking_id=0) }}".replace('/0', '/');
+const CSRF       = "{{ csrf_token() }}";
+
+const MSG_UPDATED     = "{{ _('Atualizado às') }}";
+const MSG_CANCEL      = "{{ _('Cancelar esta reunião?') }}";
+const MSG_ERR_BOOK    = "{{ _('Não foi possível agendar.') }}";
+const MSG_ERR_CANCEL  = "{{ _('Não foi possível cancelar.') }}";
+const MSG_NO_BOOKINGS = "{{ _('Nenhuma reunião agendada ainda.') }}";
+const MSG_TEACHER_HDR = "{{ _('Professor') }}";
+
+let allSlots = [], allTeachers = [], allDays = [], activeDayId = null;
+let hiddenSubjects = new Set(), hiddenTeachers = new Set();
+let filterModalBuilt = false;
+
+async function fetchSlots() {
+  document.getElementById('loadingSpinner').classList.remove('d-none');
+  try {
+    const res  = await fetch(`/scheduling/slots/${EVENT_ID}/${STUDENT_ID}`);
+    const data = await res.json();
+    allSlots    = data.slots    || [];
+    allTeachers = data.all_teachers || [];
+    allDays     = data.days     || [];
+    if (activeDayId === null) {
+      const firstActive = allDays.find(d => d.is_active);
+      if (firstActive) activeDayId = firstActive.id;
+    }
+  } finally {
+    document.getElementById('loadingSpinner').classList.add('d-none');
+    document.getElementById('lastUpdated').textContent =
+      MSG_UPDATED + ' ' + new Date().toLocaleTimeString();
+  }
+  renderDayTabs();
+  renderGrid();
+}
+
+function renderDayTabs() {
+  const container = document.getElementById('dayTabs');
+  if (allDays.length <= 1) { container.classList.add('d-none'); return; }
+  container.classList.remove('d-none');
+  container.innerHTML = '';
+  allDays.forEach(day => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const d = new Date(day.date + 'T00:00:00');
+    const label = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    const cap = label.charAt(0).toUpperCase() + label.slice(1);
+    if (day.is_active) {
+      btn.innerHTML = `<i class="bi bi-calendar3 me-1"></i>${cap}`;
+      btn.className = `btn btn-sm rounded-pill ${activeDayId === day.id ? 'btn-primary' : 'btn-outline-primary'}`;
+      btn.addEventListener('click', () => { activeDayId = day.id; renderDayTabs(); renderGrid(); });
+    } else {
+      btn.innerHTML = `<i class="bi bi-lock me-1"></i><span style="text-decoration:line-through;opacity:.6">${cap}</span>`;
+      btn.className = 'btn btn-sm rounded-pill btn-outline-secondary';
+      btn.disabled = true;
+    }
+    container.appendChild(btn);
+  });
+}
+
+function renderGrid() {
+  const daySlots = activeDayId ? allSlots.filter(s => s.day_id === activeDayId) : allSlots;
+
+  const teachers = {};
+  daySlots.forEach(s => {
+    if (!teachers[s.teacher_id]) teachers[s.teacher_id] = { name: s.teacher_name, subject: s.subject };
+  });
+  const allTeachersMap = {};
+  allSlots.forEach(s => {
+    if (!allTeachersMap[s.teacher_id]) allTeachersMap[s.teacher_id] = { name: s.teacher_name, subject: s.subject };
+  });
+  const teacherIds = Object.keys(teachers)
+    .filter(tid => !hiddenSubjects.has(teachers[tid].subject) && !hiddenTeachers.has(tid));
+
+  if (!teacherIds.length || !daySlots.length) {
+    document.getElementById('noSlots').classList.remove('d-none');
+    document.getElementById('slotGrid').classList.add('d-none');
+    renderSidebar([]);
+    buildFilterModal(allTeachersMap);
+    return;
+  }
+  document.getElementById('noSlots').classList.add('d-none');
+  document.getElementById('slotGrid').classList.remove('d-none');
+  buildFilterModal(allTeachersMap);
+
+  const isoToMin = iso => parseInt(iso.slice(11,13)) * 60 + parseInt(iso.slice(14,16));
+  const minToHHMM = m => String(Math.floor(m / 60) % 24).padStart(2,'0') + ':' + String(m % 60).padStart(2,'0');
+  const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+  const getDur = s => (isoToMin(s.end) - isoToMin(s.start) + 1440) % 1440;
+  const uniqueDurs = [...new Set(daySlots.map(getDur))].filter(d => d > 0);
+  const baseUnit   = Math.max(1, uniqueDurs.reduce(gcd));
+  const defaultDur = Math.min(...uniqueDurs);
+  const COL_W = Math.max(18, Math.round(72 * baseUnit / defaultDur));
+
+  const tStartMin = Math.min(...daySlots.map(s => isoToMin(s.start)));
+  const tEndMin   = Math.max(...daySlots.map(s => isoToMin(s.end)));
+  const totalMin  = tEndMin - tStartMin;
+
+  const baseColumns = [];
+  for (let m = 0; m < totalMin; m += baseUnit) baseColumns.push(m);
+
+  const slotMap = {};
+  daySlots.forEach(s => { slotMap[`${s.teacher_id}_${isoToMin(s.start) - tStartMin}`] = s; });
+
+  const bookedRanges = allSlots
+    .filter(s => s.status === 'booked_by_me')
+    .map(s => ({ start: isoToMin(s.start), end: isoToMin(s.end) }));
+  const isTimeConflict = (sMin, eMin) => bookedRanges.some(b => b.start < eMin && b.end > sMin);
+  const isColCovered   = offsetMin => {
+    const absMin = tStartMin + offsetMin;
+    return bookedRanges.some(b => b.start <= absMin && b.end > absMin);
+  };
+
+  const head = document.getElementById('gridHead');
+  head.innerHTML = '';
+  const hr = head.insertRow();
+  const thLabel = document.createElement('th');
+  thLabel.className = 'teacher-sticky align-middle text-muted small';
+  thLabel.textContent = MSG_TEACHER_HDR;
+  hr.appendChild(thLabel);
+
+  const majorSpan = Math.max(1, Math.round(defaultDur / baseUnit));
+  for (let m = 0; m < totalMin; m += defaultDur) {
+    const th = document.createElement('th');
+    th.className = 'time-header text-center align-middle';
+    if (majorSpan > 1) th.colSpan = majorSpan;
+    th.style.minWidth = (COL_W * majorSpan) + 'px';
+    th.dataset.colStart = m;
+    th.dataset.colEnd   = m + defaultDur;
+    th.textContent = minToHHMM(tStartMin + m);
+    hr.appendChild(th);
+  }
+
+  const body = document.getElementById('gridBody');
+  body.innerHTML = '';
+  teacherIds.forEach(tid => {
+    const tr = body.insertRow();
+    const tc = tr.insertCell();
+    tc.className = 'teacher-sticky align-middle ps-2';
+    tc.innerHTML = `<div class="fw-semibold small lh-sm">${teachers[tid].name}</div>`
+                 + `<div class="text-primary" style="font-size:.68rem">${teachers[tid].subject}</div>`;
+
+    let colIdx = 0;
+    while (colIdx < baseColumns.length) {
+      const offsetMin = baseColumns[colIdx];
+      const slot      = slotMap[`${tid}_${offsetMin}`];
+
+      if (slot) {
+        const slotDur = getDur(slot);
+        const span    = Math.max(1, Math.round(slotDur / baseUnit));
+        const td = tr.insertCell();
+        td.className = 'slot-cell text-center align-middle p-1';
+        if (span > 1) td.colSpan = span;
+        td.dataset.colStart = offsetMin;
+        td.dataset.colEnd   = offsetMin + slotDur;
+
+        const sMin = isoToMin(slot.start);
+        const eMin = isoToMin(slot.end);
+        const timeBooked = isTimeConflict(sMin, eMin);
+        const timeLabel = `<div class="slot-time-label">
+          <span class="fw-semibold d-block">${fmtTime(slot.start)}</span>
+          <span class="text-muted">${fmtTime(slot.end)}</span>
+        </div>`;
+
+        switch (slot.status) {
+          case 'available':
+            if (timeBooked) {
+              td.classList.add('slot-blocked');
+              td.innerHTML = timeLabel;
+            } else {
+              // Admin bypasses deadline — always bookable
+              td.classList.add('slot-available');
+              td.innerHTML = timeLabel;
+              td.addEventListener('click',      () => bookSlot(slot.slot_id, td));
+              td.addEventListener('mouseenter', () => highlightCols(offsetMin, offsetMin + slotDur, true));
+              td.addEventListener('mouseleave', () => highlightCols(offsetMin, offsetMin + slotDur, false));
+            }
+            break;
+          case 'booked_by_me':
+            td.classList.add('slot-booked-me', 'slot-cancellable');
+            td.innerHTML = `<i class="bi bi-check-circle-fill text-success d-block mb-1" style="font-size:1rem"></i>${timeLabel}`;
+            // Admin can always cancel
+            td.addEventListener('click',      () => cancelSlot(slot.booking_id, td));
+            td.addEventListener('mouseenter', () => highlightCols(offsetMin, offsetMin + slotDur, true));
+            td.addEventListener('mouseleave', () => highlightCols(offsetMin, offsetMin + slotDur, false));
+            break;
+          case 'booked_by_others':
+            td.classList.add('slot-taken');
+            td.innerHTML = `<i class="bi bi-x-lg"></i>`;
+            break;
+          case 'conflict':
+            td.classList.add(timeBooked ? 'slot-blocked' : 'slot-conflict');
+            if (!timeBooked) td.title = "{{ _('Conflito de horário') }}";
+            break;
+        }
+        colIdx += span;
+      } else {
+        const td = tr.insertCell();
+        td.className = 'slot-cell text-center align-middle p-1';
+        td.style.width    = COL_W + 'px';
+        td.style.minWidth = COL_W + 'px';
+        td.dataset.colStart = offsetMin;
+        td.dataset.colEnd   = offsetMin + baseUnit;
+        td.classList.add(isColCovered(offsetMin) ? 'slot-blocked' : 'slot-empty');
+        colIdx += 1;
+      }
+    }
+  });
+
+  renderSidebar(
+    allSlots.filter(s => s.status === 'booked_by_me').sort((a, b) => a.start.localeCompare(b.start))
+  );
+}
+
+function renderSidebar(booked) {
+  const html = booked.length
+    ? booked.map(s => {
+        const d    = new Date(s.start);
+        const date = d.toLocaleDateString('pt-BR', { weekday:'short', day:'2-digit', month:'2-digit' });
+        return `<div class="booked-item d-flex gap-2 p-2 align-items-start">
+          <div class="booked-dot"><i class="bi bi-check text-white" style="font-size:.85rem"></i></div>
+          <div class="overflow-hidden">
+            <div class="fw-semibold small text-truncate">${s.teacher_name}</div>
+            <div class="text-primary" style="font-size:.68rem">${s.subject}</div>
+            <div class="text-muted" style="font-size:.68rem">
+              ${date} &middot; ${fmtTime(s.start)}–${fmtTime(s.end)}
+            </div>
+          </div>
+        </div>`;
+      }).join('')
+    : `<p class="text-muted small p-3 mb-0">${MSG_NO_BOOKINGS}</p>`;
+  const el = document.getElementById('bookedList');
+  if (el) el.innerHTML = html;
+  const mobileList  = document.getElementById('mobileBookedList');
+  const mobileCount = document.getElementById('mobileBookedCount');
+  if (mobileList)  mobileList.innerHTML = html;
+  if (mobileCount) {
+    mobileCount.textContent = booked.length;
+    const btn = mobileCount.closest('button');
+    if (btn) btn.classList.toggle('btn-success', booked.length > 0);
+    if (btn) btn.classList.toggle('btn-primary',  booked.length === 0);
+  }
+}
+
+function buildFilterModal(slotTeachers) {
+  if (filterModalBuilt) { updateFilterBadge(); return; }
+  filterModalBuilt = true;
+  const subjects = [...new Set(Object.values(slotTeachers).map(t => t.subject))].sort();
+  const subjContainer = document.getElementById('subjectToggles');
+  subjects.forEach(subj => {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-sm btn-primary';
+    btn.textContent = subj;
+    btn.addEventListener('click', () => {
+      if (hiddenSubjects.has(subj)) { hiddenSubjects.delete(subj); btn.className = 'btn btn-sm btn-primary'; }
+      else { hiddenSubjects.add(subj); btn.className = 'btn btn-sm btn-outline-secondary'; }
+      updateFilterBadge(); renderGrid();
+    });
+    subjContainer.appendChild(btn);
+  });
+  const teachersWithSlots = new Set(allSlots.map(s => String(s.teacher_id)));
+  const teacherContainer = document.getElementById('teacherToggles');
+  allTeachers.forEach(t => {
+    const tid = String(t.id);
+    const hasSlots = teachersWithSlots.has(tid);
+    const btn = document.createElement('button');
+    btn.className = hasSlots ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-secondary disabled';
+    btn.textContent = t.name;
+    btn.dataset.name = t.name.toLowerCase();
+    if (hasSlots) {
+      btn.addEventListener('click', () => {
+        if (hiddenTeachers.has(tid)) { hiddenTeachers.delete(tid); btn.className = 'btn btn-sm btn-primary'; }
+        else { hiddenTeachers.add(tid); btn.className = 'btn btn-sm btn-outline-secondary'; }
+        updateFilterBadge(); renderGrid();
+      });
+    }
+    teacherContainer.appendChild(btn);
+  });
+  document.getElementById('teacherSearch').addEventListener('input', function() {
+    const q = this.value.toLowerCase().trim();
+    document.querySelectorAll('#teacherToggles .btn').forEach(btn => {
+      btn.style.display = (btn.dataset.name || '').includes(q) ? '' : 'none';
+    });
+  });
+  document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+    hiddenSubjects.clear(); hiddenTeachers.clear();
+    document.querySelectorAll('#subjectToggles .btn, #teacherToggles .btn')
+      .forEach(b => { b.className = 'btn btn-sm btn-primary'; b.style.display = ''; });
+    document.getElementById('teacherSearch').value = '';
+    updateFilterBadge(); renderGrid();
+  });
+  updateFilterBadge();
+}
+
+function updateFilterBadge() {
+  const count = hiddenSubjects.size + hiddenTeachers.size;
+  const badge = document.getElementById('filterBadge');
+  badge.textContent = count;
+  badge.classList.toggle('d-none', count === 0);
+}
+
+function highlightCols(startOffsetMin, endOffsetMin, on) {
+  document.querySelectorAll('[data-col-start]').forEach(el => {
+    const cs = parseInt(el.dataset.colStart);
+    const ce = parseInt(el.dataset.colEnd);
+    if (cs < endOffsetMin && ce > startOffsetMin) el.classList.toggle('col-hover', on);
+  });
+}
+
+function fmtTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+let pendingBook = null;
+
+async function bookSlot(slotId, cell) {
+  const slot = allSlots.find(s => s.slot_id === slotId);
+  if (slot) {
+    const alreadyBooked = allSlots.some(s => s.teacher_id === slot.teacher_id && s.status === 'booked_by_me');
+    if (alreadyBooked) {
+      document.getElementById('dupTeacherName').textContent = slot.teacher_name;
+      pendingBook = { slotId, cell };
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('dupTeacherModal')).show();
+      return;
+    }
+  }
+  await doBook(slotId, cell);
+}
+
+document.getElementById('dupConfirmBtn').addEventListener('click', async () => {
+  bootstrap.Modal.getInstance(document.getElementById('dupTeacherModal')).hide();
+  if (pendingBook) { await doBook(pendingBook.slotId, pendingBook.cell); pendingBook = null; }
+});
+
+async function doBook(slotId, cell) {
+  cell.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  const res = await fetch(BOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+    body: JSON.stringify({ slot_id: slotId, student_id: STUDENT_ID })
+  });
+  if (!res.ok) { await panAlert({ body: (await res.json()).error || MSG_ERR_BOOK, type: 'danger' }); }
+  fetchSlots();
+}
+
+async function cancelSlot(bookingId, cell) {
+  const ok = await panConfirm({
+    title: MSG_CANCEL, body: '{{ _('Esta ação não poderá ser desfeita.') }}',
+    confirmText: '{{ _('Cancelar reunião') }}', cancelText: '{{ _('Manter') }}', warning: true
+  });
+  if (!ok) return;
+  cell.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  const res = await fetch(CANCEL_URL + bookingId, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+  if (!res.ok) { await panAlert({ body: (await res.json()).error || MSG_ERR_CANCEL, type: 'danger' }); }
+  fetchSlots();
+}
+
+fetchSlots();
+setInterval(fetchSlots, 30000);
+</script>
+{% endblock %}
