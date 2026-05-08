@@ -4,9 +4,21 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h4 class="fw-bold mb-0">{{ _('Conferências') }}</h4>
+  {% if current_user.role == 'admin' %}
   <a href="{{ url_for('admin.new_event') }}" class="btn btn-primary btn-sm">
     <i class="bi bi-plus-lg me-1"></i>{{ _('Nova Conferência') }}
   </a>
+  {% endif %}
+</div>
+
+{# ── Archive / active toggle ── #}
+<div class="d-flex gap-2 mb-3">
+  <button class="btn btn-sm btn-primary" id="tabActive">
+    <i class="bi bi-calendar2-check me-1"></i>{{ _('Ativas') }}
+  </button>
+  <button class="btn btn-sm btn-outline-secondary" id="tabArchive">
+    <i class="bi bi-archive me-1"></i>{{ _('Arquivo') }}
+  </button>
 </div>
 
 {# ── Search + filter bar ── #}
@@ -54,10 +66,12 @@
         {% set day_count = event.days | length %}
         {% set first_day = event.days[0].date if event.days else none %}
         {% set last_day  = event.days[-1].date if event.days else none %}
+        {% set is_past = (event.status == 'closed') or (last_day is not none and last_day < today) %}
         <tr class="data-row"
             data-name="{{ event.name | lower }}"
             data-status="{{ event.status }}"
-            data-days="{{ day_count }}">
+            data-days="{{ day_count }}"
+            data-past="{{ '1' if is_past else '0' }}">
           <td class="fw-semibold">{{ event.name }}</td>
           <td>
             {% if event.status == 'published' %}
@@ -283,6 +297,10 @@ const statusFilter = document.getElementById('statusFilter');
 const daysFilter   = document.getElementById('daysFilter');
 const countLabel   = document.getElementById('countLabel');
 const noResults    = document.getElementById('noResults');
+const tabActive    = document.getElementById('tabActive');
+const tabArchive   = document.getElementById('tabArchive');
+
+let showArchive = false;
 
 function applyFilters() {
   const q      = searchInput.value.toLowerCase().trim();
@@ -296,20 +314,32 @@ function applyFilters() {
     const name      = row.dataset.name || '';
     const rowStatus = row.dataset.status || '';
     const rowDays   = parseInt(row.dataset.days) || 0;
+    const isPast    = row.dataset.past === '1';
 
+    const matchTab    = showArchive ? isPast : !isPast;
     const matchName   = !q      || name.includes(q);
     const matchStatus = !status || rowStatus === status;
     const matchDays   = !days   || (days === '4' ? rowDays >= 4 : rowDays === parseInt(days));
 
-    const show = matchName && matchStatus && matchDays;
+    const show = matchTab && matchName && matchStatus && matchDays;
     row.style.display = show ? '' : 'none';
     if (show) visible++;
   });
 
-  const total = rows.length;
+  const total = [...rows].filter(r => showArchive ? r.dataset.past === '1' : r.dataset.past === '0').length;
   countLabel.textContent = total ? `${visible} / ${total}` : '';
   noResults.classList.toggle('d-none', visible > 0 || total === 0);
 }
+
+function setTab(archive) {
+  showArchive = archive;
+  tabActive.className  = archive ? 'btn btn-sm btn-outline-secondary' : 'btn btn-sm btn-primary';
+  tabArchive.className = archive ? 'btn btn-sm btn-primary'           : 'btn btn-sm btn-outline-secondary';
+  applyFilters();
+}
+
+tabActive.addEventListener('click',  () => setTab(false));
+tabArchive.addEventListener('click', () => setTab(true));
 
 searchInput.addEventListener('input', applyFilters);
 statusFilter.addEventListener('change', applyFilters);

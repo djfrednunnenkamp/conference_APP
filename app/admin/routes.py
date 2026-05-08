@@ -1,5 +1,5 @@
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, date as date_type
 import csv
 import io
 import json
@@ -2751,7 +2751,7 @@ def update_guardian_from_student(student_id, guardian_id):
 @secretary_or_admin_required
 def events():
     all_events = ConferenceEvent.query.order_by(ConferenceEvent.name).all()
-    return render_template("admin/events.html", events=all_events)
+    return render_template("admin/events.html", events=all_events, today=date_type.today())
 
 
 def _has_at_least_one_day():
@@ -3443,7 +3443,8 @@ def notify(event_id):
     event = ConferenceEvent.query.get_or_404(event_id)
     if request.method == "POST":
         params = {k: request.form.get(k, '') for k in
-                  ('recipient_type', 'division_id', 'grade_id', 'min_children', 'not_notified')}
+                  ('include_guardians', 'include_students', 'division_ids', 'grade_ids',
+                   'min_children', 'not_notified')}
         recipients = _get_notify_recipients_v2(params, event_id)
         sent = 0
         for user in recipients:
@@ -3477,27 +3478,41 @@ def notify(event_id):
 def notify_preview(event_id):
     ConferenceEvent.query.get_or_404(event_id)
     params = {k: request.args.get(k, '') for k in
-              ('recipient_type', 'division_id', 'grade_id', 'min_children', 'not_notified')}
+              ('include_guardians', 'include_students', 'division_ids', 'grade_ids',
+               'min_children', 'not_notified')}
     recipients = _get_notify_recipients_v2(params, event_id)
     return jsonify({"count": len(recipients)})
 
 
-def _get_notify_recipients_v2(params, event_id):
-    recipient_type = params.get('recipient_type') or 'guardian'
-    division_id    = int(params.get('division_id') or 0)
-    grade_id       = int(params.get('grade_id') or 0)
-    min_children   = int(params.get('min_children') or 1)
-    not_notified   = params.get('not_notified') == '1'
+def _parse_id_list(s):
+    """Parse comma-separated integer string; return set or None (=all)."""
+    if not s or s.strip() == '':
+        return None
+    try:
+        ids = {int(x) for x in s.split(',') if x.strip()}
+        return ids if ids else None
+    except ValueError:
+        return None
 
-    # Resolve the set of grade_group_ids to filter by
-    if grade_id:
-        grade_ids = {grade_id}
-    elif division_id:
-        grade_ids = {g.id for g in GradeGroup.query.filter_by(division_id=division_id).all()}
+
+def _get_notify_recipients_v2(params, event_id):
+    include_guardians = params.get('include_guardians', '1') == '1'
+    include_students  = params.get('include_students',  '0') == '1'
+    division_ids      = _parse_id_list(params.get('division_ids', ''))
+    grade_ids_param   = _parse_id_list(params.get('grade_ids', ''))
+    min_children      = int(params.get('min_children') or 1)
+    not_notified      = params.get('not_notified') == '1'
+
+    # Resolve grade_group_ids to filter by
+    if grade_ids_param is not None:
+        grade_ids = grade_ids_param
+    elif division_ids is not None:
+        grade_ids = {g.id for g in GradeGroup.query.filter(
+            GradeGroup.division_id.in_(division_ids)).all()}
     else:
         grade_ids = None  # no grade filter
 
-    # Collect students in scope
+    # Students in scope
     sq = User.query.filter_by(role='student', is_active=True)
     if grade_ids is not None:
         sq = sq.join(StudentProfile, StudentProfile.user_id == User.id)\
@@ -3507,32 +3522,28 @@ def _get_notify_recipients_v2(params, event_id):
 
     result = []
 
-    # Students
-    if recipient_type in ('student', 'both'):
+    if include_students:
         for s in students:
-            if not_notified:
-                if EmailNotification.query.filter_by(recipient_id=s.id, event_id=event_id).first():
-                    continue
+            if not_notified and EmailNotification.query.filter_by(
+                    recipient_id=s.id, event_id=event_id).first():
+                continue
             result.append(s)
 
-    # Guardians
-    if recipient_type in ('guardian', 'both'):
+    if include_guardians:
         if grade_ids is not None:
-            # Only guardians linked to students in scope
             gids = {gs.guardian_id for gs in
-                    GuardianStudent.query.filter(GuardianStudent.student_id.in_(student_ids)).all()}
-            gq = User.query.filter(User.id.in_(gids), User.role == 'guardian', User.is_active == True)
+                    GuardianStudent.query.filter(
+                        GuardianStudent.student_id.in_(student_ids)).all()}
+            gq = User.query.filter(User.id.in_(gids),
+                                   User.role == 'guardian', User.is_active == True)
         else:
             gq = User.query.filter_by(role='guardian', is_active=True)
-        guardians = gq.order_by(User.last_name, User.first_name).all()
-
-        for g in guardians:
-            child_count = GuardianStudent.query.filter_by(guardian_id=g.id).count()
-            if child_count < min_children:
+        for g in gq.order_by(User.last_name, User.first_name).all():
+            if GuardianStudent.query.filter_by(guardian_id=g.id).count() < min_children:
                 continue
-            if not_notified:
-                if EmailNotification.query.filter_by(recipient_id=g.id, event_id=event_id).first():
-                    continue
+            if not_notified and EmailNotification.query.filter_by(
+                    recipient_id=g.id, event_id=event_id).first():
+                continue
             result.append(g)
 
     seen = set()

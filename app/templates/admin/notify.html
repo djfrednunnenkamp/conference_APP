@@ -44,12 +44,14 @@
   border-color: #86efac;
   color: #15803d;
 }
-.nf-chip.active.purple {
-  background: #faf5ff;
-  border-color: #d8b4fe;
-  color: #7c3aed;
-}
 .nf-chip i { font-size: .78rem; }
+
+/* recipient chip (no checkbox visible) */
+.nf-chip.active.orange {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+}
 
 /* preview bar */
 .nf-preview-bar {
@@ -80,12 +82,6 @@
 .nf-count-num.loading { color: #94a3b8; }
 .nf-count-label { font-size: .82rem; color: #64748b; }
 
-/* toggle switch */
-.nf-toggle-wrap {
-  display: flex; align-items: center; gap: .6rem; cursor: pointer;
-}
-.nf-toggle-wrap input[type=checkbox] { width: 1.1rem; height: 1.1rem; cursor: pointer; }
-.nf-toggle-label { font-size: .85rem; color: #334155; }
 </style>
 {% endblock %}
 
@@ -102,11 +98,12 @@
 
 <form method="POST" id="notifyForm">
   <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-  <input type="hidden" name="recipient_type" id="fRecipientType" value="guardian">
-  <input type="hidden" name="division_id"    id="fDivisionId"    value="0">
-  <input type="hidden" name="grade_id"       id="fGradeId"       value="0">
-  <input type="hidden" name="min_children"   id="fMinChildren"   value="1">
-  <input type="hidden" name="not_notified"   id="fNotNotified"   value="0">
+  <input type="hidden" name="include_guardians" id="fIncludeGuardians" value="1">
+  <input type="hidden" name="include_students"  id="fIncludeStudents"  value="0">
+  <input type="hidden" name="division_ids"      id="fDivisionIds"      value="">
+  <input type="hidden" name="grade_ids"         id="fGradeIds"         value="">
+  <input type="hidden" name="min_children"      id="fMinChildren"      value="1">
+  <input type="hidden" name="not_notified"      id="fNotNotified"      value="0">
 
   {# ── Sticky preview bar ── #}
   <div class="nf-preview-bar">
@@ -119,23 +116,30 @@
     </button>
   </div>
 
-  {# ── Destinatários ── #}
+  {# ── Não notificados (TOP) ── #}
   <div class="nf-card">
-    <div class="nf-card-title"><i class="bi bi-people me-1"></i>{{ _('Destinatários') }}</div>
-    <div class="d-flex flex-wrap gap-2" id="chipRecipient">
-      <span class="nf-chip active" data-val="guardian">
-        <i class="bi bi-person-heart"></i>{{ _('Responsáveis') }}
-      </span>
-      <span class="nf-chip" data-val="student">
-        <i class="bi bi-mortarboard"></i>{{ _('Alunos') }}
-      </span>
-      <span class="nf-chip" data-val="both">
-        <i class="bi bi-people-fill"></i>{{ _('Ambos') }}
+    <div class="nf-card-title"><i class="bi bi-funnel me-1"></i>{{ _('Filtro rápido') }}</div>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="nf-chip" id="chipNotNotified" data-active="0">
+        <i class="bi bi-bell-slash"></i>{{ _('Apenas quem ainda não recebeu e-mail') }}
       </span>
     </div>
   </div>
 
-  {# ── Setor ── #}
+  {# ── Destinatários ── #}
+  <div class="nf-card">
+    <div class="nf-card-title"><i class="bi bi-people me-1"></i>{{ _('Destinatários') }}</div>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="nf-chip active" id="chipGuardians" data-active="1">
+        <i class="bi bi-person-heart"></i>{{ _('Responsáveis') }}
+      </span>
+      <span class="nf-chip" id="chipStudents" data-active="0">
+        <i class="bi bi-mortarboard"></i>{{ _('Alunos') }}
+      </span>
+    </div>
+  </div>
+
+  {# ── Setor (multi-select) ── #}
   <div class="nf-card">
     <div class="nf-card-title"><i class="bi bi-diagram-3 me-1"></i>{{ _('Setor') }}</div>
     <div class="d-flex flex-wrap gap-2" id="chipDivision">
@@ -146,7 +150,7 @@
     </div>
   </div>
 
-  {# ── Turma ── #}
+  {# ── Turma (multi-select) ── #}
   <div class="nf-card">
     <div class="nf-card-title"><i class="bi bi-people me-1"></i>{{ _('Turma') }}</div>
     <div class="d-flex flex-wrap gap-2" id="chipGrade">
@@ -169,83 +173,146 @@
     </div>
   </div>
 
-  {# ── Outros filtros ── #}
-  <div class="nf-card">
-    <div class="nf-card-title"><i class="bi bi-funnel me-1"></i>{{ _('Outros filtros') }}</div>
-    <label class="nf-toggle-wrap">
-      <input type="checkbox" id="chkNotNotified" class="form-check-input">
-      <span class="nf-toggle-label">{{ _('Apenas quem ainda não recebeu e-mail deste evento') }}</span>
-    </label>
-  </div>
-
 </form>
 {% endblock %}
 
 {% block scripts %}
 <script>
 const PREVIEW_URL = "{{ url_for('admin.notify_preview', event_id=event.id) }}";
-const CSRF = "{{ csrf_token() }}";
 
 // ── State ────────────────────────────────────────────────────────────────────
 const state = {
-  recipient_type: 'guardian',
-  division_id: '0',
-  grade_id: '0',
+  include_guardians: '1',
+  include_students:  '0',
+  division_ids: '',   // '' = all; comma-separated IDs otherwise
+  grade_ids:    '',   // '' = all; comma-separated IDs otherwise
   min_children: '1',
   not_notified: '0',
 };
 
-// ── Chip group helper ─────────────────────────────────────────────────────────
-function initChipGroup(containerId, stateKey, hiddenId, onChange) {
+// ── Recipient chips (multi-select, no checkbox) ──────────────────────────────
+const chipGuardians = document.getElementById('chipGuardians');
+const chipStudents  = document.getElementById('chipStudents');
+const cardChildren  = document.getElementById('cardChildren');
+
+function syncRecipients() {
+  const g = chipGuardians.dataset.active === '1';
+  const s = chipStudents.dataset.active  === '1';
+  state.include_guardians = g ? '1' : '0';
+  state.include_students  = s ? '1' : '0';
+  document.getElementById('fIncludeGuardians').value = state.include_guardians;
+  document.getElementById('fIncludeStudents').value  = state.include_students;
+  cardChildren.style.display = g ? '' : 'none';
+  schedulePreview();
+}
+
+chipGuardians.addEventListener('click', () => {
+  const on = chipGuardians.dataset.active === '1';
+  chipGuardians.dataset.active = on ? '0' : '1';
+  chipGuardians.classList.toggle('active', !on);
+  syncRecipients();
+});
+chipStudents.addEventListener('click', () => {
+  const on = chipStudents.dataset.active === '1';
+  chipStudents.dataset.active = on ? '0' : '1';
+  chipStudents.classList.toggle('active', !on);
+  syncRecipients();
+});
+
+// ── Multi-select chip helper ─────────────────────────────────────────────────
+// allVal: the data-val of the "all" chip (e.g. '0')
+// onChangeCallback: called with current selected Set (empty = all)
+function initMultiChipGroup(containerId, allVal, hiddenId, onChangeCallback) {
   const container = document.getElementById(containerId);
-  container.querySelectorAll('.nf-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      container.querySelectorAll('.nf-chip').forEach(c => {
-        c.classList.remove('active', 'green', 'purple');
+  const chips = [...container.querySelectorAll('.nf-chip')];
+  const allChip = container.querySelector(`[data-val="${allVal}"]`);
+  // Track selected individual chip vals (Set of strings)
+  let selected = new Set(); // empty = "all"
+
+  function updateUI() {
+    chips.forEach(c => c.classList.remove('active', 'green'));
+    if (selected.size === 0) {
+      if (allChip) allChip.classList.add('active', 'green');
+    } else {
+      chips.forEach(c => {
+        if (selected.has(c.dataset.val)) c.classList.add('active');
       });
-      chip.classList.add('active');
-      // "Todos" chips get green, others get blue (default)
-      if (chip.dataset.val === '0' || chip.dataset.val === '1') chip.classList.add('green');
-      state[stateKey] = chip.dataset.val;
-      document.getElementById(hiddenId).value = chip.dataset.val;
-      if (onChange) onChange(chip.dataset.val);
-      schedulePreview();
+    }
+    // Update hidden input: '' = all, else comma-separated
+    const val = selected.size === 0 ? '' : [...selected].join(',');
+    document.getElementById(hiddenId).value = val;
+    state[hiddenId === 'fDivisionIds' ? 'division_ids' : 'grade_ids'] = val;
+    if (onChangeCallback) onChangeCallback(selected);
+    schedulePreview();
+  }
+
+  chips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const val = chip.dataset.val;
+      if (val === allVal) {
+        selected.clear();
+      } else {
+        if (selected.has(val)) {
+          selected.delete(val);
+        } else {
+          selected.add(val);
+        }
+        // If none selected, treat as "all"
+        if (selected.size === 0) selected.clear();
+      }
+      updateUI();
     });
   });
+
+  return {
+    reset() { selected.clear(); updateUI(); },
+    getSelected() { return selected; },
+  };
 }
 
 // ── Sector → filter grade chips ───────────────────────────────────────────────
-function onDivisionChange(divId) {
-  const gradeContainer = document.getElementById('chipGrade');
-  // Reset grade to "all"
-  gradeContainer.querySelectorAll('.nf-chip').forEach(c => c.classList.remove('active', 'green', 'purple'));
-  const allChip = gradeContainer.querySelector('[data-val="0"]');
-  if (allChip) { allChip.classList.add('active', 'green'); }
-  state.grade_id = '0';
-  document.getElementById('fGradeId').value = '0';
+let gradeGroup;
 
-  // Show/hide grade chips based on selected division
+function onDivisionChange(selectedDivisions) {
+  // Reset grades to "all"
+  if (gradeGroup) gradeGroup.reset();
+
+  // Show/hide grade chips
+  const gradeContainer = document.getElementById('chipGrade');
   gradeContainer.querySelectorAll('.nf-chip[data-div]').forEach(chip => {
     const chipDiv = chip.dataset.div;
-    chip.style.display = (divId === '0' || chipDiv === divId) ? '' : 'none';
+    if (chipDiv === '0') return; // "Todas" chip always visible
+    const show = selectedDivisions.size === 0 || selectedDivisions.has(chipDiv);
+    chip.style.display = show ? '' : 'none';
   });
 }
 
-// ── Recipient type → show/hide children card ──────────────────────────────────
-function onRecipientChange(val) {
-  document.getElementById('cardChildren').style.display =
-    val === 'student' ? 'none' : '';
-}
+const divisionGroup = initMultiChipGroup('chipDivision', '0', 'fDivisionIds', onDivisionChange);
+gradeGroup = initMultiChipGroup('chipGrade', '0', 'fGradeIds', null);
 
-// ── Init chip groups ──────────────────────────────────────────────────────────
-initChipGroup('chipRecipient', 'recipient_type', 'fRecipientType', onRecipientChange);
-initChipGroup('chipDivision',  'division_id',    'fDivisionId',    onDivisionChange);
-initChipGroup('chipGrade',     'grade_id',       'fGradeId',       null);
-initChipGroup('chipChildren',  'min_children',   'fMinChildren',   null);
+// ── Min-children single-select ───────────────────────────────────────────────
+(function() {
+  const container = document.getElementById('chipChildren');
+  container.querySelectorAll('.nf-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      container.querySelectorAll('.nf-chip').forEach(c => c.classList.remove('active', 'green'));
+      chip.classList.add('active');
+      if (chip.dataset.val === '1') chip.classList.add('green');
+      state.min_children = chip.dataset.val;
+      document.getElementById('fMinChildren').value = chip.dataset.val;
+      schedulePreview();
+    });
+  });
+})();
 
-// ── Not-notified toggle ───────────────────────────────────────────────────────
-document.getElementById('chkNotNotified').addEventListener('change', function () {
-  state.not_notified = this.checked ? '1' : '0';
+// ── Not-notified chip ─────────────────────────────────────────────────────────
+const chipNotNotified = document.getElementById('chipNotNotified');
+chipNotNotified.addEventListener('click', () => {
+  const on = chipNotNotified.dataset.active === '1';
+  chipNotNotified.dataset.active = on ? '0' : '1';
+  chipNotNotified.classList.toggle('active', !on);
+  chipNotNotified.classList.toggle('orange', !on);
+  state.not_notified = on ? '0' : '1';
   document.getElementById('fNotNotified').value = state.not_notified;
   schedulePreview();
 });
@@ -258,7 +325,7 @@ function schedulePreview() {
 }
 
 async function fetchPreview() {
-  const numEl  = document.getElementById('previewNum');
+  const numEl   = document.getElementById('previewNum');
   const sendBtn = document.getElementById('sendBtn');
   numEl.classList.add('loading');
   numEl.textContent = '…';
