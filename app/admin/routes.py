@@ -2552,17 +2552,50 @@ def delete_event(id):
 @login_required
 @admin_required
 def event_bookings(id):
-    from collections import defaultdict
     event = ConferenceEvent.query.get_or_404(id)
     bookings = (Booking.query
                 .join(Slot).join(ConferenceDay)
                 .filter(ConferenceDay.event_id == id, Booking.cancelled_at == None)
                 .order_by(Slot.start_datetime)
                 .all())
-    # Collect distinct teacher IDs that have at least one booking (for print modal)
     teacher_ids_with_bookings = list({b.slot.teacher_id for b in bookings})
-    return render_template("admin/event_bookings.html", event=event, bookings=bookings,
-                           teacher_ids_with_bookings=teacher_ids_with_bookings)
+
+    # Build guardian data for each booking (student → guardians)
+    student_ids = {b.student_id for b in bookings}
+    from app.models import GuardianStudent
+    gs_rows = GuardianStudent.query.filter(GuardianStudent.student_id.in_(student_ids)).all()
+    guardian_ids_by_student = {}
+    for gs in gs_rows:
+        guardian_ids_by_student.setdefault(gs.student_id, []).append(gs.guardian_id)
+    guardian_ids = {gid for gids in guardian_ids_by_student.values() for gid in gids}
+    guardians_map = {u.id: u for u in User.query.filter(User.id.in_(guardian_ids)).all()} if guardian_ids else {}
+
+    # JSON-friendly data for client-side filtering
+    bookings_json = []
+    for b in bookings:
+        g_ids = guardian_ids_by_student.get(b.student_id, [])
+        bookings_json.append({
+            "id":           b.id,
+            "teacher_id":   b.slot.teacher_id,
+            "teacher_name": b.slot.teacher.full_name if b.slot.teacher else "",
+            "student_id":   b.student_id,
+            "student_name": b.student.full_name if b.student else "",
+            "guardian_ids": g_ids,
+        })
+
+    # Unique lists for filter dropdowns
+    teachers_list  = sorted({(b.slot.teacher_id, b.slot.teacher.full_name) for b in bookings if b.slot.teacher},  key=lambda x: x[1])
+    students_list  = sorted({(b.student_id, b.student.full_name) for b in bookings if b.student}, key=lambda x: x[1])
+    guardians_list = sorted({(gid, guardians_map[gid].full_name) for gid in guardian_ids if gid in guardians_map}, key=lambda x: x[1])
+
+    return render_template("admin/event_bookings.html",
+                           event=event, bookings=bookings,
+                           teacher_ids_with_bookings=teacher_ids_with_bookings,
+                           bookings_json=bookings_json,
+                           teachers_list=teachers_list,
+                           students_list=students_list,
+                           guardians_list=guardians_list,
+                           guardian_ids_by_student=guardian_ids_by_student)
 
 
 @admin_bp.route("/events/<int:id>/print")
