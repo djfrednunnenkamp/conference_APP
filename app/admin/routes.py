@@ -696,6 +696,27 @@ def edit_guardian(id):
     return render_template("admin/guardian_form.html", form=form, guardian=user)
 
 
+@admin_bp.route("/guardians/new", methods=["POST"])
+@login_required
+@admin_required
+def new_guardian():
+    first_name = request.form.get("first_name", "").strip()
+    last_name  = request.form.get("last_name",  "").strip()
+    email      = request.form.get("email",       "").strip().lower()
+    if not first_name or not last_name or not email:
+        flash(_("Preencha todos os campos."), "danger")
+        return redirect(url_for("admin.guardians"))
+    if User.query.filter_by(email=email).first():
+        flash(_("Já existe um usuário com este e-mail."), "danger")
+        return redirect(url_for("admin.guardians"))
+    user = User(email=email, role="guardian", first_name=first_name,
+                last_name=last_name, preferred_language="en")
+    db.session.add(user)
+    db.session.commit()
+    flash(_("Responsável criado com sucesso."), "success")
+    return redirect(url_for("admin.guardians"))
+
+
 @admin_bp.route("/guardians/<int:id>/delete", methods=["POST"])
 @login_required
 @admin_required
