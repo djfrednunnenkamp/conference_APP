@@ -825,6 +825,60 @@ def edit_admin(id):
     return render_template("admin/admin_form.html", form=form, admin_user=user)
 
 
+@admin_bp.route("/admins/<int:id>/edit-inline", methods=["POST"])
+@login_required
+@admin_required
+def edit_admin_inline(id):
+    user = User.query.filter_by(id=id, role="admin").first_or_404()
+    email = request.form.get("email", "").strip().lower()
+    first = request.form.get("first_name", "").strip()
+    last  = request.form.get("last_name", "").strip()
+    if not email or not first or not last:
+        flash(_("Preencha todos os campos."), "danger")
+    else:
+        clash = User.query.filter(User.email == email, User.id != user.id).first()
+        if clash:
+            flash(_("E-mail já está em uso."), "danger")
+        else:
+            user.first_name = first
+            user.last_name  = last
+            user.email      = email
+            db.session.commit()
+            flash(_("Administrador atualizado."), "success")
+    return redirect(url_for("admin.admins"))
+
+
+@admin_bp.route("/secretaries/<int:id>/edit-inline", methods=["POST"])
+@login_required
+@admin_required
+def edit_secretary_inline(id):
+    user = User.query.filter_by(id=id, role='secretary').first_or_404()
+    email = request.form.get("email", "").strip().lower()
+    first = request.form.get("first_name", "").strip()
+    last  = request.form.get("last_name", "").strip()
+    div_ids = {int(x) for x in request.form.getlist("division_ids") if x.isdigit()}
+    if not email or not first or not last:
+        flash(_("Preencha todos os campos."), "danger")
+    else:
+        clash = User.query.filter(User.email == email, User.id != user.id).first()
+        if clash:
+            flash(_("E-mail já está em uso."), "danger")
+        else:
+            user.first_name = first
+            user.last_name  = last
+            user.email      = email
+            existing = {sd.division_id: sd for sd in SecretaryDivision.query.filter_by(secretary_id=user.id).all()}
+            for did, sd in existing.items():
+                if did not in div_ids:
+                    db.session.delete(sd)
+            for did in div_ids:
+                if did not in existing:
+                    db.session.add(SecretaryDivision(secretary_id=user.id, division_id=did))
+            db.session.commit()
+            flash(_("Secretária atualizada."), "success")
+    return redirect(url_for("admin.admins"))
+
+
 @admin_bp.route("/admins/<int:id>/delete", methods=["POST"])
 @login_required
 @admin_required

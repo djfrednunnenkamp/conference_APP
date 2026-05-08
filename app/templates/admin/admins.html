@@ -65,10 +65,16 @@
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1">
-              <a href="{{ url_for('admin.edit_admin', id=a.id) }}"
-                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
+              <button class="btn btn-outline-secondary btn-sm edit-admin-btn"
+                      title="{{ _('Editar') }}"
+                      data-id="{{ a.id }}"
+                      data-first="{{ a.first_name }}"
+                      data-last="{{ a.last_name }}"
+                      data-email="{{ a.email }}"
+                      data-bs-toggle="modal"
+                      data-bs-target="#editAdminModal">
                 <i class="bi bi-pencil"></i>
-              </a>
+              </button>
               <form method="POST" action="{{ url_for('admin.send_user_reset', user_id=a.id) }}" class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="redirect_to" value="admin.admins">
@@ -149,10 +155,17 @@
           </td>
           <td class="text-end">
             <div class="d-flex justify-content-end gap-1">
-              <a href="{{ url_for('admin.edit_secretary', id=s.id) }}"
-                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
+              <button class="btn btn-outline-secondary btn-sm edit-sec-btn"
+                      title="{{ _('Editar') }}"
+                      data-id="{{ s.id }}"
+                      data-first="{{ s.first_name }}"
+                      data-last="{{ s.last_name }}"
+                      data-email="{{ s.email }}"
+                      data-div-ids="{{ (div_ids_by_sec.get(s.id) or []) | list | tojson }}"
+                      data-bs-toggle="modal"
+                      data-bs-target="#editSecretaryModal">
                 <i class="bi bi-pencil"></i>
-              </a>
+              </button>
               <form method="POST" action="{{ url_for('admin.resend_secretary_invite', id=s.id) }}" class="d-inline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-outline-primary btn-sm" title="{{ _('Enviar e-mail') }}">
@@ -216,6 +229,43 @@
   </div>
 </div>
 
+{# ── Edit Admin modal ── #}
+<div class="modal fade" id="editAdminModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content">
+      <form method="POST" id="editAdminForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold">
+            <i class="bi bi-person-gear me-2 text-primary"></i>{{ _('Editar Administrador') }}
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">{{ _('Nome') }}</label>
+            <input type="text" name="first_name" id="editAdminFirst" class="form-control form-control-sm" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">{{ _('Sobrenome') }}</label>
+            <input type="text" name="last_name" id="editAdminLast" class="form-control form-control-sm" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small fw-semibold">{{ _('E-mail') }}</label>
+            <input type="email" name="email" id="editAdminEmail" class="form-control form-control-sm" required>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 {# ── Add Secretary modal ── #}
 <div class="modal fade" id="addSecretaryModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
@@ -270,6 +320,60 @@
   </div>
 </div>
 
+{# ── Edit Secretary modal ── #}
+<div class="modal fade" id="editSecretaryModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
+    <div class="modal-content">
+      <form method="POST" id="editSecForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="modal-header">
+          <h6 class="modal-title fw-semibold">
+            <i class="bi bi-person-lines-fill me-2 text-success"></i>{{ _('Editar Secretária') }}
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label small fw-semibold">{{ _('Nome') }}</label>
+              <input type="text" name="first_name" id="editSecFirst" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-semibold">{{ _('Sobrenome') }}</label>
+              <input type="text" name="last_name" id="editSecLast" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">{{ _('E-mail') }}</label>
+            <input type="email" name="email" id="editSecEmail" class="form-control form-control-sm" required>
+          </div>
+          {% if divisions %}
+          <div>
+            <label class="form-label small fw-semibold">{{ _('Setores') }}</label>
+            <div class="d-flex flex-wrap gap-2" id="editSecDivisions">
+              {% for div in divisions %}
+              <label class="d-flex align-items-center gap-1 border rounded px-2 py-1"
+                     style="cursor:pointer;font-size:.83rem;background:#f8f9fa">
+                <input type="checkbox" name="division_ids" value="{{ div.id }}"
+                       class="form-check-input m-0 flex-shrink-0 edit-sec-div-cb">
+                {{ div.name }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script>
@@ -287,8 +391,33 @@ function applySearch() {
   });
   countLabel.textContent = total ? `${visible} / ${total}` : '';
 }
-
 searchInput.addEventListener('input', applySearch);
 applySearch();
+
+// ── Edit admin modal ──────────────────────────────────────────────────────────
+document.querySelectorAll('.edit-admin-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('editAdminForm').action =
+      `/admin/admins/${btn.dataset.id}/edit-inline`;
+    document.getElementById('editAdminFirst').value = btn.dataset.first;
+    document.getElementById('editAdminLast').value  = btn.dataset.last;
+    document.getElementById('editAdminEmail').value = btn.dataset.email;
+  });
+});
+
+// ── Edit secretary modal ──────────────────────────────────────────────────────
+document.querySelectorAll('.edit-sec-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('editSecForm').action =
+      `/admin/secretaries/${btn.dataset.id}/edit-inline`;
+    document.getElementById('editSecFirst').value = btn.dataset.first;
+    document.getElementById('editSecLast').value  = btn.dataset.last;
+    document.getElementById('editSecEmail').value = btn.dataset.email;
+    const divIds = JSON.parse(btn.dataset.divIds || '[]');
+    document.querySelectorAll('.edit-sec-div-cb').forEach(cb => {
+      cb.checked = divIds.includes(parseInt(cb.value));
+    });
+  });
+});
 </script>
 {% endblock %}
