@@ -9,7 +9,7 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255))
-    role = db.Column(db.Enum("admin", "teacher", "student", "guardian"), nullable=False)
+    role = db.Column(db.Enum("admin", "teacher", "student", "guardian", "secretary"), nullable=False)
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
@@ -188,6 +188,7 @@ class ConferenceDay(db.Model):
     slots    = db.relationship("Slot",              back_populates="day", cascade="all, delete-orphan")
     absences = db.relationship("TeacherDayAbsence", back_populates="day", cascade="all, delete-orphan")
     teacher_overrides = db.relationship("TeacherDayOverride", back_populates="day", cascade="all, delete-orphan")
+    breaks   = db.relationship("TeacherBreak", back_populates="day", cascade="all, delete-orphan")
 
 
 class TeacherDayAbsence(db.Model):
@@ -228,6 +229,7 @@ class Slot(db.Model):
     start_datetime = db.Column(db.DateTime, nullable=False)
     end_datetime = db.Column(db.DateTime, nullable=False)
     is_booked = db.Column(db.Boolean, default=False, nullable=False)
+    is_break = db.Column(db.Boolean, default=False, nullable=False, server_default='0')
 
     day = db.relationship("ConferenceDay", back_populates="slots")
     teacher = db.relationship("User")
@@ -312,3 +314,32 @@ class EventSectorTeacher(db.Model):
     teacher = db.relationship("User")
 
     __table_args__ = (db.UniqueConstraint("sector_id", "teacher_id", name="uq_sector_teacher"),)
+
+
+class TeacherBreak(db.Model):
+    """A blocked time slot (break) for a teacher on a specific conference day."""
+    __tablename__ = 'teacher_break'
+
+    id         = db.Column(db.Integer, primary_key=True)
+    teacher_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    day_id     = db.Column(db.Integer, db.ForeignKey('conference_day.id', ondelete='CASCADE'), nullable=False)
+    start_time = db.Column(db.Time, nullable=False)
+
+    teacher = db.relationship('User', foreign_keys=[teacher_id])
+    day     = db.relationship('ConferenceDay', back_populates='breaks', foreign_keys=[day_id])
+
+    __table_args__ = (db.UniqueConstraint('teacher_id', 'day_id', 'start_time', name='uq_teacher_break'),)
+
+
+class SecretaryDivision(db.Model):
+    """Maps a secretary user to the divisions they manage."""
+    __tablename__ = 'secretary_division'
+
+    id           = db.Column(db.Integer, primary_key=True)
+    secretary_id = db.Column(db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
+    division_id  = db.Column(db.Integer, db.ForeignKey('division.id', ondelete='CASCADE'), nullable=False)
+
+    secretary = db.relationship('User',     foreign_keys=[secretary_id])
+    division  = db.relationship('Division', foreign_keys=[division_id])
+
+    __table_args__ = (db.UniqueConstraint('secretary_id', 'division_id', name='uq_secretary_division'),)

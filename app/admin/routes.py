@@ -12,7 +12,8 @@ from app.models import (User, TeacherProfile, Subject, GradeGroup, GradeGroupSub
                         TeacherSubjectGrade, StudentProfile, GuardianStudent,
                         ConferenceEvent, ConferenceDay, Slot, Booking, EmailNotification,
                         TeacherDayAbsence, StudentSubjectExclusion, EventReminder,
-                        Division, TeacherDayOverride, EventSector, EventSectorTeacher)
+                        Division, TeacherDayOverride, EventSector, EventSectorTeacher,
+                        TeacherBreak, SecretaryDivision)
 from app.admin.forms import (GradeGroupForm, SubjectForm, TeacherForm, StudentForm,
                               GuardianForm, AdminForm, ConferenceEventForm,
                               ConferenceEventSimpleForm, NotifyForm)
@@ -33,11 +34,28 @@ def admin_required(f):
     return decorated
 
 
+def secretary_or_admin_required(f):
+    """Allow access to both admins and secretaries."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated or current_user.role not in ('admin', 'secretary'):
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
+
+
+def get_secretary_division_ids():
+    """Return set of division_ids the current secretary manages. Empty set for admins (= all)."""
+    if current_user.role == 'secretary':
+        return {sd.division_id for sd in SecretaryDivision.query.filter_by(secretary_id=current_user.id).all()}
+    return set()  # empty = no restriction = admin
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @admin_bp.route("/")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def dashboard():
     total_students = User.query.filter_by(role="student").count()
     total_teachers = User.query.filter_by(role="teacher").count()
@@ -461,7 +479,7 @@ def delete_subject(id):
 
 @admin_bp.route("/teachers")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def teachers():
     grade_filter = request.args.get("grade_id", type=int)
     query = User.query.filter_by(role="teacher")
@@ -511,15 +529,8 @@ def new_teacher():
             profile = TeacherProfile(user_id=user.id, bio="")
             db.session.add(profile)
             _save_teacher_subject_grades(user.id, request.form)
-            token = generate_token(user.email, salt="invite")
-            user.invite_token = token
-            user.invite_sent_at = datetime.utcnow()
             db.session.commit()
-            try:
-                send_invite_email(user, token)
-                flash(_("Professor criado e convite enviado para %(email)s.", email=email), "success")
-            except Exception as e:
-                flash(_("Professor criado, mas falha no e-mail: %(err)s", err=str(e)), "warning")
+            flash(_("Professor criado com sucesso."), "success")
             return redirect(url_for("admin.teachers"))
     return render_template("admin/teacher_form.html",
                            form=form,
@@ -531,7 +542,7 @@ def new_teacher():
 
 @admin_bp.route("/teachers/<int:id>/edit", methods=["GET", "POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def edit_teacher(id):
     user = User.query.filter_by(id=id, role="teacher").first_or_404()
     form = TeacherForm(obj=user)
@@ -629,7 +640,7 @@ def delete_student(id):
 
 @admin_bp.route("/users/<int:user_id>/send-reset", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def send_user_reset(user_id):
     """Send a password-set (first access) or reset email to any user."""
     user = User.query.get_or_404(user_id)
@@ -654,7 +665,7 @@ def send_user_reset(user_id):
 
 @admin_bp.route("/guardians")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def guardians():
     guardian_list = (User.query.filter_by(role="guardian")
                      .order_by(User.last_name, User.first_name).all())
@@ -782,6 +793,115 @@ def delete_admin(id):
 
 # ── Bulk actions ───────────────────────────────────────────────────────────────
 
+# ── Secretary management ───────────────────────────────────────────────────────
+
+@admin_bp.route("/secretaries")
+@login_required
+@admin_required
+def secretaries():
+    secs = User.query.filter_by(role='secretary').order_by(User.last_name, User.first_name).all()
+    divisions = Division.query.order_by(Division.order, Division.name).all()
+    div_ids_by_sec = {}
+    for s in secs:
+        div_ids_by_sec[s.id] = {sd.division_id for sd in SecretaryDivision.query.filter_by(secretary_id=s.id).all()}
+    return render_template('admin/secretaries.html', secretaries=secs, divisions=divisions, div_ids_by_sec=div_ids_by_sec)
+
+
+@admin_bp.route("/secretaries/new", methods=["GET", "POST"])
+@login_required
+@admin_required
+def new_secretary():
+    divisions = Division.query.order_by(Division.order, Division.name).all()
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        first = request.form.get("first_name", "").strip()
+        last  = request.form.get("last_name", "").strip()
+        div_ids = [int(x) for x in request.form.getlist("division_ids") if x.isdigit()]
+        if not email or not first or not last:
+            flash(_("Preencha todos os campos."), "danger")
+        elif User.query.filter_by(email=email).first():
+            flash(_("E-mail já está em uso."), "danger")
+        else:
+            user = User(email=email, role="secretary", first_name=first, last_name=last, preferred_language="pt")
+            db.session.add(user)
+            db.session.flush()
+            for did in div_ids:
+                db.session.add(SecretaryDivision(secretary_id=user.id, division_id=did))
+            db.session.commit()
+            flash(_("Secretária criada com sucesso."), "success")
+            return redirect(url_for("admin.secretaries"))
+    return render_template("admin/secretary_form.html", secretary=None, divisions=divisions, selected_div_ids=set())
+
+
+@admin_bp.route("/secretaries/<int:id>/edit", methods=["GET", "POST"])
+@login_required
+@admin_required
+def edit_secretary(id):
+    user = User.query.filter_by(id=id, role='secretary').first_or_404()
+    divisions = Division.query.order_by(Division.order, Division.name).all()
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        first = request.form.get("first_name", "").strip()
+        last  = request.form.get("last_name", "").strip()
+        div_ids = {int(x) for x in request.form.getlist("division_ids") if x.isdigit()}
+        clash = User.query.filter(User.email == email, User.id != user.id).first()
+        if not email or not first or not last:
+            flash(_("Preencha todos os campos."), "danger")
+        elif clash:
+            flash(_("E-mail já está em uso."), "danger")
+        else:
+            user.first_name = first
+            user.last_name  = last
+            user.email      = email
+            # Sync divisions
+            existing = {sd.division_id: sd for sd in SecretaryDivision.query.filter_by(secretary_id=user.id).all()}
+            for did, sd in existing.items():
+                if did not in div_ids:
+                    db.session.delete(sd)
+            for did in div_ids:
+                if did not in existing:
+                    db.session.add(SecretaryDivision(secretary_id=user.id, division_id=did))
+            db.session.commit()
+            flash(_("Secretária atualizada."), "success")
+            return redirect(url_for("admin.secretaries"))
+    selected_div_ids = {sd.division_id for sd in SecretaryDivision.query.filter_by(secretary_id=user.id).all()}
+    return render_template("admin/secretary_form.html", secretary=user, divisions=divisions, selected_div_ids=selected_div_ids)
+
+
+@admin_bp.route("/secretaries/<int:id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_secretary(id):
+    user = User.query.filter_by(id=id, role='secretary').first_or_404()
+    db.session.delete(user)
+    db.session.commit()
+    flash(_("Secretária removida."), "success")
+    return redirect(url_for("admin.secretaries"))
+
+
+@admin_bp.route("/secretaries/<int:id>/resend-invite", methods=["POST"])
+@login_required
+@admin_required
+def resend_secretary_invite(id):
+    user = User.query.filter_by(id=id, role='secretary').first_or_404()
+    try:
+        if not user.has_password():
+            token = generate_token(user.email, salt="invite")
+            user.invite_token = token
+            user.invite_sent_at = datetime.utcnow()
+            db.session.commit()
+            send_invite_email(user, token)
+        else:
+            token = generate_token(user.email, salt="reset")
+            send_reset_email(user, token)
+        flash(_("E-mail enviado para %(name)s.", name=user.first_name), "success")
+    except Exception as e:
+        flash(_("Falha ao enviar e-mail: %(err)s", err=str(e)), "danger")
+    return redirect(url_for("admin.secretaries"))
+
+
+# ── Bulk actions ───────────────────────────────────────────────────────────────
+
 @admin_bp.route("/users/bulk-delete", methods=["POST"])
 @login_required
 @admin_required
@@ -851,7 +971,10 @@ def bulk_email():
 
 # All available columns per entity (email always included automatically)
 _TEACHER_COLS  = ["email", "first_name", "last_name", "subjects_grades", "status"]
-_STUDENT_COLS  = ["email", "first_name", "last_name", "grade", "subjects", "guardian1", "guardian2", "status"]
+_STUDENT_COLS  = ["email", "first_name", "last_name", "grade", "subjects",
+                  "guardian1_email", "guardian1_first_name", "guardian1_last_name",
+                  "guardian2_email", "guardian2_first_name", "guardian2_last_name",
+                  "status"]
 _GUARDIAN_COLS = ["email", "first_name", "last_name", "student1", "student2", "status"]
 
 
@@ -905,8 +1028,13 @@ def _validate_csv_file(f):
 def _parse_csv_upload():
     f = request.files.get("csv_file")
     data = _validate_csv_file(f)
-    stream = io.StringIO(data.decode("utf-8-sig"))
-    reader = csv.DictReader(stream)
+    text = data.decode("utf-8-sig")
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=',\t;')
+    except csv.Error:
+        dialect = csv.excel
+    stream = io.StringIO(text)
+    reader = csv.DictReader(stream, dialect=dialect)
     rows = list(reader)
     if not rows:
         raise ValueError(_("Arquivo vazio ou sem linhas de dados."))
@@ -961,8 +1089,12 @@ def _student_row(s, cols):
         # Standard: pipe-separated list of subject names
         elif c == "subjects":   row.append("|".join(_student_active_subjects(s)))
         elif c == "status":     row.append("Ativo" if s.has_password() else "Pendente")
-        elif c == "guardian1":  row.append(_guardian_obj(guardians[0]) if len(guardians) > 0 else "")
-        elif c == "guardian2":  row.append(_guardian_obj(guardians[1]) if len(guardians) > 1 else "")
+        elif c == "guardian1_email":      row.append(guardians[0].email      if len(guardians) > 0 else "")
+        elif c == "guardian1_first_name": row.append(guardians[0].first_name if len(guardians) > 0 else "")
+        elif c == "guardian1_last_name":  row.append(guardians[0].last_name  if len(guardians) > 0 else "")
+        elif c == "guardian2_email":      row.append(guardians[1].email      if len(guardians) > 1 else "")
+        elif c == "guardian2_first_name": row.append(guardians[1].first_name if len(guardians) > 1 else "")
+        elif c == "guardian2_last_name":  row.append(guardians[1].last_name  if len(guardians) > 1 else "")
     return row
 
 
@@ -1022,8 +1154,9 @@ def template_students():
     example = {"email": "maria.santos@escola.com", "first_name": "Maria",
                "last_name": "Santos", "grade": "G9",
                "subjects": "Matemática|Português|História",
-               "guardian1": "carlos@email.com;Carlos;Oliveira",
-               "guardian2": ""}
+               "guardian1_email": "carlos@email.com",
+               "guardian1_first_name": "Carlos", "guardian1_last_name": "Oliveira",
+               "guardian2_email": "", "guardian2_first_name": "", "guardian2_last_name": ""}
     return _csv_response([[example.get(c, "") for c in cols]], cols, "modelo_alunos.csv")
 
 
@@ -1501,11 +1634,20 @@ def import_students():
         ln         = row.get("last_name", "").strip()  if "last_name"  in cols else ""
         grade_name = row.get("grade", "").strip()      if "grade"      in cols else ""
         subj_str   = row.get("subjects", "").strip()   if "subjects"   in cols else ""
-        g1 = row.get("guardian1", "").strip() if "guardian1" in cols else ""
-        g2 = row.get("guardian2", "").strip() if "guardian2" in cols else ""
+        # New split-column format; fallback to old packed format
+        g1_email = row.get("guardian1_email", "").strip()
+        g1_fn    = row.get("guardian1_first_name", "").strip()
+        g1_ln    = row.get("guardian1_last_name", "").strip()
+        g1 = f"{g1_email};{g1_fn};{g1_ln}" if g1_email else row.get("guardian1", "").strip()
+
+        g2_email = row.get("guardian2_email", "").strip()
+        g2_fn    = row.get("guardian2_first_name", "").strip()
+        g2_ln    = row.get("guardian2_last_name", "").strip()
+        g2 = f"{g2_email};{g2_fn};{g2_ln}" if g2_email else row.get("guardian2", "").strip()
+
         if has_names and mode != "delete" and (not fn or not ln):
             continue
-        valid_rows.append((fn, ln, em, grade_name, subj_str, g1, g2))
+        valid_rows.append((fn, ln, em, grade_name, subj_str, g1, g2, len(valid_rows) + 2))
         emails_in_file.add(em)
 
     def _delete_student(user):
@@ -1550,9 +1692,14 @@ def import_students():
             _delete_student(user)
         db.session.flush()
 
-    added = 0
-    for fn, ln, em, grade_name, subj_str, g1, g2 in valid_rows:
-        if User.query.filter_by(email=em).first():
+    added, skipped = 0, []
+    for fn, ln, em, grade_name, subj_str, g1, g2, line_num in valid_rows:
+        existing = User.query.filter_by(email=em).first()
+        if existing:
+            if existing.role == "student":
+                skipped.append(f"Linha {line_num} ({em}): aluno já existe")
+            else:
+                skipped.append(f"Linha {line_num} ({em}): e-mail já usado por um {existing.role}")
             continue
         if not has_names:
             continue
@@ -1575,7 +1722,13 @@ def import_students():
         added += 1
 
     db.session.commit()
-    flash(_("%(added)d aluno(s) importado(s).", added=added), "success")
+    if added:
+        flash(_("%(added)d aluno(s) importado(s).", added=added), "success")
+    if skipped:
+        details = " | ".join(skipped)
+        flash(f"{len(skipped)} aluno(s) não importado(s): {details}", "warning")
+    if not added and not skipped:
+        flash(_("Nenhum aluno novo encontrado no arquivo."), "info")
     return redirect(url_for("admin.students"))
 
 
@@ -1785,7 +1938,7 @@ def import_grades_matrix():
 
 @admin_bp.route("/events/<int:event_id>/attendance_data")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def event_attendance_data(event_id):
     event = ConferenceEvent.query.get_or_404(event_id)
     days  = sorted(event.days, key=lambda d: d.date)
@@ -1822,7 +1975,7 @@ def event_attendance_data(event_id):
 @admin_bp.route("/events/<int:event_id>/days/<int:day_id>/absence/<int:teacher_id>/set_absent",
                 methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def set_teacher_absent(event_id, day_id, teacher_id):
     data           = request.get_json() or {}
     cancel_bk      = data.get('cancel_bookings', False)
@@ -1870,7 +2023,7 @@ def set_teacher_absent(event_id, day_id, teacher_id):
 
 @admin_bp.route("/events/<int:event_id>/days/<int:day_id>/absence/<int:teacher_id>/toggle", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def toggle_teacher_absence(event_id, day_id, teacher_id):
     ConferenceDay.query.filter_by(id=day_id, event_id=event_id).first_or_404()
     existing = TeacherDayAbsence.query.filter_by(day_id=day_id, teacher_id=teacher_id).first()
@@ -1892,7 +2045,7 @@ def toggle_teacher_absence(event_id, day_id, teacher_id):
 
 @admin_bp.route("/events/<int:event_id>/days/<int:day_id>/absence/<int:teacher_id>/notify", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def notify_teacher_absent(event_id, day_id, teacher_id):
     """Send absence notification emails to guardians/students with bookings for this teacher on this day."""
     day = ConferenceDay.query.filter_by(id=day_id, event_id=event_id).first_or_404()
@@ -1925,11 +2078,174 @@ def notify_teacher_absent(event_id, day_id, teacher_id):
     return jsonify({"sent": sent})
 
 
+# ── Teacher breaks ─────────────────────────────────────────────────────────────
+
+@admin_bp.route("/events/<int:event_id>/teacher-breaks/<int:teacher_id>")
+@login_required
+@secretary_or_admin_required
+def teacher_break_data(event_id, teacher_id):
+    """Return all days + slot grid + current breaks for a teacher in this event."""
+    from datetime import timedelta, time as dt_time
+    event = ConferenceEvent.query.get_or_404(event_id)
+    teacher = User.query.get_or_404(teacher_id)
+
+    # Find the EventSectorTeacher record for this teacher in this event
+    etc = (EventSectorTeacher.query
+           .join(EventSector, EventSectorTeacher.sector_id == EventSector.id)
+           .filter(EventSector.event_id == event_id,
+                   EventSectorTeacher.teacher_id == teacher_id)
+           .first())
+    if not etc:
+        return jsonify({"teacher_name": teacher.full_name, "days": []})
+
+    sector = etc.sector
+    slot_dur_min = etc.slot_duration_minutes or sector.slot_duration_minutes or 0
+    break_min = sector.break_minutes or 0
+
+    # Get all conference days for this sector's division
+    days = (ConferenceDay.query
+            .filter_by(event_id=event_id, division_id=sector.division_id)
+            .order_by(ConferenceDay.date)
+            .all())
+
+    # Fetch existing breaks for these days for this teacher
+    day_ids = [d.id for d in days]
+    existing_breaks = TeacherBreak.query.filter(
+        TeacherBreak.teacher_id == teacher_id,
+        TeacherBreak.day_id.in_(day_ids)
+    ).all()
+    breaks_by_day = {}
+    for tb in existing_breaks:
+        breaks_by_day.setdefault(tb.day_id, set()).add(
+            tb.start_time.strftime('%H:%M'))
+
+    days_out = []
+    for day in days:
+        # Use sector start/end if available, else fall back to day
+        s_time = sector.start_time or day.start_time
+        e_time = sector.end_time or day.end_time
+        if not slot_dur_min or slot_dur_min <= 0:
+            days_out.append({
+                "day_id": day.id,
+                "date": day.date.strftime('%Y-%m-%d'),
+                "slots": []
+            })
+            continue
+
+        from datetime import datetime as _dt
+        start_dt = _dt.combine(day.date, s_time)
+        end_dt   = _dt.combine(day.date, e_time)
+        step     = timedelta(minutes=slot_dur_min + break_min)
+        slot_dur = timedelta(minutes=slot_dur_min)
+
+        day_break_set = breaks_by_day.get(day.id, set())
+        slots_out = []
+        current = start_dt
+        guard = 500
+        while current + slot_dur <= end_dt and guard > 0:
+            t_str = current.strftime('%H:%M')
+            slots_out.append({
+                "start_time": t_str,
+                "is_break": t_str in day_break_set,
+            })
+            current += step
+            guard -= 1
+
+        days_out.append({
+            "day_id": day.id,
+            "date": day.date.strftime('%Y-%m-%d'),
+            "slots": slots_out,
+        })
+
+    return jsonify({"teacher_name": teacher.full_name, "days": days_out})
+
+
+@admin_bp.route("/events/<int:event_id>/teacher-breaks/toggle", methods=["POST"])
+@login_required
+@secretary_or_admin_required
+def toggle_teacher_break(event_id):
+    """Toggle a break for a teacher at a specific day+time."""
+    from datetime import datetime as _dt, time as _time, timedelta
+    event = ConferenceEvent.query.get_or_404(event_id)
+    data = request.get_json(silent=True) or {}
+    teacher_id = data.get('teacher_id')
+    day_id = data.get('day_id')
+    start_time_str = data.get('start_time')  # "HH:MM"
+
+    if not teacher_id or not day_id or not start_time_str:
+        return jsonify({"error": "Missing fields"}), 400
+
+    day = ConferenceDay.query.filter_by(id=day_id, event_id=event_id).first_or_404()
+
+    try:
+        h, m = map(int, start_time_str.split(':'))
+        from datetime import time as dt_time
+        start_time = dt_time(h, m)
+    except Exception:
+        return jsonify({"error": "Invalid start_time"}), 400
+
+    existing = TeacherBreak.query.filter_by(
+        teacher_id=teacher_id, day_id=day_id, start_time=start_time).first()
+
+    if existing:
+        # Remove break
+        db.session.delete(existing)
+        is_break = False
+        # If published: update corresponding slot
+        if event.status == 'published':
+            start_dt = _dt.combine(day.date, start_time)
+            slot = Slot.query.filter_by(
+                teacher_id=teacher_id, day_id=day_id,
+                start_datetime=start_dt).first()
+            if slot:
+                slot.is_break = False
+    else:
+        # Add break
+        db.session.add(TeacherBreak(
+            teacher_id=teacher_id, day_id=day_id, start_time=start_time))
+        is_break = True
+        # If published: also sync the Slot
+        if event.status == 'published':
+            start_dt = _dt.combine(day.date, start_time)
+            slot = Slot.query.filter_by(
+                teacher_id=teacher_id, day_id=day_id,
+                start_datetime=start_dt).first()
+            if slot:
+                slot.is_break = True
+                # Cancel any active booking on this slot
+                if slot.booking and not slot.booking.cancelled_at:
+                    slot.booking.cancelled_at = _dt.utcnow()
+                    slot.is_booked = False
+            else:
+                # No slot yet — find duration from sector config
+                etc = (EventSectorTeacher.query
+                       .join(EventSector, EventSectorTeacher.sector_id == EventSector.id)
+                       .filter(EventSector.event_id == event_id,
+                               EventSectorTeacher.teacher_id == teacher_id)
+                       .first())
+                dur_min = None
+                if etc:
+                    dur_min = etc.slot_duration_minutes or (etc.sector.slot_duration_minutes if etc.sector else None)
+                if dur_min:
+                    end_dt = start_dt + timedelta(minutes=dur_min)
+                    db.session.add(Slot(
+                        day_id=day_id,
+                        teacher_id=teacher_id,
+                        start_datetime=start_dt,
+                        end_datetime=end_dt,
+                        is_booked=False,
+                        is_break=True,
+                    ))
+
+    db.session.commit()
+    return jsonify({"is_break": is_break})
+
+
 # ── Event reminders ────────────────────────────────────────────────────────────
 
 @admin_bp.route("/events/<int:event_id>/reminders/add", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def add_reminder(event_id):
     ConferenceEvent.query.get_or_404(event_id)
     hours = request.get_json(silent=True) or {}
@@ -1946,7 +2262,7 @@ def add_reminder(event_id):
 
 @admin_bp.route("/events/<int:event_id>/reminders/<int:reminder_id>/delete", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def delete_reminder(event_id, reminder_id):
     reminder = EventReminder.query.filter_by(id=reminder_id, event_id=event_id).first_or_404()
     db.session.delete(reminder)
@@ -1956,7 +2272,7 @@ def delete_reminder(event_id, reminder_id):
 
 @admin_bp.route("/events/<int:event_id>/reminders/<int:reminder_id>/send", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def send_reminder_now(event_id, reminder_id):
     """Manually send a booking-summary reminder to all guardians with bookings in this event."""
     event = ConferenceEvent.query.get_or_404(event_id)
@@ -1993,7 +2309,7 @@ def send_reminder_now(event_id, reminder_id):
 
 @admin_bp.route("/events/<int:event_id>/days/<int:day_id>/toggle-active", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def toggle_day_active(event_id, day_id):
     day = ConferenceDay.query.filter_by(id=day_id, event_id=event_id).first_or_404()
     day.is_active = not day.is_active
@@ -2090,7 +2406,7 @@ def _save_teacher_subject_grades(teacher_id, form_data):
 
 @admin_bp.route("/students")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def students():
     # Purge abandoned draft records (created via new_student but never filled in)
     abandoned = User.query.filter(
@@ -2118,7 +2434,7 @@ def students():
 
 @admin_bp.route("/students/<int:student_id>/schedule/<int:event_id>")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def admin_student_schedule(student_id, event_id):
     student = User.query.get_or_404(student_id)
     event   = ConferenceEvent.query.get_or_404(event_id)
@@ -2281,15 +2597,8 @@ def add_guardian_to_student(student_id):
         db.session.add(guardian)
         db.session.flush()
         db.session.add(GuardianStudent(guardian_id=guardian.id, student_id=student_id))
-        token = generate_token(guardian.email, salt="invite")
-        guardian.invite_token = token
-        guardian.invite_sent_at = datetime.utcnow()
         db.session.commit()
-        try:
-            send_invite_email(guardian, token)
-            flash(_("Responsável criado e convite enviado para %(email)s.", email=email), "success")
-        except Exception as e:
-            flash(_("Responsável criado, mas falha no e-mail: %(err)s", err=str(e)), "warning")
+        flash(_("Responsável criado com sucesso."), "success")
 
     return redirect(url_for("admin.edit_student", id=student_id))
 
@@ -2333,7 +2642,7 @@ def update_guardian_from_student(student_id, guardian_id):
 
 @admin_bp.route("/events")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def events():
     all_events = ConferenceEvent.query.order_by(ConferenceEvent.name).all()
     return render_template("admin/events.html", events=all_events)
@@ -2387,12 +2696,13 @@ def new_event():
                            divisions=divisions,
                            sector_teachers_js=sector_teachers_js,
                            existing_sectors=existing_sectors,
-                           all_teachers_data=[], absent_set_list=[], absent_set=set())
+                           all_teachers_data=[], absent_set_list=[], absent_set=set(),
+                           secretary_division_ids=[])
 
 
 @admin_bp.route("/events/<int:id>/check-conflicts")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def event_check_conflicts(id):
     """Return days that have bookings and are about to be removed from the event (used by JS modal)."""
     event = ConferenceEvent.query.get_or_404(id)
@@ -2419,7 +2729,7 @@ def event_check_conflicts(id):
 
 @admin_bp.route("/events/<int:id>/edit", methods=["GET", "POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def edit_event(id):
     event = ConferenceEvent.query.get_or_404(id)
     form  = ConferenceEventSimpleForm(obj=event)
@@ -2429,6 +2739,21 @@ def edit_event(id):
         if event.status != 'draft':
             flash(_("Evento publicado não pode ser editado. Despublique primeiro."), "warning")
             return redirect(url_for("admin.edit_event", id=id))
+
+        # For secretaries: filter out sectors they don't manage from the form data
+        if current_user.role == 'secretary':
+            sec_div_ids = get_secretary_division_ids()
+            from werkzeug.datastructures import ImmutableMultiDict
+            allowed_items = []
+            for key, value in request.form.items(multi=True):
+                m = re.match(r'^sector_(\d+)_', key)
+                if m:
+                    if int(m.group(1)) in sec_div_ids:
+                        allowed_items.append((key, value))
+                else:
+                    allowed_items.append((key, value))
+            request.form = ImmutableMultiDict(allowed_items)
+
         if not _has_at_least_one_day():
             flash(_("Adicione pelo menos 1 dia de reunião (com data, início e fim) em qualquer setor."), "warning")
         else:
@@ -2461,6 +2786,7 @@ def edit_event(id):
         for t in all_teachers
     ]
     absent_set_list = [[d, t] for d, t in absent_set]
+    secretary_division_ids = list(get_secretary_division_ids()) if current_user.role == 'secretary' else []
     return render_template("admin/event_form.html",
                            form=form, event=event,
                            divisions=divisions,
@@ -2469,7 +2795,8 @@ def edit_event(id):
                            all_teachers=all_teachers,
                            all_teachers_data=all_teachers_data,
                            absent_set_list=absent_set_list,
-                           absent_set=absent_set)
+                           absent_set=absent_set,
+                           secretary_division_ids=secretary_division_ids)
 
 
 @admin_bp.route("/events/<int:id>/publish", methods=["POST"])
@@ -2489,7 +2816,7 @@ def publish_event(id):
 
 @admin_bp.route("/events/<int:id>/update_meta", methods=["POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def update_event_meta(id):
     event = ConferenceEvent.query.get_or_404(id)
     if request.is_json:
@@ -2550,7 +2877,7 @@ def delete_event(id):
 
 @admin_bp.route("/events/<int:id>/bookings")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def event_bookings(id):
     event = ConferenceEvent.query.get_or_404(id)
     bookings = (Booking.query
@@ -2600,7 +2927,7 @@ def event_bookings(id):
 
 @admin_bp.route("/events/<int:id>/print")
 @login_required
-@admin_required
+@secretary_or_admin_required
 def print_schedule(id):
     from collections import defaultdict
     event = ConferenceEvent.query.get_or_404(id)
@@ -2874,8 +3201,15 @@ def _save_event_sectors(event, conflict_action='keep'):
         db.session.flush()
 
         # ── Update EventSectorTeacher ─────────────────────────────────────────
+        sector_day_ids = [d.id for d in ConferenceDay.query.filter_by(
+            event_id=event.id, division_id=div_id).all()]
         for etc in list(sector.teacher_configs):
             if etc.teacher_id not in selected_tids:
+                if sector_day_ids:
+                    TeacherBreak.query.filter(
+                        TeacherBreak.teacher_id == etc.teacher_id,
+                        TeacherBreak.day_id.in_(sector_day_ids)
+                    ).delete(synchronize_session=False)
                 db.session.delete(etc)
         db.session.flush()
 
@@ -2977,18 +3311,21 @@ def _generate_all_slots_for_event(event):
         days = ConferenceDay.query.filter_by(
             event_id=event.id, division_id=sector.division_id).all()
         for day in days:
+            # Build breaks set for this day
+            day_breaks = TeacherBreak.query.filter_by(day_id=day.id).all()
+            breaks_set = {(tb.teacher_id, tb.start_time) for tb in day_breaks} if day_breaks else None
             for s in list(day.slots):
                 db.session.delete(s)
             db.session.flush()
             db.session.add_all(
-                generate_slots_for_sector_day(day, teacher_gen, break_min))
+                generate_slots_for_sector_day(day, teacher_gen, break_min, breaks_set=breaks_set))
 
 
 # ── Notifications ──────────────────────────────────────────────────────────────
 
 @admin_bp.route("/events/<int:event_id>/notify", methods=["GET", "POST"])
 @login_required
-@admin_required
+@secretary_or_admin_required
 def notify(event_id):
     event = ConferenceEvent.query.get_or_404(event_id)
     form = NotifyForm()

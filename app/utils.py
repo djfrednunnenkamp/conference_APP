@@ -109,13 +109,14 @@ def generate_slots_for_day(day, teachers):
     return slots
 
 
-def generate_slots_for_sector_day(day, teacher_configs, break_minutes):
+def generate_slots_for_sector_day(day, teacher_configs, break_minutes, breaks_set=None):
     """
     Generate Slot objects for a ConferenceDay with per-teacher duration support.
 
     day             : ConferenceDay instance (already flushed, has .id and .date/.start_time/.end_time)
     teacher_configs : list of (User, slot_duration_minutes) tuples
     break_minutes   : break between slots in minutes (same for all teachers in the sector)
+    breaks_set      : optional set of (teacher_id, time) tuples marking break slots
     """
     from app.models import Slot
     slots = []
@@ -131,12 +132,14 @@ def generate_slots_for_sector_day(day, teacher_configs, break_minutes):
         current = start_dt
         guard   = 500   # safety cap
         while current + slot_dur <= end_dt and guard > 0:
+            is_break = bool(breaks_set and (teacher.id, current.time()) in breaks_set)
             slots.append(Slot(
                 day_id=day.id,
                 teacher_id=teacher.id,
                 start_datetime=current,
                 end_datetime=current + slot_dur,
                 is_booked=False,
+                is_break=is_break,
             ))
             current += step
             guard  -= 1

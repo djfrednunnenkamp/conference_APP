@@ -42,6 +42,8 @@
   gap: 1rem;
   padding: .9rem 1.5rem;
   transition: background .12s;
+  position: relative;
+  cursor: pointer;
 }
 .child-row + .child-row { border-top: 1px solid #f1f5f9; }
 .child-row:hover { background: #f8fafc; }
@@ -178,7 +180,7 @@
 
           {# Action #}
           <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=event.id) }}"
-             class="btn btn-primary btn-sm flex-shrink-0">
+             class="btn btn-primary btn-sm flex-shrink-0 stretched-link">
             <i class="bi bi-grid me-1"></i>{{ _('Agendar') }}
           </a>
 

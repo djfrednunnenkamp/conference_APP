@@ -193,7 +193,7 @@
       {{ day_item.day.date.strftime('%A, %d de %B de %Y') | capitalize }}
     </span>
     {% set ns = namespace(nb=0) %}
-    {% for s in day_item.slots %}{% if s.is_booked and s.booking and not s.booking.cancelled_at %}{% set ns.nb = ns.nb + 1 %}{% endif %}{% endfor %}
+    {% for s in day_item.slots %}{% if not s.is_break and s.is_booked and s.booking and not s.booking.cancelled_at %}{% set ns.nb = ns.nb + 1 %}{% endif %}{% endfor %}
     {% if ns.nb > 0 %}
     <span class="badge bg-success">{{ ns.nb }} {{ _('agendado(s)') }}</span>
     {% else %}
@@ -214,12 +214,14 @@
       </thead>
       <tbody>
         {% for slot in day_item.slots %}
-        <tr class="{{ 'table-success' if slot.is_booked and slot.booking and not slot.booking.cancelled_at else '' }}">
+        <tr class="{{ 'table-warning' if slot.is_break else ('table-success' if slot.is_booked and slot.booking and not slot.booking.cancelled_at else '') }}">
           <td class="ps-4 fw-semibold" style="white-space:nowrap">
             {{ slot.start_datetime.strftime('%H:%M') }} – {{ slot.end_datetime.strftime('%H:%M') }}
           </td>
           <td>
-            {% if slot.booking and not slot.booking.cancelled_at %}
+            {% if slot.is_break %}
+              <span class="badge bg-warning text-dark"><i class="bi bi-cup-hot me-1"></i>{{ _('Intervalo') }}</span>
+            {% elif slot.booking and not slot.booking.cancelled_at %}
               <span class="badge bg-success">{{ _('Agendado') }}</span>
             {% elif slot.booking and slot.booking.cancelled_at %}
               <span class="badge bg-secondary">{{ _('Cancelado') }}</span>
@@ -228,7 +230,9 @@
             {% endif %}
           </td>
           <td>
-            {% if slot.booking and not slot.booking.cancelled_at and slot.booking.student %}
+            {% if slot.is_break %}
+              —
+            {% elif slot.booking and not slot.booking.cancelled_at and slot.booking.student %}
               {{ slot.booking.student.full_name }}
             {% else %}
               —

@@ -51,8 +51,8 @@ def get_slots(event_id, student_id):
              .order_by(Slot.start_datetime)
              .all())
 
-    # Filter out slots whose teacher is marked absent on that day
-    slots = [s for s in slots if (s.day_id, s.teacher_id) not in absent_set]
+    # Filter out slots whose teacher is marked absent on that day (keep break slots)
+    slots = [s for s in slots if s.is_break or (s.day_id, s.teacher_id) not in absent_set]
 
     my_bookings = {b.slot_id for b in
                    Booking.query.filter_by(student_id=student_id, cancelled_at=None).all()}
@@ -65,7 +65,10 @@ def get_slots(event_id, student_id):
 
     result = []
     for slot in slots:
-        if slot.id in my_bookings:
+        if slot.is_break:
+            status = "break"
+            booking_id = None
+        elif slot.id in my_bookings:
             booking = Booking.query.filter_by(slot_id=slot.id, cancelled_at=None).first()
             status = "booked_by_me"
             booking_id = booking.id if booking else None
@@ -95,6 +98,7 @@ def get_slots(event_id, student_id):
             "status": status,
             "booking_id": booking_id,
             "day_id": slot.day_id,
+            "is_break": slot.is_break,
         })
 
     all_teachers = [
@@ -132,6 +136,8 @@ def book():
     slot = Slot.query.with_for_update().get(slot_id)
     if not slot:
         return jsonify({"error": "Slot not found"}), 404
+    if slot.is_break:
+        return jsonify({"error": "Slot is a break"}), 400
     if slot.is_booked:
         return jsonify({"error": "Slot already booked"}), 409
 

@@ -59,6 +59,7 @@
   <div>
     {% if event.status == 'published' %}
     {{ _('Este evento está publicado. A edição está bloqueada.') }}
+    {% if current_user.role == 'admin' %}
     <form method="POST" action="{{ url_for('admin.unpublish_event', id=event.id) }}" class="d-inline ms-2"
           data-pan-confirm="{{ _('Despublicar apagará TODOS os horários e agendamentos existentes.') }}"
           data-pan-title="{{ _('Despublicar evento') }}"
@@ -68,6 +69,7 @@
         <i class="bi bi-arrow-counterclockwise me-1"></i>{{ _('Despublicar') }}
       </button>
     </form>
+    {% endif %}
     {% else %}
     {{ _('Este evento está encerrado e não pode ser editado.') }}
     {% endif %}
@@ -483,6 +485,37 @@
   </div>
 </div>
 
+{# ── Teacher breaks modal ─────────────────────────────────────────────────── #}
+{% if event %}
+<div class="modal fade" id="breakPopupModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-cup-hot me-2 text-warning"></i>
+          {{ _('Intervalos') }} — <span id="breakModalTeacherName"></span>
+        </h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="breakDayTabs" class="d-flex gap-2 flex-wrap mb-3"></div>
+        <div id="breakSlotGrid" class="d-flex flex-wrap gap-2"></div>
+        <div id="breakLoadingSpinner" class="text-center py-3 d-none">
+          <span class="spinner-border spinner-border-sm text-secondary"></span>
+        </div>
+        <div id="breakEmptyMsg" class="text-muted small d-none">
+          {{ _('Nenhum horário encontrado para este dia.') }}
+        </div>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-secondary btn-sm"
+                data-bs-dismiss="modal">{{ _('Fechar') }}</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <script>
 const CSRF = "{{ csrf_token() }}";
 const IS_NEW_EVENT = {{ 'true' if not event else 'false' }};
@@ -491,6 +524,9 @@ const EVENT_ID_FORM = {{ event.id if event else 'null' }};
 // ── Sector / teacher data injected from server ────────────────────────────────
 const SECTOR_TEACHERS_JS = {{ sector_teachers_js | tojson }};
 const EXISTING_SECTORS   = {{ existing_sectors   | tojson }};
+
+// Secretary sector restriction (empty = admin = no restriction)
+const SECRETARY_DIV_IDS = {{ secretary_division_ids | tojson if secretary_division_ids is defined else '[]' }};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTOR ACCORDION
@@ -674,7 +710,22 @@ function renderTeacherList(divId) {
                placeholder="{{ _('padrão') }}"
                title="{{ _('Duração personalizada (deixe vazio para herdar do setor)') }}">
         <span class="small text-muted">min</span>
-      </div>`;
+      </div>
+      ${EVENT_ID_FORM ? `<button type="button"
+               class="btn btn-sm btn-outline-secondary flex-shrink-0 ev-break-btn"
+               data-always-enabled="1"
+               data-teacher-id="${t.id}"
+               data-teacher-name="${t.name.replace(/"/g, '&quot;')}"
+               title="{{ _('Definir intervalos') }}">
+          <i class="bi bi-cup-hot"></i>
+        </button>` : ''}`;
+
+    const breakBtn = row.querySelector('.ev-break-btn');
+    if (breakBtn) {
+      breakBtn.addEventListener('click', function () {
+        openBreakPopup(parseInt(this.dataset.teacherId), this.dataset.teacherName);
+      });
+    }
 
     row.querySelector('.ev-teacher-check').addEventListener('change', function () {
       const wrap = document.getElementById(`evDur_${divId}_${t.id}`);
@@ -1125,6 +1176,20 @@ document.querySelectorAll('.ev-sector-item').forEach(item => {
 });
 updateActiveSectorsBadge();
 
+// ── Secretary sector locking ──────────────────────────────────────────────────
+if (SECRETARY_DIV_IDS.length > 0) {
+  document.querySelectorAll('.ev-sector-item').forEach(panel => {
+    const divId = parseInt(panel.dataset.divId);
+    if (!SECRETARY_DIV_IDS.includes(divId)) {
+      panel.querySelectorAll('input, select, textarea, button').forEach(el => {
+        if (!el.dataset.alwaysEnabled) el.disabled = true;
+      });
+      const header = panel.querySelector('.ev-sector-header');
+      if (header) header.insertAdjacentHTML('beforeend', '<span class="badge bg-secondary ms-2" style="font-size:.7rem">Somente leitura</span>');
+    }
+  });
+}
+
 {% if event and event.status != 'draft' %}
 // Lock all form inputs when event is published/closed, except attendance Gerenciar buttons
 document.getElementById('eventForm').querySelectorAll(
@@ -1132,6 +1197,119 @@ document.getElementById('eventForm').querySelectorAll(
 ).forEach(el => {
   if (!el.dataset.alwaysEnabled) el.disabled = true;
 });
+{% endif %}
+
+// ── Teacher breaks popup ──────────────────────────────────────────────────────
+{% if event %}
+let breakPopupTeacherId = null;
+let breakPopupData = null;
+let breakCurrentDayIdx = 0;
+
+function openBreakPopup(teacherId, teacherName) {
+  breakPopupTeacherId = teacherId;
+  breakCurrentDayIdx = 0;
+  document.getElementById('breakModalTeacherName').textContent = teacherName;
+  document.getElementById('breakDayTabs').innerHTML = '';
+  document.getElementById('breakSlotGrid').innerHTML = '';
+  document.getElementById('breakLoadingSpinner').classList.remove('d-none');
+  document.getElementById('breakEmptyMsg').classList.add('d-none');
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('breakPopupModal')).show();
+
+  fetch(`/admin/events/${EVENT_ID_FORM}/teacher-breaks/${teacherId}`)
+    .then(r => r.json())
+    .then(data => {
+      breakPopupData = data;
+      document.getElementById('breakLoadingSpinner').classList.add('d-none');
+      renderBreakDays(data);
+    })
+    .catch(() => {
+      document.getElementById('breakLoadingSpinner').classList.add('d-none');
+      document.getElementById('breakEmptyMsg').classList.remove('d-none');
+    });
+}
+
+function renderBreakDays(data) {
+  const tabs = document.getElementById('breakDayTabs');
+  tabs.innerHTML = '';
+  if (!data.days || !data.days.length) {
+    document.getElementById('breakEmptyMsg').classList.remove('d-none');
+    return;
+  }
+  data.days.forEach((day, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const d = new Date(day.date + 'T00:00:00');
+    const label = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    btn.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+    btn.className = `btn btn-sm rounded-pill ${idx === breakCurrentDayIdx ? 'btn-warning' : 'btn-outline-secondary'}`;
+    btn.addEventListener('click', () => {
+      breakCurrentDayIdx = idx;
+      renderBreakDays(data);
+    });
+    tabs.appendChild(btn);
+  });
+  renderBreakGrid(data.days[breakCurrentDayIdx]);
+}
+
+function renderBreakGrid(dayData) {
+  const grid = document.getElementById('breakSlotGrid');
+  grid.innerHTML = '';
+  const emptyMsg = document.getElementById('breakEmptyMsg');
+  if (!dayData || !dayData.slots || !dayData.slots.length) {
+    emptyMsg.classList.remove('d-none');
+    return;
+  }
+  emptyMsg.classList.add('d-none');
+  dayData.slots.forEach(slot => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = slot.start_time;
+    btn.dataset.startTime = slot.start_time;
+    btn.dataset.dayId = dayData.day_id;
+    if (slot.is_break) {
+      btn.className = 'btn btn-sm btn-warning';
+      btn.title = '{{ _('Intervalo — clique para remover') }}';
+    } else {
+      btn.className = 'btn btn-sm btn-outline-secondary';
+      btn.title = '{{ _('Disponível — clique para marcar como intervalo') }}';
+    }
+    btn.addEventListener('click', () => toggleBreak(dayData.day_id, slot.start_time, btn));
+    grid.appendChild(btn);
+  });
+}
+
+async function toggleBreak(dayId, startTime, btn) {
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/admin/events/${EVENT_ID_FORM}/teacher-breaks/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({
+        teacher_id: breakPopupTeacherId,
+        day_id: dayId,
+        start_time: startTime,
+      })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      // Update local data
+      const day = breakPopupData.days.find(d => d.day_id === dayId);
+      if (day) {
+        const slot = day.slots.find(s => s.start_time === startTime);
+        if (slot) slot.is_break = data.is_break;
+      }
+      if (data.is_break) {
+        btn.className = 'btn btn-sm btn-warning';
+        btn.title = '{{ _('Intervalo — clique para remover') }}';
+      } else {
+        btn.className = 'btn btn-sm btn-outline-secondary';
+        btn.title = '{{ _('Disponível — clique para marcar como intervalo') }}';
+      }
+    }
+  } finally {
+    btn.disabled = false;
+  }
+}
 {% endif %}
 </script>
 {% endblock %}

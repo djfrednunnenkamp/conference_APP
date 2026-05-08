@@ -169,12 +169,28 @@
             <span>subjects <span class="text-muted small">— {{ _('Matérias (lista JSON)') }}</span></span>
           </label>
           <label class="list-group-item d-flex gap-2 align-items-center py-2">
-            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian1" checked>
-            <span>guardian1 <span class="text-muted small">— {{ _('Responsável 1 (objeto JSON)') }}</span></span>
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian1_email" checked>
+            <span>guardian1_email <span class="text-muted small">— {{ _('E-mail do Responsável 1') }}</span></span>
           </label>
           <label class="list-group-item d-flex gap-2 align-items-center py-2">
-            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian2" checked>
-            <span>guardian2 <span class="text-muted small">— {{ _('Responsável 2 (objeto JSON)') }}</span></span>
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian1_first_name" checked>
+            <span>guardian1_first_name <span class="text-muted small">— {{ _('Nome do Responsável 1') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian1_last_name" checked>
+            <span>guardian1_last_name <span class="text-muted small">— {{ _('Sobrenome do Responsável 1') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian2_email">
+            <span>guardian2_email <span class="text-muted small">— {{ _('E-mail do Responsável 2') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian2_first_name">
+            <span>guardian2_first_name <span class="text-muted small">— {{ _('Nome do Responsável 2') }}</span></span>
+          </label>
+          <label class="list-group-item d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="guardian2_last_name">
+            <span>guardian2_last_name <span class="text-muted small">— {{ _('Sobrenome do Responsável 2') }}</span></span>
           </label>
           <label class="list-group-item d-flex gap-2 align-items-center py-2">
             <input class="form-check-input flex-shrink-0 exp-col" type="checkbox" value="status" checked>
@@ -229,12 +245,28 @@
                   <span>subjects <span class="text-muted small">— {{ _('Matérias (lista JSON)') }}</span></span>
                 </label>
                 <label class="list-group-item d-flex gap-2 align-items-center py-2">
-                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian1">
-                  <span>guardian1 <span class="text-muted small">— {{ _('Responsável 1') }}</span></span>
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian1_email">
+                  <span>guardian1_email <span class="text-muted small">— {{ _('E-mail do Responsável 1') }}</span></span>
                 </label>
                 <label class="list-group-item d-flex gap-2 align-items-center py-2">
-                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian2">
-                  <span>guardian2 <span class="text-muted small">— {{ _('Responsável 2') }}</span></span>
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian1_first_name">
+                  <span>guardian1_first_name <span class="text-muted small">— {{ _('Nome do Responsável 1') }}</span></span>
+                </label>
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian1_last_name">
+                  <span>guardian1_last_name <span class="text-muted small">— {{ _('Sobrenome do Responsável 1') }}</span></span>
+                </label>
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian2_email">
+                  <span>guardian2_email <span class="text-muted small">— {{ _('E-mail do Responsável 2') }}</span></span>
+                </label>
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian2_first_name">
+                  <span>guardian2_first_name <span class="text-muted small">— {{ _('Nome do Responsável 2') }}</span></span>
+                </label>
+                <label class="list-group-item d-flex gap-2 align-items-center py-2">
+                  <input class="form-check-input flex-shrink-0 imp-col" type="checkbox" value="guardian2_last_name">
+                  <span>guardian2_last_name <span class="text-muted small">— {{ _('Sobrenome do Responsável 2') }}</span></span>
                 </label>
               </div>
               <button type="button" id="doTemplate" class="btn btn-outline-secondary btn-sm w-100 mt-2">

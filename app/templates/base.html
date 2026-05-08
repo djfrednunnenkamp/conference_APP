@@ -30,14 +30,14 @@
   <nav class="pan-sidebar-nav">
     {% set ep = request.endpoint or '' %}
 
-    {% if current_user.role == 'admin' %}
+    {% if current_user.role in ('admin', 'secretary') %}
     <a href="{{ url_for('admin.dashboard') }}"
        class="pan-nav-item {% if ep == 'admin.dashboard' %}active{% endif %}">
       <i class="bi bi-grid-1x2"></i>{{ _('Visão Geral') }}
     </a>
     <div class="pan-nav-section">{{ _('Pessoas') }}</div>
     <a href="{{ url_for('admin.teachers') }}"
-       class="pan-nav-item {% if 'teacher' in ep and current_user.role == 'admin' %}active{% endif %}">
+       class="pan-nav-item {% if 'teacher' in ep and current_user.role in ('admin', 'secretary') %}active{% endif %}">
       <i class="bi bi-person-workspace"></i>{{ _('Professores') }}
     </a>
     <a href="{{ url_for('admin.students') }}"
@@ -48,11 +48,14 @@
        class="pan-nav-item {% if ep in ('admin.guardians','admin.edit_guardian','admin.new_guardian') %}active{% endif %}">
       <i class="bi bi-person-heart"></i>{{ _('Responsáveis') }}
     </a>
+    {% if current_user.role == 'admin' %}
     <div class="pan-nav-section">{{ _('Acadêmico') }}</div>
     <a href="{{ url_for('admin.divisions') }}"
        class="pan-nav-item {% if 'division' in ep or 'grade' in ep or 'subject' in ep %}active{% endif %}">
       <i class="bi bi-diagram-3"></i>{{ _('Setores e Turmas') }}
     </a>
+    {% endif %}
+    <div class="pan-nav-section">{{ _('Eventos') }}</div>
     <a href="{{ url_for('admin.events') }}"
        class="pan-nav-item {% if 'event' in ep %}active{% endif %}">
       <i class="bi bi-calendar-event"></i>{{ _('Conferências') }}
@@ -96,6 +99,10 @@
        class="pan-nav-item {% if ep in ('admin.admins','admin.new_admin','admin.edit_admin') %}active{% endif %}">
       <i class="bi bi-person-gear"></i>{{ _('Administradores') }}
     </a>
+    <a href="{{ url_for('admin.secretaries') }}"
+       class="pan-nav-item {% if ep in ('admin.secretaries','admin.new_secretary','admin.edit_secretary') %}active{% endif %}">
+      <i class="bi bi-person-lines-fill"></i>{{ _('Secretárias') }}
+    </a>
   </div>
   {% endif %}
 
@@ -108,6 +115,7 @@
         <div class="user-name">{{ current_user.full_name }}</div>
         <div class="user-role">
           {% if current_user.role == 'admin' %}{{ _('Administrador') }}
+          {% elif current_user.role == 'secretary' %}{{ _('Secretária') }}
           {% elif current_user.role == 'teacher' %}{{ _('Professor') }}
           {% elif current_user.role == 'guardian' %}{{ _('Responsável') }}
           {% else %}{{ _('Aluno') }}{% endif %}
@@ -129,7 +137,7 @@
         </button>
         <ul class="dropdown-menu">
           <li><a class="dropdown-item" href="{{ url_for('auth.set_language', lang='pt') }}">🇧🇷 Português</a></li>
-          <li><a class="dropdown-item" href="{{ url_for('auth.set_language', lang='en') }}">🇬🇧 English</a></li>
+          <li><a class="dropdown-item" href="{{ url_for('auth.set_language', lang='en') }}">🇺🇸 English</a></li>
         </ul>
       </div>
       <a href="{{ url_for('auth.logout') }}"
@@ -155,6 +163,7 @@
     <div class="pan-topbar-spacer"></div>
     <span class="pan-role-badge">
       {% if current_user.role == 'admin' %}{{ _('Administrador') }}
+      {% elif current_user.role == 'secretary' %}{{ _('Secretária') }}
       {% elif current_user.role == 'teacher' %}{{ _('Professor') }}
       {% elif current_user.role == 'guardian' %}{{ _('Responsável') }}
       {% else %}{{ _('Aluno') }}{% endif %}
@@ -445,7 +454,7 @@ document.addEventListener('submit', async function(e) {
                   <input class="form-check-input" type="radio" name="language"
                          id="prefLangEn" value="en"
                          {% if current_user.preferred_language == 'en' %}checked{% endif %}>
-                  <label class="form-check-label" for="prefLangEn">🇬🇧 English</label>
+                  <label class="form-check-label" for="prefLangEn">🇺🇸 English</label>
                 </div>
               </div>
             </div>

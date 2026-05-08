@@ -138,6 +138,7 @@ def set_language(lang):
 def _role_dashboard():
     role_map = {
         "admin": "admin.dashboard",
+        "secretary": "admin.dashboard",
         "teacher": "teacher.dashboard",
         "guardian": "guardian.dashboard",
         "student": "student.dashboard",

@@ -38,6 +38,13 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
 }
 .slot-empty { background: transparent; border-color: #f0f0f0 !important; }
 
+/* ── Break slot ──────────────────────────────────────────────*/
+.slot-break {
+  background: #fff3cd;
+  color: #856404;
+  cursor: not-allowed;
+}
+
 /* ── Blocked column (already have a booking at this time) ── */
 .slot-blocked {
   background: #e9ecef;
@@ -326,11 +333,15 @@ function renderGrid() {
   daySlots.forEach(s => {
     if (!teachers[s.teacher_id])
       teachers[s.teacher_id] = { name: s.teacher_name, subject: s.subject };
+    else if (!teachers[s.teacher_id].subject && s.subject)
+      teachers[s.teacher_id].subject = s.subject;
   });
   const allTeachersMap = {};
   allSlots.forEach(s => {
     if (!allTeachersMap[s.teacher_id])
       allTeachersMap[s.teacher_id] = { name: s.teacher_name, subject: s.subject };
+    else if (!allTeachersMap[s.teacher_id].subject && s.subject)
+      allTeachersMap[s.teacher_id].subject = s.subject;
   });
   const teacherIds = Object.keys(teachers)
     .filter(tid => !hiddenSubjects.has(teachers[tid].subject) && !hiddenTeachers.has(tid));
@@ -449,6 +460,11 @@ function renderGrid() {
         </div>`;
 
         switch (slot.status) {
+          case 'break':
+            td.classList.add('slot-break');
+            td.title = '{{ _('Ocupado') }}';
+            td.innerHTML = `<i class="bi bi-cup-hot d-block" style="font-size:.75rem"></i>${timeLabel}`;
+            break;
           case 'available': {
             const bookDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
             const pastDeadline = new Date() >= bookDeadline;

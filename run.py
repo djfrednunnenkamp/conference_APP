@@ -1,6 +1,7 @@
 import os
 from app import create_app
-
+# source venv/bin/activate
+# python3 run.py
 app = create_app()
 
 if __name__ == "__main__":
