@@ -74,29 +74,6 @@
   </div>
 </div>
 
-{% if event.status == 'published' %}
-<div class="card shadow-sm mb-3">
-  <div class="card-header fw-semibold small d-flex align-items-center gap-2">
-    <i class="bi bi-pencil-square text-primary"></i>{{ _('Configurações editáveis') }}
-  </div>
-  <div class="card-body">
-    <form method="POST" action="{{ url_for('admin.update_event_meta', id=event.id) }}" class="d-flex align-items-center gap-3">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div class="form-check form-switch mb-0">
-        <input class="form-check-input" type="checkbox" name="student_booking_allowed"
-               id="metaStudentBooking" value="y"
-               {% if event.student_booking_allowed %}checked{% endif %}>
-        <label class="form-check-label small" for="metaStudentBooking">
-          {{ _('Permitir agendamento por alunos') }}
-        </label>
-      </div>
-      <button type="submit" class="btn btn-primary btn-sm">
-        <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
-      </button>
-    </form>
-  </div>
-</div>
-{% endif %}
 {% endif %}
 
 <form method="POST" novalidate id="eventForm">
@@ -321,52 +298,6 @@
         </div>
       </div>
 
-      {# ── Teacher attendance (only existing events with days) ──────────── #}
-      {% if event and event.days %}
-      <div class="card shadow-sm mb-3">
-        <div class="card-header fw-semibold small">
-          <i class="bi bi-people me-2"></i>{{ _('Presença de professores') }}
-        </div>
-        {% if all_teachers %}
-        <div class="list-group list-group-flush">
-          {% for day in event.days | sort(attribute='date') %}
-          {% set abs_count = namespace(n=0) %}
-          {% for t in all_teachers %}
-            {% if (day.id, t.id) in absent_set %}{% set abs_count.n = abs_count.n + 1 %}{% endif %}
-          {% endfor %}
-          <div class="list-group-item d-flex justify-content-between align-items-center py-2 px-3">
-            <div>
-              <span class="small fw-semibold">{{ day.date.strftime('%d/%m/%Y') }}</span>
-              {% if day.division %}
-              <span class="badge bg-light text-secondary ms-1" style="font-size:.65rem">
-                {{ day.division.name }}
-              </span>
-              {% endif %}
-              {% if abs_count.n > 0 %}
-              <span class="badge bg-danger ms-1" style="font-size:.65rem" id="absBadge_{{ day.id }}">
-                {{ abs_count.n }} {{ _('ausente(s)') }}
-              </span>
-              {% else %}
-              <span class="badge bg-success ms-1" style="font-size:.65rem" id="absBadge_{{ day.id }}">
-                {{ _('todos presentes') }}
-              </span>
-              {% endif %}
-            </div>
-            <button type="button" class="btn btn-outline-primary btn-sm"
-                    data-always-enabled="1"
-                    onclick="openAttendanceModal({{ day.id }}, '{{ day.date.strftime('%d/%m/%Y') }}')">
-              <i class="bi bi-pencil me-1"></i>{{ _('Gerenciar') }}
-            </button>
-          </div>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="card-body text-muted small">
-          {{ _('Nenhum professor cadastrado ainda.') }}
-        </div>
-        {% endif %}
-      </div>
-      {% endif %}
 
       {# ── Reminders ───────────────────────────────────────────────────── #}
       {% if event %}
