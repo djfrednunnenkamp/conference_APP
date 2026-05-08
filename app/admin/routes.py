@@ -3243,20 +3243,11 @@ def print_schedule(id):
     from collections import defaultdict
     event = ConferenceEvent.query.get_or_404(id)
 
-    day_ids_param   = request.args.get("days", "")
-    teacher_id_param = request.args.get("teacher", "")
+    all_days      = sorted(event.days, key=lambda d: d.date)
+    selected_days = all_days
+    day_id_set    = {d.id for d in selected_days}
 
-    all_days = sorted(event.days, key=lambda d: d.date)
-
-    if day_ids_param:
-        selected_ids  = {int(x) for x in day_ids_param.split(",") if x.strip().isdigit()}
-        selected_days = [d for d in all_days if d.id in selected_ids]
-    else:
-        selected_days = all_days
-
-    day_id_set = {d.id for d in selected_days}
-
-    # Booked, non-cancelled slots for the selected days
+    # Booked, non-cancelled slots
     raw_slots = (Slot.query
                  .join(ConferenceDay)
                  .filter(
@@ -3267,9 +3258,11 @@ def print_schedule(id):
                  .all())
     booked_slots = [s for s in raw_slots if s.booking and not s.booking.cancelled_at]
 
-    # Optionally filter to a single teacher
-    if teacher_id_param and teacher_id_param.isdigit():
-        booked_slots = [s for s in booked_slots if s.teacher_id == int(teacher_id_param)]
+    # Filter by selected teacher IDs (comma-separated "teachers" param, or legacy "teacher")
+    teachers_param = request.args.get("teachers", "") or request.args.get("teacher", "")
+    if teachers_param:
+        wanted = {int(x) for x in teachers_param.split(",") if x.strip().isdigit()}
+        booked_slots = [s for s in booked_slots if s.teacher_id in wanted]
 
     # Group by teacher_id
     teacher_slot_map = defaultdict(list)

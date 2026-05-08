@@ -231,63 +231,32 @@
   </div>
 </div>
 
-{# ── Print modal ── #}
-<div class="modal fade" id="printModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+{# ── Print modal — teacher picker ── #}
+<div class="modal fade" id="printModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
     <div class="modal-content">
-      <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title fw-bold">
-          <i class="bi bi-printer me-2 text-primary"></i>{{ _('Imprimir agenda de reuniões') }}
-        </h5>
+      <div class="modal-header py-2">
+        <h6 class="modal-title fw-semibold">
+          <i class="bi bi-printer me-2"></i>{{ _('Imprimir agenda') }}
+        </h6>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body pt-3">
-        {% if event.days | length > 1 %}
-        <div class="mb-4">
-          <p class="fw-semibold mb-2 text-secondary" style="font-size:.85rem;text-transform:uppercase;letter-spacing:.04em">
-            {{ _('Dias a incluir') }}
-          </p>
-          <div class="d-flex flex-column gap-1">
-            {% for day in event.days | sort(attribute='date') %}
-            <div class="form-check">
-              <input class="form-check-input print-day-cb" type="checkbox"
-                     id="pd{{ day.id }}" value="{{ day.id }}" checked>
-              <label class="form-check-label" for="pd{{ day.id }}">
-                {{ day.date.strftime('%A, %d/%m/%Y') | capitalize }}
-              </label>
-            </div>
-            {% endfor %}
+      <div class="modal-body pb-1">
+        <input type="text" id="printTeacherSearch" class="form-control form-control-sm mb-2"
+               placeholder="{{ _('Buscar professor...') }}" autocomplete="off">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span class="text-muted" style="font-size:.78rem" id="printSelCount">0 {{ _('selecionado(s)') }}</span>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none" id="printSelAll" style="font-size:.78rem">{{ _('Todos') }}</button>
+            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none text-secondary" id="printSelNone" style="font-size:.78rem">{{ _('Nenhum') }}</button>
           </div>
         </div>
-        {% endif %}
-        <div class="mb-2">
-          <p class="fw-semibold mb-2 text-secondary" style="font-size:.85rem;text-transform:uppercase;letter-spacing:.04em">
-            {{ _('Tipo de exportação') }}
-          </p>
-          <label class="d-flex align-items-start gap-3 p-3 rounded-3 border mb-2" style="cursor:pointer" id="lbl-unique">
-            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="pdfType" id="pdfUnique" value="unique" checked onchange="updatePrintLabels()">
-            <div>
-              <div class="fw-semibold">{{ _('PDF único') }}</div>
-              <div class="text-muted" style="font-size:.83rem">{{ _('Todos os professores em um só arquivo.') }}</div>
-            </div>
-          </label>
-          <label class="d-flex align-items-start gap-3 p-3 rounded-3 border" style="cursor:pointer" id="lbl-individual">
-            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="pdfType" id="pdfIndividual" value="individual" onchange="updatePrintLabels()">
-            <div>
-              <div class="fw-semibold">{{ _('PDFs individuais') }}</div>
-              <div class="text-muted" style="font-size:.83rem">{{ _('Uma aba por professor (%(n)s com agendamentos).', n=teacher_ids_with_bookings | length) }}</div>
-            </div>
-          </label>
-        </div>
-        <div id="manyTeachersWarn" class="alert alert-warning py-2 mt-3 mb-0 d-none" style="font-size:.83rem">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          {{ _('Serão abertas %(n)s abas.', n=teacher_ids_with_bookings | length) }}
-        </div>
+        <div id="printTeacherList" style="max-height:320px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px"></div>
       </div>
-      <div class="modal-footer border-0 pt-0">
+      <div class="modal-footer py-2">
         <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
-        <button type="button" class="btn btn-primary btn-sm" onclick="doPrint()">
-          <i class="bi bi-printer me-1"></i><span id="printBtnLabel">{{ _('Abrir PDF') }}</span>
+        <button type="button" class="btn btn-primary btn-sm" id="doPrintBtn" disabled>
+          <i class="bi bi-printer me-1"></i>{{ _('Imprimir') }}
         </button>
       </div>
     </div>
@@ -352,8 +321,6 @@
 {% block scripts %}
 <script>
 const PRINT_BASE  = "{{ url_for('admin.print_schedule', id=event.id) }}";
-const TEACHER_IDS = {{ teacher_ids_with_bookings | tojson }};
-const MULTI_DAY   = {{ (event.days | length > 1) | tojson }};
 
 const TEACHERS  = {{ teachers_list  | tojson }};
 const STUDENTS  = {{ students_list  | tojson }};
@@ -480,33 +447,72 @@ function clearAllFilters() {
   ['teacher', 'student', 'guardian'].forEach(clearFilter);
 }
 
-/* ── Print ── */
-function getSelectedDays() {
-  if (!MULTI_DAY) return "";
-  return Array.from(document.querySelectorAll(".print-day-cb:checked")).map(c => c.value).join(",");
+// ── Print modal — teacher picker ─────────────────────────────────────────────
+const ALL_TEACHERS = {{ teachers_list | tojson }};  // [[id, name], ...]
+
+function teacherInitials(name) {
+  return name.split(' ').filter(Boolean).slice(0,2).map(p => p[0].toUpperCase()).join('');
 }
-function updatePrintLabels() {
-  const isInd = document.getElementById("pdfIndividual").checked;
-  document.getElementById("printBtnLabel").textContent = isInd ? "{{ _('Abrir abas') }}" : "{{ _('Abrir PDF') }}";
-  document.getElementById("manyTeachersWarn").classList.toggle("d-none", !isInd || TEACHER_IDS.length <= 3);
-  document.getElementById("lbl-unique").classList.toggle("border-primary", !isInd);
-  document.getElementById("lbl-individual").classList.toggle("border-primary", isInd);
-}
-function doPrint() {
-  const isInd = document.getElementById("pdfIndividual").checked;
-  const days  = getSelectedDays();
-  const dp    = days ? "days=" + days : "";
-  if (isInd) {
-    TEACHER_IDS.forEach(tid => {
-      const p = [dp, "teacher=" + tid].filter(Boolean).join("&");
-      window.open(PRINT_BASE + (p ? "?" + p : ""), "_blank");
+
+function renderPrintTeachers(query) {
+  const list = document.getElementById('printTeacherList');
+  const q    = (query || '').toLowerCase().trim();
+  list.innerHTML = '';
+  ALL_TEACHERS
+    .filter(([id, name]) => !q || name.toLowerCase().includes(q))
+    .forEach(([tid, name]) => {
+      const checked = printSelected.has(tid);
+      const row = document.createElement('label');
+      row.className = 'd-flex align-items-center gap-2 px-3 py-2 border-bottom';
+      row.style.cursor = 'pointer';
+      row.innerHTML = `
+        <input type="checkbox" class="form-check-input flex-shrink-0" value="${tid}" ${checked ? 'checked' : ''}>
+        <span class="pan-avatar" style="background:var(--pan-blue);width:30px;height:30px;font-size:.65rem;flex-shrink:0">${teacherInitials(name)}</span>
+        <span class="small fw-semibold">${name}</span>`;
+      row.querySelector('input').addEventListener('change', function() {
+        if (this.checked) printSelected.add(tid); else printSelected.delete(tid);
+        syncPrintFooter();
+      });
+      list.appendChild(row);
     });
-  } else {
-    window.open(PRINT_BASE + (dp ? "?" + dp : ""), "_blank");
-  }
-  bootstrap.Modal.getInstance(document.getElementById("printModal")).hide();
 }
-document.addEventListener("DOMContentLoaded", () => { updatePrintLabels(); applyFilters(); });
+
+function syncPrintFooter() {
+  document.getElementById('printSelCount').textContent = `${printSelected.size} {{ _('selecionado(s)') }}`;
+  document.getElementById('doPrintBtn').disabled = printSelected.size === 0;
+}
+
+let printSelected = new Set();
+
+document.getElementById('printModal').addEventListener('show.bs.modal', () => {
+  printSelected = new Set(ALL_TEACHERS.map(([id]) => id));
+  document.getElementById('printTeacherSearch').value = '';
+  renderPrintTeachers('');
+  syncPrintFooter();
+});
+
+document.getElementById('printTeacherSearch').addEventListener('input', function() {
+  renderPrintTeachers(this.value);
+});
+document.getElementById('printSelAll').addEventListener('click', () => {
+  const q = document.getElementById('printTeacherSearch').value.toLowerCase().trim();
+  ALL_TEACHERS.filter(([id, name]) => !q || name.toLowerCase().includes(q))
+              .forEach(([id]) => printSelected.add(id));
+  renderPrintTeachers(q);
+  syncPrintFooter();
+});
+document.getElementById('printSelNone').addEventListener('click', () => {
+  printSelected.clear();
+  renderPrintTeachers(document.getElementById('printTeacherSearch').value);
+  syncPrintFooter();
+});
+document.getElementById('doPrintBtn').addEventListener('click', () => {
+  const ids = [...printSelected].join(',');
+  window.open(PRINT_BASE + '?teachers=' + ids, '_blank');
+  bootstrap.Modal.getInstance(document.getElementById('printModal')).hide();
+});
+
+document.addEventListener("DOMContentLoaded", () => { applyFilters(); });
 
 {% if is_past %}
 // ── Export students modal ──────────────────────────────────────────────────
