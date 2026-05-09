@@ -57,11 +57,13 @@ def get_slots(event_id, student_id):
     my_bookings = {b.slot_id for b in
                    Booking.query.filter_by(student_id=student_id, cancelled_at=None).all()}
 
+    # Build conflict ranges only from visible slots in THIS event (already filtered for
+    # active days, non-absent teachers). Using my_bookings cross-event caused false
+    # conflict stripes when another event or an absent teacher shared the same time.
     my_times = set()
-    for b in Booking.query.filter_by(student_id=student_id, cancelled_at=None).all():
-        slot = Slot.query.get(b.slot_id)
-        if slot and not slot.is_break:
-            my_times.add((slot.start_datetime, slot.end_datetime))
+    for s in slots:
+        if not s.is_break and s.id in my_bookings:
+            my_times.add((s.start_datetime, s.end_datetime))
 
     result = []
     for slot in slots:
