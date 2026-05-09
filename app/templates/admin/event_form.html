@@ -1215,6 +1215,17 @@ document.getElementById('eventForm').querySelectorAll(
 
 // ── Teacher breaks popup ──────────────────────────────────────────────────────
 {% if event %}
+// Ensure Bootstrap cleans up properly after the break popup closes.
+// Without this, a stale backdrop or body class can block the next teacher row.
+document.getElementById('breakPopupModal').addEventListener('hidden.bs.modal', function () {
+  document.querySelectorAll('.modal-backdrop').forEach(function (el) { el.remove(); });
+  if (!document.querySelector('.modal.show')) {
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('overflow');
+    document.body.style.removeProperty('padding-right');
+  }
+});
+
 let breakPopupTeacherId = null;
 let breakPopupData = null;
 let breakCurrentDayIdx = 0;

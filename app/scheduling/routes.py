@@ -159,6 +159,21 @@ def book():
     if existing:
         return jsonify({"error": "Time conflict"}), 409
 
+    # Reuse a previously cancelled booking for this slot if one exists.
+    # Booking.slot_id has a unique constraint, so we cannot INSERT a second row.
+    cancelled = Booking.query.filter(
+        Booking.slot_id == slot_id,
+        Booking.cancelled_at != None
+    ).first()
+    if cancelled:
+        cancelled.cancelled_at = None
+        cancelled.student_id = student_id
+        cancelled.booked_by_id = current_user.id
+        cancelled.booked_at = datetime.utcnow()
+        slot.is_booked = True
+        db.session.commit()
+        return jsonify({"booking_id": cancelled.id}), 200
+
     booking = Booking(
         slot_id=slot_id,
         student_id=student_id,
