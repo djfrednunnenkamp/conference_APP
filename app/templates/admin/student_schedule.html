@@ -21,6 +21,11 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
   background: repeating-linear-gradient(45deg, #fffbea, #fffbea 4px, #fff3cd 4px, #fff3cd 8px);
   opacity: .75;
 }
+.slot-break {
+  background: #f1f3f5;
+  color: #adb5bd;
+  cursor: not-allowed;
+}
 .slot-empty { background: transparent; border-color: #f0f0f0 !important; }
 .slot-blocked { background: #e9ecef; opacity: .45; cursor: not-allowed; }
 .col-hover { background: #dbeafe !important; }
@@ -104,6 +109,42 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
   </div>
   <div class="offcanvas-body p-0" id="mobileBookedList" style="overflow-y:auto"></div>
+</div>
+
+{# ── Book confirmation modal ──────────────────────────────── #}
+<div class="modal fade" id="bookConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:38px;height:38px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-calendar-check-fill" style="color:#1d4ed8;font-size:1rem"></i>
+          </span>
+          <h6 class="modal-title fw-semibold mb-0" style="color:var(--pan-blue)">{{ _('Confirmar reunião') }}</h6>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-3 pb-2">
+        <div class="rounded-3 border p-3 mb-3" style="background:#f8fafc">
+          <div class="fw-semibold small" id="bookConfirmTeacher" style="color:var(--pan-blue);font-size:.95rem !important"></div>
+          <div class="text-muted" style="font-size:.78rem" id="bookConfirmSubject"></div>
+          <div class="mt-2 d-flex align-items-center gap-1 small">
+            <i class="bi bi-clock text-muted"></i>
+            <span id="bookConfirmTime" class="fw-semibold"></span>
+          </div>
+        </div>
+        <p class="mb-0 text-muted" style="font-size:.8rem">
+          <i class="bi bi-info-circle me-1"></i>{{ _('A reunião será salva automaticamente. Não é necessário confirmar novamente.') }}
+        </p>
+      </div>
+      <div class="modal-footer border-0 pt-1 gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-primary btn-sm px-3" id="bookConfirmBtn">
+          <i class="bi bi-check-lg me-1"></i>{{ _('Marcar reunião') }}
+        </button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="modal fade" id="dupTeacherModal" tabindex="-1" aria-hidden="true">
@@ -340,6 +381,11 @@ function renderGrid() {
         </div>`;
 
         switch (slot.status) {
+          case 'break':
+            td.classList.add('slot-break');
+            td.title = '{{ _('Intervalo do professor') }}';
+            td.innerHTML = `<i class="bi bi-cup-hot d-block" style="font-size:.75rem"></i>${timeLabel}`;
+            break;
           case 'available':
             if (timeBooked) {
               td.classList.add('slot-blocked');
@@ -489,6 +535,7 @@ function fmtTime(iso) {
 }
 
 let pendingBook = null;
+let pendingConfirmBook = null;
 
 async function bookSlot(slotId, cell) {
   const slot = allSlots.find(s => s.slot_id === slotId);
@@ -501,8 +548,25 @@ async function bookSlot(slotId, cell) {
       return;
     }
   }
-  await doBook(slotId, cell);
+  showBookConfirm(slotId, cell, slot);
 }
+
+function showBookConfirm(slotId, cell, slot) {
+  pendingConfirmBook = { slotId, cell };
+  document.getElementById('bookConfirmTeacher').textContent = slot ? slot.teacher_name : '';
+  document.getElementById('bookConfirmSubject').textContent = slot ? slot.subject : '';
+  document.getElementById('bookConfirmTime').textContent =
+    slot ? fmtTime(slot.start) + ' – ' + fmtTime(slot.end) : '';
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('bookConfirmModal')).show();
+}
+
+document.getElementById('bookConfirmBtn').addEventListener('click', async () => {
+  bootstrap.Modal.getInstance(document.getElementById('bookConfirmModal')).hide();
+  if (pendingConfirmBook) {
+    await doBook(pendingConfirmBook.slotId, pendingConfirmBook.cell);
+    pendingConfirmBook = null;
+  }
+});
 
 document.getElementById('dupConfirmBtn').addEventListener('click', async () => {
   bootstrap.Modal.getInstance(document.getElementById('dupTeacherModal')).hide();
