@@ -36,13 +36,17 @@ def verify_token(token, salt="invite", max_age=72 * 3600):
         return None
 
 
+def _logo_url():
+    return url_for("static", filename="img/logo.png", _external=True)
+
+
 def send_invite_email(user, token):
     # First-access email is always in English so the user can understand it
     # regardless of their (not yet chosen) language preference.
     link = url_for("auth.set_password", token=token, _external=True)
     subject = "Welcome to Conferensia – Set your password"
     template = "emails/invite_en.html"
-    body = render_template(template, user=user, link=link)
+    body = render_template(template, user=user, link=link, logo_url=_logo_url())
     msg = Message(subject=subject, recipients=[user.email], html=body)
     mail.send(msg)
     _log_email(user.id, "invite")
@@ -62,7 +66,7 @@ def send_conference_info_email(user, event, token=None):
         subject = f"Informações sobre as conferências: {event.name}"
         template = "emails/conference_info_pt.html"
 
-    body = render_template(template, user=user, event=event, link=link)
+    body = render_template(template, user=user, event=event, link=link, logo_url=_logo_url())
     msg = Message(subject=subject, recipients=[user.email], html=body)
     mail.send(msg)
     _log_email(user.id, "conference_info", event_id=event.id)
@@ -78,7 +82,7 @@ def send_reset_email(user, token):
         subject = "Redefinir sua senha"
         template = "emails/reset_pt.html"
 
-    body = render_template(template, user=user, link=link)
+    body = render_template(template, user=user, link=link, logo_url=_logo_url())
     msg = Message(subject=subject, recipients=[user.email], html=body)
     mail.send(msg)
     _log_email(user.id, "reset_password")
