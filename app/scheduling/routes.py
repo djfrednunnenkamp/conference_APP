@@ -60,7 +60,7 @@ def get_slots(event_id, student_id):
     my_times = set()
     for b in Booking.query.filter_by(student_id=student_id, cancelled_at=None).all():
         slot = Slot.query.get(b.slot_id)
-        if slot:
+        if slot and not slot.is_break:
             my_times.add((slot.start_datetime, slot.end_datetime))
 
     result = []
