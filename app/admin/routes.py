@@ -2372,6 +2372,134 @@ def toggle_teacher_break(event_id):
     return jsonify({"is_break": is_break})
 
 
+# ── Manage-breaks popup ────────────────────────────────────────────────────────
+
+@admin_bp.route("/events/<int:event_id>/teachers-summary")
+@login_required
+@secretary_or_admin_required
+def event_teachers_summary(event_id):
+    """Teachers in this event with their total break count (for the manage-breaks popup)."""
+    from sqlalchemy import func
+    event = ConferenceEvent.query.get_or_404(event_id)
+    day_ids = [d.id for d in event.days]
+
+    teacher_ids = list({
+        est.teacher_id
+        for est in (EventSectorTeacher.query
+                    .join(EventSector, EventSectorTeacher.sector_id == EventSector.id)
+                    .filter(EventSector.event_id == event_id)
+                    .all())
+    })
+
+    bc = {}
+    if day_ids and teacher_ids:
+        rows = (db.session.query(TeacherBreak.teacher_id, func.count(TeacherBreak.id))
+                .filter(TeacherBreak.teacher_id.in_(teacher_ids),
+                        TeacherBreak.day_id.in_(day_ids))
+                .group_by(TeacherBreak.teacher_id)
+                .all())
+        bc = {tid: cnt for tid, cnt in rows}
+
+    teachers = (User.query.filter(User.id.in_(teacher_ids))
+                .order_by(User.last_name, User.first_name).all())
+
+    return jsonify({
+        "teachers": [
+            {"id": t.id, "name": t.full_name, "break_count": bc.get(t.id, 0)}
+            for t in teachers
+        ]
+    })
+
+
+@admin_bp.route("/events/<int:event_id>/slot-grid/<int:teacher_id>")
+@login_required
+@secretary_or_admin_required
+def event_slot_grid(event_id, teacher_id):
+    """Full slot grid for one teacher in an event, including booking details."""
+    teacher = User.query.get_or_404(teacher_id)
+
+    slots = (Slot.query
+             .join(ConferenceDay, Slot.day_id == ConferenceDay.id)
+             .filter(ConferenceDay.event_id == event_id,
+                     Slot.teacher_id == teacher_id)
+             .order_by(ConferenceDay.date, Slot.start_datetime)
+             .all())
+
+    days_dict = {}
+    for slot in slots:
+        day = slot.day
+        if day.id not in days_dict:
+            days_dict[day.id] = {
+                "day_id": day.id,
+                "date": day.date.strftime('%d/%m/%Y'),
+                "date_iso": day.date.isoformat(),
+                "slots": [],
+            }
+
+        booking_info = None
+        if slot.booking and not slot.booking.cancelled_at:
+            b = slot.booking
+            student = b.student
+            gs = GuardianStudent.query.filter_by(student_id=student.id).all()
+            guardian_names = [g.guardian.full_name for g in gs if g.guardian]
+            booking_info = {
+                "booking_id": b.id,
+                "student_name": student.full_name if student else "",
+                "guardian_names": guardian_names,
+            }
+
+        days_dict[day.id]["slots"].append({
+            "slot_id": slot.id,
+            "start": slot.start_datetime.strftime('%H:%M'),
+            "end": slot.end_datetime.strftime('%H:%M'),
+            "is_break": slot.is_break,
+            "booking": booking_info,
+        })
+
+    days_out = sorted(days_dict.values(), key=lambda d: d["date_iso"])
+    return jsonify({"teacher_name": teacher.full_name, "days": days_out})
+
+
+@admin_bp.route("/events/<int:event_id>/admin-cancel-slot", methods=["POST"])
+@login_required
+@secretary_or_admin_required
+def admin_cancel_slot(event_id):
+    """Admin/secretary cancels a booking and optionally sends a notification e-mail."""
+    from datetime import datetime as _dt
+    data = request.get_json(silent=True) or {}
+    booking_id = data.get("booking_id")
+    send_email_flag = data.get("send_email", False)
+
+    if not booking_id:
+        return jsonify({"error": "Missing booking_id"}), 400
+
+    booking = Booking.query.get_or_404(booking_id)
+    if booking.cancelled_at:
+        return jsonify({"error": "Already cancelled"}), 400
+
+    slot = booking.slot
+    day = ConferenceDay.query.get(slot.day_id)
+    if day.event_id != event_id:
+        abort(403)
+
+    booking.cancelled_at = _dt.utcnow()
+    slot.is_booked = False
+    db.session.commit()
+
+    if send_email_flag:
+        from app.utils import send_slot_cancelled_email
+        event = ConferenceEvent.query.get(event_id)
+        teacher = slot.teacher
+        student = booking.student
+        for gs in GuardianStudent.query.filter_by(student_id=student.id).all():
+            try:
+                send_slot_cancelled_email(gs.guardian, student, teacher, slot, event)
+            except Exception:
+                pass
+
+    return jsonify({"ok": True})
+
+
 # ── Event reminders ────────────────────────────────────────────────────────────
 
 @admin_bp.route("/events/<int:event_id>/reminders/add", methods=["POST"])

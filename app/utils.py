@@ -171,6 +171,25 @@ def generate_slots_for_sector_day(day, teacher_configs, break_minutes, breaks_se
     return slots
 
 
+def send_slot_cancelled_email(guardian, student, teacher, slot, event):
+    """Notify a guardian that an admin cancelled a specific booked slot."""
+    link = url_for("auth.login", _external=True)
+    lang = guardian.preferred_language
+    if lang == "en":
+        subject = f"Meeting cancelled — {event.name}"
+        template = "emails/slot_cancelled_en.html"
+    else:
+        subject = f"Reunião cancelada — {event.name}"
+        template = "emails/slot_cancelled_pt.html"
+    body = render_template(template, guardian=guardian, student=student,
+                           teacher=teacher, slot=slot, event=event,
+                           link=link, logo_url="cid:logo")
+    msg = Message(subject=subject, recipients=[guardian.email], html=body)
+    _attach_logo(msg)
+    mail.send(msg)
+    _log_email(guardian.id, "slot_cancelled", event_id=event.id)
+
+
 def send_teacher_absent_email(guardian, teacher, day, bookings, event):
     """Email to a guardian when a teacher they have meetings with is marked absent."""
     link = url_for("auth.login", _external=True)
