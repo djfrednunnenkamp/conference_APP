@@ -137,15 +137,19 @@
               {% else %}
               {# ── Active: full controls ── #}
               {% if event.status == 'published' %}
-              <button type="button" class="btn btn-outline-secondary btn-sm"
-                      title="{{ _('Gerir horários e intervalos') }}"
-                      onclick="openBreaksPopup({{ event.id }}, '{{ event.name|e }}')">
+              <a href="{{ url_for('admin.edit_event', id=event.id) }}"
+                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
                 <i class="bi bi-pencil"></i>
-              </button>
+              </a>
               <button type="button" class="btn btn-outline-secondary btn-sm"
                       title="{{ _('Presenças de professores') }}"
                       onclick="openAttendancePopup({{ event.id }}, '{{ event.name|e }}')">
                 <i class="bi bi-people"></i>
+              </button>
+              <button type="button" class="btn btn-outline-secondary btn-sm"
+                      title="{{ _('Gerir intervalos dos professores') }}"
+                      onclick="openBreaksPopup({{ event.id }}, '{{ event.name|e }}')">
+                <i class="bi bi-cup-hot"></i>
               </button>
               {% else %}
               <a href="{{ url_for('admin.edit_event', id=event.id) }}"
