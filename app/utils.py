@@ -20,7 +20,7 @@ def _attach_logo(msg):
         content_type="image/png",
         data=_LOGO_RAW,
         disposition="inline",
-        headers=[("Content-ID", "<logo>"), ("X-Attachment-Id", "logo")],
+        headers={"Content-ID": "<logo>", "X-Attachment-Id": "logo"},
     )
 
 
