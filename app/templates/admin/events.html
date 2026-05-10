@@ -138,19 +138,14 @@
               {# ── Active: full controls ── #}
               {% if event.status == 'published' %}
               <button type="button" class="btn btn-outline-secondary btn-sm"
-                      title="{{ _('Editar') }}"
-                      onclick="openQuickEdit({{ event.id }}, '{{ event.name|e }}', {{ event.student_booking_allowed|tojson }}, {{ event.allow_duplicate_teacher_booking|tojson }}, {{ event.cancel_deadline_hours }})">
+                      title="{{ _('Gerir horários e intervalos') }}"
+                      onclick="openBreaksPopup({{ event.id }}, '{{ event.name|e }}')">
                 <i class="bi bi-pencil"></i>
               </button>
               <button type="button" class="btn btn-outline-secondary btn-sm"
                       title="{{ _('Presenças de professores') }}"
                       onclick="openAttendancePopup({{ event.id }}, '{{ event.name|e }}')">
                 <i class="bi bi-people"></i>
-              </button>
-              <button type="button" class="btn btn-outline-secondary btn-sm"
-                      title="{{ _('Gerir intervalos dos professores') }}"
-                      onclick="openBreaksPopup({{ event.id }}, '{{ event.name|e }}')">
-                <i class="bi bi-cup-hot"></i>
               </button>
               {% else %}
               <a href="{{ url_for('admin.edit_event', id=event.id) }}"
@@ -228,53 +223,6 @@
   <i class="bi bi-search me-1"></i>{{ _('Nenhum resultado para os filtros aplicados.') }}
 </p>
 
-{# ── Quick-edit modal (published events) ── #}
-<div class="modal fade" id="quickEditModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title fw-semibold">
-          <i class="bi bi-pencil me-2"></i><span id="qeTitle"></span>
-        </h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body pb-2">
-        <div class="form-check form-switch mb-3">
-          <input class="form-check-input" type="checkbox" id="qeStudentBooking">
-          <label class="form-check-label small fw-semibold" for="qeStudentBooking">
-            {{ _('Permitir agendamento por alunos') }}
-          </label>
-        </div>
-        <div class="form-check form-switch mb-3">
-          <input class="form-check-input" type="checkbox" id="qeDuplicateTeacher">
-          <label class="form-check-label small fw-semibold" for="qeDuplicateTeacher">
-            {{ _('Permitir reunião dupla com o mesmo professor') }}
-          </label>
-        </div>
-        <div class="mb-1">
-          <label class="form-label small fw-semibold mb-1">
-            {{ _('Bloquear agendamento (horas antes)') }}
-          </label>
-          <input type="number" id="qeDeadline" class="form-control form-control-sm" min="0" style="max-width:120px">
-          <div class="form-text">{{ _('0 = livre até o início da reunião') }}</div>
-        </div>
-      </div>
-      <div class="modal-footer py-2 d-flex justify-content-between align-items-center">
-        <a id="qeFullPageLink" href="#" class="btn btn-link btn-sm text-secondary text-decoration-none p-0">
-          <i class="bi bi-box-arrow-up-right me-1"></i>{{ _('Ver página completa') }}
-        </a>
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm"
-                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
-          <button type="button" class="btn btn-primary btn-sm" id="qeSaveBtn">
-            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
 {# ── Attendance popup modal ── #}
 <div class="modal fade" id="attendancePopupModal" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
@@ -320,55 +268,31 @@
   </div>
 </div>
 
-{# ── Manage-breaks: teacher list modal ── #}
-<div class="modal fade" id="breaksListModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
-    <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title fw-semibold">
-          <i class="bi bi-cup-hot me-2"></i><span id="breaksListTitle"></span>
-        </h6>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body pb-2">
-        <input type="text" id="breaksSearch" class="form-control form-control-sm mb-3"
-               placeholder="{{ _('Buscar professor...') }}" autocomplete="off">
-        <div id="breaksTeacherList" style="max-height:380px;overflow-y:auto"></div>
-      </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm"
-                data-bs-dismiss="modal">{{ _('Fechar') }}</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-{# ── Manage-breaks: slot grid modal ── #}
+{# ── Manage-breaks: unified popup (teacher list + slot grid) ── #}
 <style>
-  .sg-cell { cursor:pointer; text-align:center; vertical-align:middle; transition:opacity .15s; font-size:.78rem; padding:6px 4px !important; }
-  .sg-cell:hover { opacity:.75; }
-  .sg-free  { background:#fff; }
-  .sg-break { background:#e2e8f0 !important; color:#475569; }
-  .sg-booked{ background:#dcfce7 !important; color:#166534; }
+  .sg-row { cursor: pointer; transition: background .1s; }
+  .sg-row:hover { opacity: .82; }
+  .sg-free   { background: #fff; }
+  .sg-break  { background: #f1f5f9; }
+  .sg-booked { background: #f0fdf4; }
 </style>
-<div class="modal fade" id="slotGridModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-xl">
+<div class="modal fade" id="breaksListModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
     <div class="modal-content">
       <div class="modal-header py-2">
-        <h6 class="modal-title fw-semibold">
-          <i class="bi bi-grid me-2"></i><span id="slotGridTeacherName"></span>
-        </h6>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-sm btn-link text-secondary p-0 d-none"
+                  id="brkBackBtn" title="{{ _('Voltar') }}">
+            <i class="bi bi-arrow-left" style="font-size:1.1rem"></i>
+          </button>
+          <h6 class="modal-title fw-semibold mb-0">
+            <i class="bi bi-cup-hot me-2"></i><span id="breaksListTitle"></span>
+          </h6>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <div class="d-flex gap-3 mb-3 small">
-          <span><span class="d-inline-block rounded me-1" style="width:14px;height:14px;background:#fff;border:1px solid #dee2e6"></span>{{ _('Disponível') }}</span>
-          <span><span class="d-inline-block rounded me-1" style="width:14px;height:14px;background:#e2e8f0"></span>{{ _('Intervalo') }}</span>
-          <span><span class="d-inline-block rounded me-1" style="width:14px;height:14px;background:#dcfce7"></span>{{ _('Agendado') }}</span>
-        </div>
-        <div id="slotGridContainer" style="overflow-x:auto">
-          <p class="text-muted small py-3">{{ _('Carregando...') }}</p>
-        </div>
+      <div class="modal-body pb-2" id="brkModalBody">
+        <p class="text-muted small py-2">{{ _('Carregando...') }}</p>
       </div>
       <div class="modal-footer py-2">
         <button type="button" class="btn btn-secondary btn-sm"
@@ -495,39 +419,6 @@ applyFilters();
 
 const CSRF = "{{ csrf_token() }}";
 
-/* ── Quick-edit modal ─────────────────────────────────────── */
-let qeEventId = null;
-
-function openQuickEdit(eventId, name, studentBooking, duplicateTeacher, deadlineHours) {
-  qeEventId = eventId;
-  document.getElementById('qeTitle').textContent            = name;
-  document.getElementById('qeStudentBooking').checked       = studentBooking;
-  document.getElementById('qeDuplicateTeacher').checked     = duplicateTeacher;
-  document.getElementById('qeDeadline').value               = deadlineHours;
-  document.getElementById('qeFullPageLink').href            = `/admin/events/${eventId}/edit`;
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('quickEditModal')).show();
-}
-
-document.getElementById('qeSaveBtn').addEventListener('click', async function() {
-  if (!qeEventId) return;
-  this.disabled = true;
-  const res = await fetch(`/admin/events/${qeEventId}/update_meta`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-    body: JSON.stringify({
-      student_booking_allowed:         document.getElementById('qeStudentBooking').checked,
-      allow_duplicate_teacher_booking: document.getElementById('qeDuplicateTeacher').checked,
-      cancel_deadline_hours:           parseInt(document.getElementById('qeDeadline').value) || 0,
-    })
-  });
-  this.disabled = false;
-  if (res.ok) {
-    bootstrap.Modal.getInstance(document.getElementById('quickEditModal')).hide();
-    location.reload();
-  } else {
-    await panAlert({ body: '{{ _('Erro ao salvar.') }}', type: 'danger' });
-  }
-});
 
 /* ── Attendance popup ─────────────────────────────────────── */
 let attEventId   = null;
@@ -690,32 +581,46 @@ async function markTeacherPresent(teacherId, btn) {
 }
 
 /* ── Manage-breaks popup ──────────────────────────────────── */
-let brkEventId   = null;
-let brkTeachers  = [];
-let sgEventId    = null;
-let sgTeacherId  = null;
-let sgGridData   = null;   // last fetched days array
-let pendingSlot  = null;   // { slotId, isBreak, dayId, startTime, bookingId }
+let brkEventId    = null;
+let brkEventName  = '';
+let brkTeachers   = [];
+let sgTeacherId   = null;
+let sgGridData    = null;
+let sgCurrentDayId = null;
+let pendingSlot   = null;
 
 async function openBreaksPopup(eventId, name) {
-  brkEventId = eventId;
+  brkEventId   = eventId;
+  brkEventName = name;
   document.getElementById('breaksListTitle').textContent = name;
-  document.getElementById('breaksSearch').value = '';
-  document.getElementById('breaksTeacherList').innerHTML =
+  document.getElementById('brkBackBtn').classList.add('d-none');
+  document.getElementById('brkModalBody').innerHTML =
     '<p class="text-muted small py-2">{{ _('Carregando...') }}</p>';
   bootstrap.Modal.getOrCreateInstance(document.getElementById('breaksListModal')).show();
 
   const data = await fetch(`/admin/events/${eventId}/teachers-summary`).then(r => r.json());
   brkTeachers = data.teachers || [];
+  renderListView();
+}
+
+function renderListView() {
+  document.getElementById('breaksListTitle').textContent = brkEventName;
+  document.getElementById('brkBackBtn').classList.add('d-none');
+
+  const body = document.getElementById('brkModalBody');
+  body.innerHTML = `
+    <input type="text" id="breaksSearch" class="form-control form-control-sm mb-3"
+           placeholder="{{ _('Buscar professor...') }}" autocomplete="off">
+    <div id="breaksTeacherList" style="max-height:420px;overflow-y:auto"></div>`;
+
+  document.getElementById('breaksSearch').addEventListener('input', function () {
+    renderBreaksList(this.value.toLowerCase().trim());
+  });
   renderBreaksList('');
 }
 
-document.getElementById('breaksSearch').addEventListener('input', function () {
-  renderBreaksList(this.value.toLowerCase().trim());
-});
-
 function renderBreaksList(q) {
-  const el = document.getElementById('breaksTeacherList');
+  const el   = document.getElementById('breaksTeacherList');
   const list = brkTeachers.filter(t => !q || t.name.toLowerCase().includes(q));
   if (!list.length) {
     el.innerHTML = '<p class="text-muted small py-2">{{ _('Nenhum professor encontrado.') }}</p>';
@@ -723,98 +628,120 @@ function renderBreaksList(q) {
   }
   el.innerHTML = '';
   list.forEach(t => {
+    const initials = t.name.split(' ').filter(Boolean).map(w => w[0]).slice(0,2).join('').toUpperCase();
     const row = document.createElement('div');
     row.className = 'd-flex align-items-center justify-content-between py-2 border-bottom';
     row.style.cursor = 'pointer';
     row.innerHTML = `
-      <span class="small fw-semibold">${t.name}</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="pan-avatar" style="background:var(--pan-blue);width:32px;height:32px;font-size:.7rem;flex-shrink:0">${initials}</span>
+        <span class="small fw-semibold">${t.name}</span>
+      </div>
       <span class="badge rounded-pill ${t.break_count > 0 ? 'bg-warning text-dark' : 'bg-light text-muted border'}"
-            style="font-size:.7rem;min-width:22px">
-        ${t.break_count}
-      </span>`;
-    row.addEventListener('click', () => openSlotGrid(brkEventId, t.id, t.name));
+            style="font-size:.7rem;min-width:22px">${t.break_count}</span>`;
+    row.addEventListener('click', () => openTeacherGrid(t.id, t.name));
     el.appendChild(row);
   });
 }
 
-async function openSlotGrid(eventId, teacherId, teacherName) {
-  sgEventId   = eventId;
-  sgTeacherId = teacherId;
-  document.getElementById('slotGridTeacherName').textContent = teacherName;
-  document.getElementById('slotGridContainer').innerHTML =
-    '<p class="text-muted small py-3">{{ _('Carregando...') }}</p>';
+document.getElementById('brkBackBtn').addEventListener('click', renderListView);
 
-  bootstrap.Modal.getInstance(document.getElementById('breaksListModal')).hide();
-  bootstrap.Modal.getOrCreateInstance(document.getElementById('slotGridModal')).show();
+async function openTeacherGrid(teacherId, teacherName) {
+  sgTeacherId    = teacherId;
+  sgCurrentDayId = null;
+  document.getElementById('breaksListTitle').textContent = teacherName;
+  document.getElementById('brkBackBtn').classList.remove('d-none');
+  document.getElementById('brkModalBody').innerHTML =
+    '<p class="text-muted small py-2">{{ _('Carregando...') }}</p>';
 
-  const data = await fetch(`/admin/events/${eventId}/slot-grid/${teacherId}`).then(r => r.json());
+  const data = await fetch(`/admin/events/${brkEventId}/slot-grid/${teacherId}`).then(r => r.json());
   sgGridData  = data.days || [];
   renderSlotGrid(sgGridData);
 }
 
 function renderSlotGrid(days) {
-  const container = document.getElementById('slotGridContainer');
+  const body = document.getElementById('brkModalBody');
   if (!days.length) {
-    container.innerHTML = '<p class="text-muted small py-3">{{ _('Nenhum horário encontrado para este professor.') }}</p>';
+    body.innerHTML = '<p class="text-muted small py-3">{{ _('Nenhum horário encontrado para este professor.') }}</p>';
     return;
   }
 
-  // Collect all unique start times across all days
-  const allTimes = new Set();
-  days.forEach(d => d.slots.forEach(s => allTimes.add(s.start)));
-  const times = Array.from(allTimes).sort();
+  if (!sgCurrentDayId || !days.find(d => d.day_id === sgCurrentDayId)) {
+    sgCurrentDayId = days[0].day_id;
+  }
 
-  // Lookup: dayId → startTime → slot
-  const lk = {};
-  days.forEach(d => {
-    lk[d.day_id] = {};
-    d.slots.forEach(s => { lk[d.day_id][s.start] = s; });
-  });
+  let html = '';
 
-  let html = '<table class="table table-sm table-bordered mb-0" style="min-width:300px">';
-  html += '<thead><tr><th style="min-width:60px;font-size:.75rem">{{ _('Horário') }}</th>';
-  days.forEach(d => {
-    html += `<th class="text-center" style="min-width:80px;font-size:.75rem">${d.date}</th>`;
-  });
-  html += '</tr></thead><tbody>';
+  // Legend
+  html += `<div class="d-flex gap-3 mb-3 small text-muted">
+    <span><span class="d-inline-block rounded me-1"
+      style="width:12px;height:12px;background:#fff;border:1px solid #dee2e6;vertical-align:middle"></span>{{ _('Disponível') }}</span>
+    <span><span class="d-inline-block rounded me-1"
+      style="width:12px;height:12px;background:#e2e8f0;vertical-align:middle"></span>{{ _('Intervalo') }}</span>
+    <span><span class="d-inline-block rounded me-1"
+      style="width:12px;height:12px;background:#dcfce7;vertical-align:middle"></span>{{ _('Agendado') }}</span>
+  </div>`;
 
-  times.forEach(t => {
-    html += `<tr><td class="text-muted small fw-semibold" style="white-space:nowrap">${t}</td>`;
+  // Day buttons (only when the event has multiple days)
+  if (days.length > 1) {
+    html += '<div class="d-flex flex-wrap gap-2 mb-3">';
     days.forEach(d => {
-      const s = lk[d.day_id]?.[t];
-      if (!s) { html += '<td class="bg-light"></td>'; return; }
-
-      let cls, icon, tip;
-      if (s.is_break) {
-        cls = 'sg-break'; icon = '<i class="bi bi-cup-hot"></i>';
-        tip = '{{ _('Intervalo — clique para remover') }}';
-      } else if (s.booking) {
-        cls = 'sg-booked'; icon = '<i class="bi bi-person-check"></i>';
-        const g = (s.booking.guardian_names || []).join(', ');
-        tip = `${s.booking.student_name}${g ? ' · ' + g : ''}`;
-      } else {
-        cls = 'sg-free'; icon = '';
-        tip = '{{ _('Disponível — clique para marcar como intervalo') }}';
-      }
-
-      const bData = s.booking ? encodeURIComponent(JSON.stringify(s.booking)) : '';
-      html += `<td class="sg-cell ${cls}"
-                   data-slot-id="${s.slot_id}"
-                   data-day-id="${d.day_id}"
-                   data-start="${s.start}"
-                   data-end="${s.end || ''}"
-                   data-is-break="${s.is_break}"
-                   data-booking="${bData}"
-                   title="${tip}">${icon} ${t}</td>`;
+      const active = d.day_id === sgCurrentDayId;
+      html += `<button type="button"
+                 class="btn btn-sm rounded-pill ${active ? 'btn-primary' : 'btn-outline-primary'} sg-day-btn"
+                 data-day-id="${d.day_id}">
+                 <i class="bi bi-calendar3 me-1"></i>${d.date}
+               </button>`;
     });
-    html += '</tr>';
+    html += '</div>';
+  }
+
+  // Slot list for the selected day
+  const day = days.find(d => d.day_id === sgCurrentDayId);
+  html += '<div style="max-height:360px;overflow-y:auto">';
+  if (day && day.slots.length) {
+    day.slots.forEach(s => {
+      let cls, icon, rightHtml, rightCls;
+      if (s.is_break) {
+        cls = 'sg-break'; icon = 'bi-cup-hot';
+        rightHtml = '{{ _('Intervalo') }}'; rightCls = 'text-secondary small';
+      } else if (s.booking) {
+        const guards = (s.booking.guardian_names || []).join(', ');
+        cls = 'sg-booked'; icon = 'bi-person-check';
+        rightHtml = `<span class="fw-semibold text-success">${s.booking.student_name}</span>` +
+                    (guards ? `<br><span style="font-size:.75rem" class="text-muted">${guards}</span>` : '');
+        rightCls = 'small text-end';
+      } else {
+        cls = 'sg-free'; icon = 'bi-circle';
+        rightHtml = '{{ _('Disponível') }}'; rightCls = 'text-muted small';
+      }
+      const bData = s.booking ? encodeURIComponent(JSON.stringify(s.booking)) : '';
+      html += `<div class="sg-row ${cls} d-flex align-items-center justify-content-between py-2 px-2 border-bottom"
+                    data-slot-id="${s.slot_id}" data-day-id="${sgCurrentDayId}"
+                    data-start="${s.start}" data-end="${s.end || ''}"
+                    data-is-break="${s.is_break}" data-booking="${bData}">
+                 <div class="d-flex align-items-center gap-2">
+                   <i class="bi ${icon} text-muted" style="font-size:.85rem;width:16px;text-align:center;flex-shrink:0"></i>
+                   <span class="small fw-semibold">${s.start} – ${s.end}</span>
+                 </div>
+                 <div class="${rightCls}">${rightHtml}</div>
+               </div>`;
+    });
+  } else {
+    html += '<p class="text-muted small py-3 mb-0">{{ _('Nenhum horário neste dia.') }}</p>';
+  }
+  html += '</div>';
+
+  body.innerHTML = html;
+
+  body.querySelectorAll('.sg-day-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      sgCurrentDayId = parseInt(btn.dataset.dayId);
+      renderSlotGrid(sgGridData);
+    });
   });
-
-  html += '</tbody></table>';
-  container.innerHTML = html;
-
-  container.querySelectorAll('.sg-cell').forEach(cell => {
-    cell.addEventListener('click', () => handleSlotCellClick(cell));
+  body.querySelectorAll('.sg-row').forEach(row => {
+    row.addEventListener('click', () => handleSlotCellClick(row));
   });
 }
 
@@ -865,7 +792,7 @@ document.getElementById('breakActionConfirmBtn').addEventListener('click', async
   this.disabled = true;
   bootstrap.Modal.getInstance(document.getElementById('breakActionModal')).hide();
 
-  const res = await fetch(`/admin/events/${sgEventId}/teacher-breaks/toggle`, {
+  const res = await fetch(`/admin/events/${brkEventId}/teacher-breaks/toggle`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
     body: JSON.stringify({
@@ -877,7 +804,6 @@ document.getElementById('breakActionConfirmBtn').addEventListener('click', async
   this.disabled = false;
   if (!res.ok) { await panAlert({ body: '{{ _('Erro ao salvar.') }}', type: 'danger' }); return; }
 
-  // Refresh grid and teacher list break counts
   refreshSlotGrid();
   refreshBreakCounts();
 });
@@ -897,7 +823,7 @@ document.getElementById('cancelBookingConfirmBtn').addEventListener('click', asy
   this.disabled = true;
   bootstrap.Modal.getInstance(document.getElementById('cancelBookingModal')).hide();
 
-  const res = await fetch(`/admin/events/${sgEventId}/admin-cancel-slot`, {
+  const res = await fetch(`/admin/events/${brkEventId}/admin-cancel-slot`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
     body: JSON.stringify({
@@ -912,7 +838,7 @@ document.getElementById('cancelBookingConfirmBtn').addEventListener('click', asy
 });
 
 async function refreshSlotGrid() {
-  const data = await fetch(`/admin/events/${sgEventId}/slot-grid/${sgTeacherId}`).then(r => r.json());
+  const data = await fetch(`/admin/events/${brkEventId}/slot-grid/${sgTeacherId}`).then(r => r.json());
   sgGridData = data.days || [];
   renderSlotGrid(sgGridData);
 }
@@ -922,7 +848,7 @@ async function refreshBreakCounts() {
   brkTeachers = data.teachers || [];
 }
 
-/* Cleanup backdrops when break modals close */
+/* Cleanup backdrops when sub-modals close */
 ['breakActionModal','cancelBookingModal'].forEach(id => {
   document.getElementById(id).addEventListener('hidden.bs.modal', function () {
     if (!document.querySelector('.modal.show')) {
