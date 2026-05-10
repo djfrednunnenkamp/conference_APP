@@ -3639,13 +3639,14 @@ def notify(event_id):
         recipients = _get_notify_recipients_v2(params, event_id)
         sent = 0
         for user in recipients:
-            token = None
-            if not user.has_password():
-                token = generate_token(user.email, salt="invite")
-                user.invite_token = token
-                user.invite_sent_at = datetime.utcnow()
             try:
-                send_conference_info_email(user, event, token)
+                if not user.has_password():
+                    token = generate_token(user.email, salt="invite")
+                    user.invite_token = token
+                    user.invite_sent_at = datetime.utcnow()
+                    send_invite_email(user, token)
+                else:
+                    send_conference_info_email(user, event)
                 sent += 1
             except Exception:
                 pass

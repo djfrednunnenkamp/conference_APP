@@ -41,11 +41,14 @@ def _logo_url():
 
 
 def send_invite_email(user, token):
-    # First-access email is always in English so the user can understand it
-    # regardless of their (not yet chosen) language preference.
     link = url_for("auth.set_password", token=token, _external=True)
-    subject = "Welcome to Conferensia – Set your password"
-    template = "emails/invite_en.html"
+    lang = user.preferred_language
+    if lang == "en":
+        subject = "Welcome to Conferensia – Set your password"
+        template = "emails/invite_en.html"
+    else:
+        subject = "Bem-vindo ao Conferensia – Crie sua senha"
+        template = "emails/invite_pt.html"
     body = render_template(template, user=user, link=link, logo_url=_logo_url())
     msg = Message(subject=subject, recipients=[user.email], html=body)
     mail.send(msg)
