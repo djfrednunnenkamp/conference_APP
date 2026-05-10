@@ -2755,16 +2755,14 @@ def discard_student(id):
 @admin_required
 def edit_student(id):
     user = User.query.filter_by(id=id, role="student").first_or_404()
-    is_new = bool(request.args.get("is_new"))
+    is_new = bool(request.args.get("is_new")) or user.email.startswith("__draft_")
     form = StudentForm(obj=user)
     form.grade_group_id.choices = [(g.id, g.name) for g in GradeGroup.query.order_by(GradeGroup.name).all()]
 
     if request.method == "GET":
-        # For draft students, show blank fields instead of the placeholder email/name
-        if is_new or user.email.startswith("__draft_"):
-            form.email.data = ""
-            form.first_name.data = ""
-            form.last_name.data = ""
+        if user.email.startswith("__draft_"):
+            # Show draft_email param if passed back from add-guardian flow; otherwise blank
+            form.email.data = request.args.get("draft_email", "")
         if user.student_profile:
             form.grade_group_id.data = user.student_profile.grade_group_id
 
@@ -2830,10 +2828,42 @@ def toggle_student_subject(student_id, subject_id):
 @admin_required
 def add_guardian_to_student(student_id):
     student = User.query.filter_by(id=student_id, role="student").first_or_404()
+
+    # Save partial draft data so the student form values survive the redirect
+    draft_email = ""
+    is_draft = student.email.startswith("__draft_")
+    if is_draft:
+        draft_email = request.form.get("student_email", "").lower().strip()
+        s_first = request.form.get("student_first_name", "").strip()
+        s_last  = request.form.get("student_last_name", "").strip()
+        s_grade = request.form.get("student_grade_group_id", "")
+        if s_first:
+            student.first_name = s_first
+        if s_last:
+            student.last_name = s_last
+        if s_grade:
+            try:
+                gid = int(s_grade)
+                if student.student_profile:
+                    student.student_profile.grade_group_id = gid
+                else:
+                    db.session.add(StudentProfile(user_id=student.id, grade_group_id=gid))
+            except (ValueError, TypeError):
+                pass
+        db.session.commit()
+
+    def _back():
+        kw = {"id": student_id}
+        if is_draft:
+            kw["is_new"] = 1
+        if draft_email:
+            kw["draft_email"] = draft_email
+        return redirect(url_for("admin.edit_student", **kw))
+
     existing_count = GuardianStudent.query.filter_by(student_id=student_id).count()
     if existing_count >= 2:
         flash(_("Este aluno já possui 2 responsáveis vinculados."), "warning")
-        return redirect(url_for("admin.edit_student", id=student_id))
+        return _back()
 
     email = request.form.get("guardian_email", "").lower().strip()
     guardian = User.query.filter_by(email=email, role="guardian").first()
@@ -2847,13 +2877,13 @@ def add_guardian_to_student(student_id):
             flash(_("Responsável vinculado."), "success")
     else:
         first = request.form.get("guardian_first_name", "").strip()
-        last = request.form.get("guardian_last_name", "").strip()
+        last  = request.form.get("guardian_last_name", "").strip()
         if not first or not last:
             flash(_("Informe nome e sobrenome para criar um novo responsável."), "danger")
-            return redirect(url_for("admin.edit_student", id=student_id))
+            return _back()
         if User.query.filter_by(email=email).first():
             flash(_("E-mail já está em uso."), "danger")
-            return redirect(url_for("admin.edit_student", id=student_id))
+            return _back()
         guardian = User(email=email, role="guardian", first_name=first, last_name=last, preferred_language="en")
         db.session.add(guardian)
         db.session.flush()
@@ -2861,7 +2891,7 @@ def add_guardian_to_student(student_id):
         db.session.commit()
         flash(_("Responsável criado com sucesso."), "success")
 
-    return redirect(url_for("admin.edit_student", id=student_id))
+    return _back()
 
 
 @admin_bp.route("/students/<int:student_id>/remove-guardian/<int:guardian_id>", methods=["POST"])

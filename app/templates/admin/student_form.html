@@ -371,6 +371,31 @@ document.getElementById('editGuardianModal').addEventListener('show.bs.modal', f
   document.getElementById('editGuardianForm').action = btn.dataset.updateUrl || '';
 });
 
+// Preserve draft student data across the add-guardian redirect
+(function () {
+  const modal = document.getElementById('addGuardianModal');
+  if (!modal) return;
+  let draftVals = {};
+  modal.addEventListener('show.bs.modal', function () {
+    draftVals = {
+      student_first_name:    (document.getElementById('first_name')    || {}).value || '',
+      student_last_name:     (document.getElementById('last_name')     || {}).value || '',
+      student_email:         (document.getElementById('email')         || {}).value || '',
+      student_grade_group_id:(document.getElementById('grade_group_id')|| {}).value || ''
+    };
+  });
+  modal.addEventListener('submit', function (e) {
+    const form = e.target;
+    Object.entries(draftVals).forEach(function ([name, value]) {
+      if (!form.querySelector('input[name="' + name + '"]')) {
+        const inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = name; inp.value = value;
+        form.appendChild(inp);
+      }
+    });
+  }, true);
+})();
+
 // Add-guardian modal: live search
 const searchInput = document.getElementById('guardianSearch');
 if (searchInput) {
