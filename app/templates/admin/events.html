@@ -137,10 +137,18 @@
               {% else %}
               {# ── Active: full controls ── #}
               {% if event.status == 'published' %}
-              <a href="{{ url_for('admin.edit_event', id=event.id) }}"
-                 class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}">
+              <button type="button" class="btn btn-outline-secondary btn-sm" title="{{ _('Editar') }}"
+                      onclick="openQuickEdit(
+                        {{ event.id }},
+                        '{{ event.name | e }}',
+                        {{ event.student_booking_allowed | lower }},
+                        {{ event.allow_duplicate_teacher_booking | lower }},
+                        {{ event.cancel_deadline_hours }},
+                        '{{ url_for('admin.edit_event', id=event.id) }}',
+                        '{{ url_for('admin.update_event_meta', id=event.id) }}'
+                      )">
                 <i class="bi bi-pencil"></i>
-              </a>
+              </button>
               <button type="button" class="btn btn-outline-secondary btn-sm"
                       title="{{ _('Presenças de professores') }}"
                       onclick="openAttendancePopup({{ event.id }}, '{{ event.name|e }}')">
@@ -359,6 +367,88 @@
         <button type="button" class="btn btn-danger btn-sm" id="cancelBookingConfirmBtn">
           {{ _('Sim, cancelar') }}
         </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Quick-edit modal (published events) ── #}
+<div class="modal fade" id="quickEditModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:440px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:38px;height:38px;border-radius:50%;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-sliders" style="color:var(--pan-blue);font-size:1rem"></i>
+          </span>
+          <div>
+            <h6 class="modal-title fw-semibold mb-0" style="color:var(--pan-blue)">{{ _('Configurações rápidas') }}</h6>
+            <div class="text-muted" style="font-size:.75rem" id="qeEventName"></div>
+          </div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+
+      <div class="modal-body pt-3 pb-2">
+        <div class="d-flex flex-column gap-3">
+
+          {# Student booking #}
+          <div class="d-flex align-items-start justify-content-between gap-3 p-3 rounded-3 border">
+            <div>
+              <div class="fw-semibold small">{{ _('Alunos podem agendar') }}</div>
+              <div class="text-muted" style="font-size:.75rem">
+                {{ _('Permite que alunos marquem reuniões diretamente.') }}
+              </div>
+            </div>
+            <div class="form-check form-switch mb-0 flex-shrink-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="qeStudentBooking" style="width:2.4em;height:1.3em">
+            </div>
+          </div>
+
+          {# Duplicate teacher booking #}
+          <div class="d-flex align-items-start justify-content-between gap-3 p-3 rounded-3 border">
+            <div>
+              <div class="fw-semibold small">{{ _('Múltiplas reuniões com o mesmo professor') }}</div>
+              <div class="text-muted" style="font-size:.75rem">
+                {{ _('Responsáveis podem marcar mais de uma reunião com o mesmo professor.') }}
+              </div>
+            </div>
+            <div class="form-check form-switch mb-0 flex-shrink-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="qeDupTeacher" style="width:2.4em;height:1.3em">
+            </div>
+          </div>
+
+          {# Cancel deadline #}
+          <div class="p-3 rounded-3 border">
+            <label class="fw-semibold small d-block mb-1" for="qeDeadline">
+              {{ _('Prazo para editar agendamentos') }}
+            </label>
+            <div class="text-muted mb-2" style="font-size:.75rem">
+              {{ _('Responsáveis não podem alterar reuniões com menos desse tempo de antecedência.') }}
+            </div>
+            <div class="input-group input-group-sm" style="max-width:160px">
+              <input type="number" class="form-control" id="qeDeadline"
+                     min="0" max="168" step="1">
+              <span class="input-group-text text-muted">{{ _('horas') }}</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="modal-footer border-0 pt-1 d-flex justify-content-between align-items-center">
+        <a href="#" id="qeFullEditLink" class="btn btn-link btn-sm text-secondary text-decoration-none p-0">
+          <i class="bi bi-pencil-square me-1"></i>{{ _('Edição completa') }}
+        </a>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+          <button type="button" class="btn btn-primary btn-sm px-3" id="qeSaveBtn">
+            <i class="bi bi-check-lg me-1"></i>{{ _('Salvar') }}
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -862,6 +952,45 @@ async function refreshBreakCounts() {
       document.body.style.removeProperty('padding-right');
     }
   });
+});
+
+/* ── Quick-edit modal ── */
+let _qeSaveUrl = '';
+
+function openQuickEdit(id, name, studentBooking, dupTeacher, deadlineHours, editUrl, saveUrl) {
+  _qeSaveUrl = saveUrl;
+  document.getElementById('qeEventName').textContent = name;
+  document.getElementById('qeStudentBooking').checked = studentBooking;
+  document.getElementById('qeDupTeacher').checked = dupTeacher;
+  document.getElementById('qeDeadline').value = deadlineHours;
+  document.getElementById('qeFullEditLink').href = editUrl;
+  bootstrap.Modal.getOrCreate(document.getElementById('quickEditModal')).show();
+}
+
+document.getElementById('qeSaveBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('qeSaveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _("Salvando...") }}';
+  try {
+    const res = await fetch(_qeSaveUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({
+        student_booking_allowed:         document.getElementById('qeStudentBooking').checked,
+        allow_duplicate_teacher_booking: document.getElementById('qeDupTeacher').checked,
+        cancel_deadline_hours:           parseInt(document.getElementById('qeDeadline').value) || 0,
+      })
+    });
+    if (res.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('quickEditModal')).hide();
+      location.reload();
+    } else {
+      alert('{{ _("Erro ao salvar. Tente novamente.") }}');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>{{ _("Salvar") }}';
+  }
 });
 </script>
 {% endblock %}
