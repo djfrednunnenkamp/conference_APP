@@ -4,7 +4,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, abort, r
 from flask_login import login_required, current_user
 from flask_babel import _
 from app.models import GuardianStudent, User, StudentProfile, Booking, Slot, ConferenceDay, ConferenceEvent
-from app.utils import get_active_events, send_conference_info_email
+from app.utils import get_active_events, send_conference_info_email, send_guardian_bookings_email
 
 guardian_bp = Blueprint("guardian", __name__, url_prefix="/guardian")
 
@@ -92,6 +92,34 @@ def send_schedule_email(student_id, event_id):
     _assert_guardian_owns_student(student_id)
     event = ConferenceEvent.query.get_or_404(event_id)
     send_conference_info_email(current_user, event)
+    return jsonify({"ok": True}), 200
+
+
+@guardian_bp.route("/send-bookings-email", methods=["POST"])
+@login_required
+@guardian_required
+def send_bookings_email():
+    events = get_active_events()
+    links = (GuardianStudent.query.filter_by(guardian_id=current_user.id)
+             .join(User, GuardianStudent.student_id == User.id)
+             .order_by(User.last_name, User.first_name).all())
+    children_data = []
+    for link in links:
+        student = User.query.get(link.student_id)
+        events_bookings = []
+        for event in events:
+            bkgs = (Booking.query.join(Slot).join(ConferenceDay)
+                    .filter(ConferenceDay.event_id == event.id,
+                            Booking.student_id == student.id,
+                            Booking.cancelled_at == None)
+                    .order_by(Slot.start_datetime).all())
+            if bkgs:
+                events_bookings.append({"event": event, "bookings": bkgs})
+        if events_bookings:
+            children_data.append({"student": student, "events_bookings": events_bookings})
+    if not children_data:
+        return jsonify({"error": "Nenhuma reunião agendada para enviar."}), 400
+    send_guardian_bookings_email(current_user, children_data)
     return jsonify({"ok": True}), 200
 
 

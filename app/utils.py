@@ -92,6 +92,31 @@ def send_conference_info_email(user, event, token=None):
     _log_email(user.id, "conference_info", event_id=event.id)
 
 
+def send_guardian_bookings_email(guardian, children_data):
+    """Send one email to a guardian listing all children's confirmed bookings.
+
+    children_data: list of {
+        'student': User,
+        'events_bookings': [{'event': ConferenceEvent, 'bookings': [Booking]}]
+    }
+    """
+    lang = guardian.preferred_language
+    if lang == "en":
+        subject = "Your children's conference schedule"
+        template = "emails/guardian_bookings_en.html"
+    else:
+        subject = "Agenda de reuniões dos seus filhos"
+        template = "emails/guardian_bookings_pt.html"
+
+    link = url_for("auth.login", _external=True)
+    body = render_template(template, user=guardian, children_data=children_data,
+                           link=link, logo_url="cid:logo")
+    msg = Message(subject=subject, recipients=[guardian.email], html=body)
+    _attach_logo(msg)
+    mail.send(msg)
+    _log_email(guardian.id, "guardian_bookings_summary")
+
+
 def send_reset_email(user, token):
     link = url_for("auth.reset_password", token=token, _external=True)
     lang = user.preferred_language

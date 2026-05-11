@@ -53,22 +53,23 @@
 <script>
 const CSRF_BOOKINGS = "{{ csrf_token() }}";
 
-async function sendEmailBookings(url, btn) {
+async function sendAllBookingsEmail(btn) {
   btn.disabled = true;
   const orig = btn.innerHTML;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _("Enviando...") }}';
   try {
-    const res = await fetch(url, {
+    const res = await fetch('{{ url_for("guardian.send_bookings_email") }}', {
       method: 'POST',
       headers: { 'X-CSRFToken': CSRF_BOOKINGS }
     });
+    const data = await res.json();
     if (res.ok) {
-      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>{{ _("Enviado!") }}';
       btn.classList.replace('btn-outline-success', 'btn-success');
-      setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success','btn-outline-success'); btn.disabled = false; }, 2500);
+      setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success','btn-outline-success'); btn.disabled = false; }, 3000);
     } else {
       btn.innerHTML = orig; btn.disabled = false;
-      alert('{{ _("Erro ao enviar e-mail.") }}');
+      alert(data.error || '{{ _("Erro ao enviar e-mail.") }}');
     }
   } catch { btn.innerHTML = orig; btn.disabled = false; }
 }
@@ -78,6 +79,11 @@ async function sendEmailBookings(url, btn) {
   <h4 class="fw-bold mb-0">{{ _('Minhas Reuniões') }}</h4>
 
   {% if children_data %}
+  <div class="d-flex gap-2 flex-wrap">
+    <button class="btn btn-outline-success btn-sm"
+            onclick="sendAllBookingsEmail(this)">
+      <i class="bi bi-envelope me-1"></i>{{ _('Enviar por e-mail') }}
+    </button>
     {% if children_data | length == 1 %}
       <a href="{{ url_for('guardian.print_schedule', student_id=children_data[0].student.id) }}"
          target="_blank" class="btn btn-outline-primary btn-sm">
@@ -89,6 +95,7 @@ async function sendEmailBookings(url, btn) {
         <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
       </button>
     {% endif %}
+  </div>
   {% endif %}
 </div>
 
@@ -114,17 +121,10 @@ async function sendEmailBookings(url, btn) {
   {# Event header #}
   <div class="event-header" style="border-radius:12px 12px 0 0">
     <span class="fw-semibold" style="color:var(--pan-blue);font-size:.9rem">{{ eb.event.name }}</span>
-    <div class="d-flex gap-2">
-      <button class="btn btn-sm btn-outline-success"
-              onclick="sendEmailBookings('{{ url_for('guardian.send_schedule_email', student_id=item.student.id, event_id=eb.event.id) }}', this)"
-              style="font-size:.78rem">
-        <i class="bi bi-envelope me-1"></i>{{ _('E-mail') }}
-      </button>
-      <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
-         class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
-        <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
-      </a>
-    </div>
+    <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
+       class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
+      <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
+    </a>
   </div>
 
   {% if eb.bookings %}

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Agenda de reuniões</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f0f2f5;padding:48px 16px">
+    <tr>
+      <td align="center">
+
+        <!-- Card -->
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+               style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,.10)">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a3461 0%,#1e3f6f 60%,#174a30 100%);padding:36px 40px;text-align:center">
+              <img src="{{ logo_url }}" alt="Logo" width="72" height="72"
+                   style="border-radius:12px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto">
+              <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-.3px">Conferensia</div>
+              <div style="color:rgba(255,255,255,.65);font-size:13px;margin-top:4px">Sistema de Reuniões Escolares</div>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px 28px">
+
+              <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827">📅 Agenda de Reuniões</p>
+              <p style="margin:0 0 28px;font-size:15px;color:#6b7280;line-height:1.6">
+                Olá, <strong style="color:#111827">{{ user.first_name }}</strong>!<br>
+                Confira abaixo os horários de reuniões agendados para seus filhos.
+              </p>
+
+              {% for item in children_data %}
+              {% set sp = item.student.student_profile %}
+
+              <!-- Child section -->
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                     style="margin-bottom:28px;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
+
+                <!-- Child header -->
+                <tr>
+                  <td style="background:#eef0f8;padding:12px 20px;border-bottom:1px solid #dde2f0">
+                    <table cellpadding="0" cellspacing="0" role="presentation">
+                      <tr>
+                        <td style="width:38px;height:38px;background:#293266;border-radius:50%;text-align:center;vertical-align:middle;font-size:13px;font-weight:700;color:#fff;letter-spacing:.5px">
+                          {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
+                        </td>
+                        <td style="padding-left:12px;vertical-align:middle">
+                          <div style="font-size:15px;font-weight:700;color:#293266">{{ item.student.full_name }}</div>
+                          {% if sp and sp.grade_group %}
+                          <div style="font-size:12px;color:#64748b">{{ sp.grade_group.name }}</div>
+                          {% endif %}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                {% for eb in item.events_bookings %}
+
+                <!-- Event sub-header -->
+                <tr>
+                  <td style="padding:10px 20px 6px;background:#f8fafc;border-bottom:1px solid #f1f5f9">
+                    <span style="font-size:12px;font-weight:600;color:#293266;text-transform:uppercase;letter-spacing:.5px">{{ eb.event.name }}</span>
+                  </td>
+                </tr>
+
+                {% for b in eb.bookings %}
+                {% set t = b.slot.teacher %}
+                <!-- Booking row -->
+                <tr>
+                  <td style="padding:14px 20px{% if not loop.last or not eb == item.events_bookings[-1] %};border-bottom:1px solid #f1f5f9{% endif %}">
+                    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                      <tr>
+                        <!-- Green dot -->
+                        <td style="width:10px;vertical-align:middle">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#2eb26b"></div>
+                        </td>
+                        <!-- Teacher initials -->
+                        <td style="width:36px;padding-left:10px;vertical-align:middle">
+                          <div style="width:32px;height:32px;background:#293266;border-radius:50%;text-align:center;line-height:32px;font-size:11px;font-weight:700;color:#fff">
+                            {{ (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' }}
+                          </div>
+                        </td>
+                        <!-- Teacher name + subject -->
+                        <td style="padding-left:12px;vertical-align:middle">
+                          <div style="font-size:14px;font-weight:600;color:#111827">{{ t.full_name if t else '—' }}</div>
+                          {% if sp and t and t.teacher_profile %}
+                          <div style="font-size:12px;color:#6b7280">
+                            {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+                              {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                          </div>
+                          {% endif %}
+                        </td>
+                        <!-- Date + time -->
+                        <td align="right" style="vertical-align:middle;white-space:nowrap">
+                          <div style="font-size:13px;font-weight:600;color:#111827">{{ b.slot.start_datetime.strftime('%d/%m/%Y') }}</div>
+                          <div style="font-size:12px;color:#6b7280">{{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                {% endfor %}{# bookings #}
+
+                {% endfor %}{# events #}
+
+              </table>
+              {% endfor %}{# children #}
+
+              <!-- CTA -->
+              <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 28px">
+                <tr>
+                  <td style="background:#293266;border-radius:10px">
+                    <a href="{{ link }}"
+                       style="display:block;padding:13px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px">
+                      Acessar o sistema &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:20px">
+                <tr><td style="border-top:1px solid #e5e7eb"></td></tr>
+              </table>
+              <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6">
+                Ou acesse: <span style="color:#6b7280;word-break:break-all">{{ link }}</span>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center">
+              <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6">
+                Se você não esperava este e-mail, entre em contato com a escola.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <p style="margin:20px 0 0;font-size:12px;color:#9ca3af;text-align:center">
+          &copy; Conferensia &mdash; Sistema de Reuniões Escolares
+        </p>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
