@@ -65,6 +65,25 @@ def get_slots(event_id, student_id):
         if not s.is_break and s.id in my_bookings:
             my_times.add((s.start_datetime, s.end_datetime))
 
+    # If the current user is a guardian, also block times where they already booked
+    # another child in this event — a guardian can't attend two meetings at once.
+    # A different guardian (e.g. the other parent) is not affected.
+    if current_user.role == "guardian":
+        sibling_bookings = (
+            Booking.query
+            .join(Slot)
+            .join(ConferenceDay)
+            .filter(
+                Booking.booked_by_id == current_user.id,
+                Booking.student_id != student_id,
+                Booking.cancelled_at == None,
+                ConferenceDay.event_id == event_id,
+            )
+            .all()
+        )
+        for b in sibling_bookings:
+            my_times.add((b.slot.start_datetime, b.slot.end_datetime))
+
     result = []
     for slot in slots:
         if slot.is_break:
@@ -160,6 +179,23 @@ def book():
                 .first())
     if existing:
         return jsonify({"error": "Time conflict"}), 409
+
+    # A guardian cannot book two different children into overlapping slots —
+    # they can't be in two places at once. A different guardian is not restricted.
+    if current_user.role == "guardian":
+        sibling_conflict = (
+            Booking.query.join(Slot).join(ConferenceDay)
+            .filter(
+                Booking.booked_by_id == current_user.id,
+                Booking.student_id != student_id,
+                Booking.cancelled_at == None,
+                Slot.start_datetime < slot.end_datetime,
+                Slot.end_datetime > slot.start_datetime,
+            )
+            .first()
+        )
+        if sibling_conflict:
+            return jsonify({"error": "Time conflict"}), 409
 
     # Reuse a previously cancelled booking for this slot if one exists.
     # Booking.slot_id has a unique constraint, so we cannot INSERT a second row.
