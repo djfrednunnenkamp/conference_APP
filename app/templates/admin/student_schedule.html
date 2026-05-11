@@ -28,6 +28,7 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
 }
 .slot-empty { background: transparent; border-color: #f0f0f0 !important; }
 .slot-blocked { background: #e9ecef; opacity: .45; cursor: not-allowed; }
+.slot-locked { background: #f0f0f0; color: #94a3b8; cursor: not-allowed; }
 .col-hover { background: #dbeafe !important; }
 .booked-list { max-height: calc(100vh - 200px); overflow-y: auto; }
 .booked-item + .booked-item { border-top: 1px solid #f0f0f0; }
@@ -447,15 +448,19 @@ function renderGrid() {
         switch (slot.status) {
           case 'break':
             td.classList.add('slot-break');
-            td.title = '{{ _('Intervalo do professor') }}';
-            td.innerHTML = `<i class="bi bi-cup-hot d-block" style="font-size:.75rem"></i>${timeLabel}`;
+            td.innerHTML = `<i class="bi bi-cup-hot d-block" style="font-size:.75rem"></i><span style="font-size:.6rem;color:#64748b">{{ _('Intervalo') }}</span>`;
             break;
-          case 'available':
+          case 'available': {
+            const slotStarted = new Date() >= new Date(slot.start);
             if (timeBooked) {
               td.classList.add('slot-blocked');
               td.innerHTML = timeLabel;
+            } else if (slotStarted) {
+              td.classList.add('slot-locked');
+              td.title = '{{ _('Horário já iniciado ou encerrado') }}';
+              td.innerHTML = `<i class="bi bi-lock-fill d-block" style="font-size:.75rem;opacity:.5"></i>${timeLabel}`;
             } else {
-              // Admin bypasses deadline — always bookable
+              // Admin bypasses cancellation deadline — bookable until slot starts
               td.classList.add('slot-available');
               td.innerHTML = timeLabel;
               td.addEventListener('click',      () => bookSlot(slot.slot_id, td));
@@ -463,6 +468,7 @@ function renderGrid() {
               td.addEventListener('mouseleave', () => highlightCols(offsetMin, offsetMin + slotDur, false));
             }
             break;
+          }
           case 'booked_by_me':
             td.classList.add('slot-booked-me', 'slot-cancellable');
             td.innerHTML = `<i class="bi bi-check-circle-fill text-success d-block mb-1" style="font-size:1rem"></i>${timeLabel}`;
@@ -473,10 +479,11 @@ function renderGrid() {
             break;
           case 'booked_by_others':
             td.classList.add('slot-taken');
-            td.innerHTML = `<i class="bi bi-x-lg"></i>`;
+            td.innerHTML = `<i class="bi bi-person-fill d-block" style="font-size:.75rem"></i>${timeLabel}`;
             break;
           case 'conflict':
             td.classList.add(timeBooked ? 'slot-blocked' : 'slot-conflict');
+            td.innerHTML = timeBooked ? timeLabel : `<i class="bi bi-exclamation-triangle d-block" style="font-size:.7rem"></i>${timeLabel}`;
             if (!timeBooked) td.title = "{{ _('Conflito de horário') }}";
             break;
         }
