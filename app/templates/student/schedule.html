@@ -490,6 +490,7 @@ function renderGrid() {
             const pastDeadline = new Date() >= bookDeadline;
             if (timeBooked) {
               td.classList.add('slot-blocked');
+              td.innerHTML = `<i class="bi bi-lock-fill" style="font-size:.85rem"></i>`;
             } else if (pastDeadline) {
               td.classList.add('slot-locked');
               td.innerHTML = `<i class="bi bi-lock-fill" style="font-size:.85rem"></i>`;
@@ -520,6 +521,7 @@ function renderGrid() {
             break;
           case 'conflict':
             td.classList.add('slot-blocked');
+            td.innerHTML = `<i class="bi bi-lock-fill" style="font-size:.85rem"></i>`;
             break;
         }
 
