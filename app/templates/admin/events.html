@@ -144,6 +144,7 @@
                         {{ event.student_booking_allowed | lower }},
                         {{ event.allow_duplicate_teacher_booking | lower }},
                         {{ event.cancel_deadline_hours }},
+                        {{ event.deadline_email_enabled | lower }},
                         '{{ url_for('admin.edit_event', id=event.id) }}',
                         '{{ url_for('admin.update_event_meta', id=event.id) }}'
                       )">
@@ -432,6 +433,20 @@
               <input type="number" class="form-control" id="qeDeadline"
                      min="0" max="168" step="1">
               <span class="input-group-text text-muted">{{ _('horas') }}</span>
+            </div>
+          </div>
+
+          {# Deadline auto-email #}
+          <div class="d-flex align-items-start justify-content-between gap-3 p-3 rounded-3 border">
+            <div>
+              <div class="fw-semibold small">{{ _('E-mail automático no prazo') }}</div>
+              <div class="text-muted" style="font-size:.75rem">
+                {{ _('Envia resumo de reuniões para alunos e responsáveis quando o prazo encerrar.') }}
+              </div>
+            </div>
+            <div class="form-check form-switch mb-0 flex-shrink-0">
+              <input class="form-check-input" type="checkbox" role="switch"
+                     id="qeDeadlineEmail" style="width:2.4em;height:1.3em">
             </div>
           </div>
 
@@ -957,12 +972,13 @@ async function refreshBreakCounts() {
 /* ── Quick-edit modal ── */
 let _qeSaveUrl = '';
 
-function openQuickEdit(id, name, studentBooking, dupTeacher, deadlineHours, editUrl, saveUrl) {
+function openQuickEdit(id, name, studentBooking, dupTeacher, deadlineHours, deadlineEmail, editUrl, saveUrl) {
   _qeSaveUrl = saveUrl;
   document.getElementById('qeEventName').textContent = name;
   document.getElementById('qeStudentBooking').checked = studentBooking;
   document.getElementById('qeDupTeacher').checked = dupTeacher;
   document.getElementById('qeDeadline').value = deadlineHours;
+  document.getElementById('qeDeadlineEmail').checked = deadlineEmail;
   document.getElementById('qeFullEditLink').href = editUrl;
   bootstrap.Modal.getOrCreateInstance(document.getElementById('quickEditModal')).show();
 }
@@ -979,6 +995,7 @@ document.getElementById('qeSaveBtn').addEventListener('click', async () => {
         student_booking_allowed:         document.getElementById('qeStudentBooking').checked,
         allow_duplicate_teacher_booking: document.getElementById('qeDupTeacher').checked,
         cancel_deadline_hours:           parseInt(document.getElementById('qeDeadline').value) || 0,
+        deadline_email_enabled:          document.getElementById('qeDeadlineEmail').checked,
       })
     });
     if (res.ok) {

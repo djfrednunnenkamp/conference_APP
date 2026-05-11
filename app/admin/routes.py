@@ -3212,6 +3212,7 @@ def edit_event(id):
             event.name                            = form.name.data
             event.student_booking_allowed         = form.student_booking_allowed.data
             event.allow_duplicate_teacher_booking = request.form.get('allow_duplicate_teacher_booking') == 'on'
+            event.deadline_email_enabled          = request.form.get('deadline_email_enabled') == 'on'
             event.cancel_deadline_hours           = form.cancel_deadline_hours.data
             conflict_action = request.form.get('conflict_action', 'keep')
             protected = _save_event_sectors(event, conflict_action=conflict_action)
@@ -3284,6 +3285,7 @@ def update_event_meta(id):
         data = request.get_json()
         event.student_booking_allowed         = bool(data.get('student_booking_allowed', False))
         event.allow_duplicate_teacher_booking = bool(data.get('allow_duplicate_teacher_booking', False))
+        event.deadline_email_enabled          = bool(data.get('deadline_email_enabled', False))
         if 'cancel_deadline_hours' in data:
             try:
                 event.cancel_deadline_hours = max(0, int(data['cancel_deadline_hours']))

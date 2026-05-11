@@ -115,6 +115,14 @@
                   {{ _('Permitir reunião dupla com o mesmo professor') }}
                 </label>
               </div>
+              <div class="form-check form-switch mt-2">
+                <input class="form-check-input" type="checkbox" name="deadline_email_enabled"
+                       id="deadline_email_enabled"
+                       {% if event is none or event.deadline_email_enabled %}checked{% endif %}>
+                <label class="form-check-label small" for="deadline_email_enabled">
+                  {{ _('Enviar e-mail automático no prazo') }}
+                </label>
+              </div>
             </div>
             <div class="col-md-6">
               <label class="form-label small fw-semibold">

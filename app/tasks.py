@@ -132,7 +132,7 @@ def check_and_send_deadline_emails():
 
     now = datetime.utcnow()
     events = ConferenceEvent.query.filter_by(
-        status="published", deadline_email_sent=False).all()
+        status="published", deadline_email_enabled=True, deadline_email_sent=False).all()
 
     for event in events:
         earliest = (

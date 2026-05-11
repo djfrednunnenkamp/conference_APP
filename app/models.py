@@ -162,6 +162,7 @@ class ConferenceEvent(db.Model):
     student_booking_allowed           = db.Column(db.Boolean, default=False, nullable=False)
     allow_duplicate_teacher_booking   = db.Column(db.Boolean, default=False, nullable=False)
     cancel_deadline_hours             = db.Column(db.Integer, default=24, nullable=False)
+    deadline_email_enabled            = db.Column(db.Boolean, default=True,  nullable=False, server_default='1')
     deadline_email_sent               = db.Column(db.Boolean, default=False, nullable=False)
     status = db.Column(db.Enum("draft", "published", "closed"), default="draft", nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
