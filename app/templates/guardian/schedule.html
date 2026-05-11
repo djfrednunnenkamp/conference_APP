@@ -498,8 +498,11 @@ function renderGrid() {
           case 'available': {
             const bookDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
             const pastDeadline = new Date() >= bookDeadline;
-            if (timeBooked || pastDeadline) {
+            if (timeBooked) {
               td.classList.add('slot-blocked');
+            } else if (pastDeadline) {
+              td.classList.add('slot-locked');
+              td.innerHTML = `<i class="bi bi-lock-fill" style="font-size:.85rem"></i>`;
             } else {
               td.classList.add('slot-available');
               td.innerHTML = timeLabel;
