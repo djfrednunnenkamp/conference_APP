@@ -196,8 +196,22 @@ function togglePastEvent(header) {
   {% for item in past_events_bookings %}
   <div class="card shadow-sm mb-3 past-event-item">
     <div class="past-event-header" onclick="togglePastEvent(this)">
-      <span class="fw-semibold" style="color:#475569;font-size:.88rem">{{ item.event.name }}</span>
-      <i class="bi bi-chevron-down past-event-chevron text-muted" style="font-size:.8rem"></i>
+      <div style="min-width:0">
+        <span class="fw-semibold" style="color:#475569;font-size:.88rem">{{ item.event.name }}</span>
+        {% set _days = item.event.days | sort(attribute='date') %}
+        {% if _days %}
+          {% set _d0 = _days | first %}
+          {% set _d1 = _days | last %}
+          <span class="text-muted ms-2" style="font-size:.75rem">
+            {% if _d0.date == _d1.date %}
+              {{ _d0.date.strftime('%d/%m/%Y') }}
+            {% else %}
+              {{ _d0.date.strftime('%d/%m') }} – {{ _d1.date.strftime('%d/%m/%Y') }}
+            {% endif %}
+          </span>
+        {% endif %}
+      </div>
+      <i class="bi bi-chevron-down past-event-chevron text-muted ms-2 flex-shrink-0" style="font-size:.8rem"></i>
     </div>
     <div class="past-event-body">
       {% for b in item.bookings %}
