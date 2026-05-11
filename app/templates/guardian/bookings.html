@@ -256,7 +256,7 @@ function togglePastEvent(header) {
     </div>
     {# Past events for this child #}
     {% for pb in item.past_events_bookings %}
-    <div class="past-event-item open">
+    <div class="past-event-item">
       <div class="past-event-header" onclick="togglePastEvent(this)"
            style="{% if loop.first %}border-radius:0{% endif %}">
         <span class="fw-semibold" style="color:#64748b;font-size:.85rem">{{ pb.event.name }}</span>
