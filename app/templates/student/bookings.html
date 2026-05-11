@@ -194,7 +194,7 @@ function togglePastEvent(header) {
 
   {% set sp = current_user.student_profile %}
   {% for item in past_events_bookings %}
-  <div class="card shadow-sm mb-3 past-event-item open">
+  <div class="card shadow-sm mb-3 past-event-item">
     <div class="past-event-header" onclick="togglePastEvent(this)">
       <span class="fw-semibold" style="color:#475569;font-size:.88rem">{{ item.event.name }}</span>
       <i class="bi bi-chevron-down past-event-chevron text-muted" style="font-size:.8rem"></i>

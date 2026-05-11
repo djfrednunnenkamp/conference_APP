@@ -22,13 +22,12 @@
 }
 
 /* ── Collapsible child sections ── */
-.child-section .child-body     { display: block; }
-.child-section.collapsed .child-body { display: none; }
+.child-section .child-body         { display: none; }
+.child-section.open .child-body    { display: block; }
 .child-section-header {
   display: flex;
   align-items: center;
   gap: .75rem;
-  margin-bottom: 0;
   padding: .65rem 1rem;
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -38,16 +37,12 @@
   transition: background .1s;
 }
 .child-section-header:hover { background: #f8fafc; }
-.child-section.collapsed .child-section-header { border-radius: 14px; }
-.child-section:not(.collapsed) .child-section-header {
-  border-radius: 14px 14px 0 0;
-  border-bottom-color: #dde2f0;
-}
+.child-section.open .child-section-header { border-radius: 14px 14px 0 0; }
 .child-chevron { transition: transform .2s; margin-left: auto; flex-shrink: 0; }
-.child-section.collapsed .child-chevron { transform: rotate(-90deg); }
+.child-section.open .child-chevron { transform: rotate(180deg); }
 .child-body { border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 14px 14px; overflow: hidden; }
 
-/* ── Past events inside child ── */
+/* ── Past events ── */
 .past-event-header {
   display: flex;
   align-items: center;
@@ -65,19 +60,14 @@
 .past-event-item.open .past-event-body { display: block; }
 
 .pan-empty-state {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 3rem 2rem;
-  text-align: center;
-  max-width: 440px;
-  margin: 0 auto;
+  background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 16px; padding: 3rem 2rem;
+  text-align: center; max-width: 440px; margin: 0 auto;
 }
 .pan-empty-icon {
   width: 64px; height: 64px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 1.8rem;
-  margin-bottom: 1rem;
+  font-size: 1.8rem; margin-bottom: 1rem;
 }
 .pan-empty-icon.amber { background: #fffbeb; color: #fcd34d; }
 .pan-empty-title { font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: .4rem; }
@@ -95,31 +85,29 @@ async function sendAllBookingsEmail(btn) {
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _("Enviando...") }}';
   try {
     const res = await fetch('{{ url_for("guardian.send_bookings_email") }}', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': CSRF_BOOKINGS }
+      method: 'POST', headers: { 'X-CSRFToken': CSRF_BOOKINGS }
     });
     const data = await res.json();
     if (res.ok) {
       btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>{{ _("Enviado!") }}';
       btn.classList.replace('btn-outline-success', 'btn-success');
       setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success','btn-outline-success'); btn.disabled = false; }, 3000);
-    } else {
-      btn.innerHTML = orig; btn.disabled = false;
-      alert(data.error || '{{ _("Erro ao enviar e-mail.") }}');
-    }
+    } else { btn.innerHTML = orig; btn.disabled = false; alert(data.error || '{{ _("Erro ao enviar e-mail.") }}'); }
   } catch { btn.innerHTML = orig; btn.disabled = false; }
 }
 
-function toggleChildSection(header) {
-  header.closest('.child-section').classList.toggle('collapsed');
+function toggleChild(header) {
+  header.closest('.child-section').classList.toggle('open');
 }
 
-function togglePastSection(btn, sectionId) {
-  const section = document.getElementById(sectionId);
+function togglePastSection(btn) {
+  const section = document.getElementById('pastSection');
   const showing = section.style.display !== 'none';
   section.style.display = showing ? 'none' : 'block';
   btn.querySelector('.past-btn-icon').className = 'bi past-btn-icon me-1 ' + (showing ? 'bi-clock-history' : 'bi-x-lg');
-  btn.querySelector('.past-btn-label').textContent = showing ? '{{ _("Ver anteriores") }}' : '{{ _("Ocultar anteriores") }}';
+  btn.querySelector('.past-btn-label').textContent = showing
+    ? '{{ _("Reuniões Anteriores") }}'
+    : '{{ _("Ocultar anteriores") }}';
 }
 
 function togglePastEvent(header) {
@@ -127,13 +115,20 @@ function togglePastEvent(header) {
 }
 </script>
 
+{# ── Top bar ── #}
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h4 class="fw-bold mb-0">{{ _('Minhas Reuniões') }}</h4>
 
   {% if children_data %}
   <div class="d-flex gap-2 flex-wrap">
-    <button class="btn btn-outline-success btn-sm"
-            onclick="sendAllBookingsEmail(this)">
+    {% set has_past = children_data | selectattr('past_events_bookings') | list | length > 0 %}
+    {% if has_past %}
+    <button class="btn btn-outline-secondary btn-sm" onclick="togglePastSection(this)">
+      <i class="bi bi-clock-history past-btn-icon me-1"></i>
+      <span class="past-btn-label">{{ _('Reuniões Anteriores') }}</span>
+    </button>
+    {% endif %}
+    <button class="btn btn-outline-success btn-sm" onclick="sendAllBookingsEmail(this)">
       <i class="bi bi-envelope me-1"></i>{{ _('Enviar por e-mail') }}
     </button>
     {% if children_data | length == 1 %}
@@ -151,14 +146,11 @@ function togglePastEvent(header) {
   {% endif %}
 </div>
 
+{# ── Children ── #}
 {% for item in children_data %}
-{% set loop_idx = loop.index %}
 
-{# ── Child collapsible section ── #}
 <div class="child-section mb-3">
-
-  {# Header (clickable) #}
-  <div class="child-section-header" onclick="toggleChildSection(this)">
+  <div class="child-section-header" onclick="toggleChild(this)">
     <span class="pan-avatar" style="width:40px;height:40px;font-size:.82rem;flex-shrink:0">
       {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
     </span>
@@ -171,13 +163,10 @@ function togglePastEvent(header) {
     <i class="bi bi-chevron-down child-chevron text-muted" style="font-size:.85rem"></i>
   </div>
 
-  {# Body #}
   <div class="child-body">
     {% set sp = item.student.student_profile %}
-
     {% for eb in item.events_bookings %}
-    <div class="{% if not loop.first %}border-top{% endif %}" style="border-color:#f1f5f9 !important">
-      {# Event sub-header #}
+    <div{% if not loop.first %} class="border-top" style="border-color:#f1f5f9 !important"{% endif %}>
       <div class="event-header" style="border-radius:0">
         <span class="fw-semibold" style="color:var(--pan-blue);font-size:.9rem">{{ eb.event.name }}</span>
         <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
@@ -185,7 +174,6 @@ function togglePastEvent(header) {
           <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
         </a>
       </div>
-
       {% if eb.bookings %}
         {% for b in eb.bookings %}
         {% set t = b.slot.teacher %}
@@ -225,67 +213,12 @@ function togglePastEvent(header) {
       {% endif %}
     </div>
     {% endfor %}{# events #}
-
-    {# ── Past events toggle for this child ── #}
-    {% if item.past_events_bookings %}
-    <div class="px-3 py-2 border-top" style="background:#f8fafc;border-color:#f1f5f9 !important">
-      <button class="btn btn-link btn-sm text-secondary text-decoration-none p-0"
-              onclick="togglePastSection(this, 'past-{{ loop_idx }}')">
-        <i class="bi bi-clock-history past-btn-icon me-1"></i>
-        <span class="past-btn-label">{{ _('Ver anteriores') }}</span>
-      </button>
-    </div>
-    <div id="past-{{ loop_idx }}" style="display:none">
-      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background:#f1f5f9">
-        <span class="text-muted fw-semibold" style="font-size:.72rem;letter-spacing:.05em">
-          {{ _('CONFERÊNCIAS ANTERIORES') }}
-        </span>
-      </div>
-      {% for pb in item.past_events_bookings %}
-      <div class="past-event-item open">
-        <div class="past-event-header" onclick="togglePastEvent(this)">
-          <span class="fw-semibold" style="color:#64748b;font-size:.85rem">{{ pb.event.name }}</span>
-          <i class="bi bi-chevron-down past-event-chevron text-muted" style="font-size:.75rem"></i>
-        </div>
-        <div class="past-event-body">
-          {% for b in pb.bookings %}
-          {% set t = b.slot.teacher %}
-          {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
-          <div class="booking-row">
-            <div style="width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0"></div>
-            <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0;opacity:.75">{{ initials }}</span>
-            <div style="flex:1;min-width:0">
-              <div class="fw-semibold small text-truncate" style="color:#475569">{{ t.full_name if t else '—' }}</div>
-              {% if sp and t and t.teacher_profile %}
-              <div class="text-muted" style="font-size:.75rem">
-                {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
-                  {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
-                {% endfor %}
-              </div>
-              {% endif %}
-            </div>
-            <div class="text-end flex-shrink-0">
-              <div class="fw-semibold small" style="color:#475569">{{ b.slot.start_datetime.strftime('%d/%m/%Y') }}</div>
-              <div class="text-muted" style="font-size:.73rem">
-                {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
-              </div>
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-      {% endfor %}{# past events #}
-    </div>
-    {% endif %}{# past_events_bookings #}
-
   </div>{# /child-body #}
 </div>{# /child-section #}
 
 {% else %}
 <div class="pan-empty-state mt-4">
-  <div class="pan-empty-icon amber">
-    <i class="bi bi-person-x"></i>
-  </div>
+  <div class="pan-empty-icon amber"><i class="bi bi-person-x"></i></div>
   <h5 class="pan-empty-title">{{ _('Nenhum filho vinculado') }}</h5>
   <p class="pan-empty-body">
     {{ _('Sua conta ainda não está vinculada a nenhum aluno.') }}<br>
@@ -294,7 +227,76 @@ function togglePastEvent(header) {
 </div>
 {% endfor %}{# children #}
 
-{# ── Child picker modal for PDF (multiple children) ── #}
+{# ── Past events section (all children, shown/hidden globally) ── #}
+{% set has_past = children_data | selectattr('past_events_bookings') | list | length > 0 %}
+{% if has_past %}
+<div id="pastSection" style="display:none;margin-top:.5rem">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <div style="flex:1;height:1px;background:#e2e8f0"></div>
+    <span class="text-muted fw-semibold" style="font-size:.75rem;white-space:nowrap;letter-spacing:.05em">
+      {{ _('CONFERÊNCIAS ANTERIORES') }}
+    </span>
+    <div style="flex:1;height:1px;background:#e2e8f0"></div>
+  </div>
+
+  {% for item in children_data %}
+  {% if item.past_events_bookings %}
+  {% set sp = item.student.student_profile %}
+  <div class="card shadow-sm mb-3" style="border-color:#e2e8f0">
+    {# Child label #}
+    <div class="d-flex align-items-center gap-2 px-3 py-2"
+         style="background:#f8fafc;border-bottom:1px solid #e2e8f0;border-radius:12px 12px 0 0">
+      <span class="pan-avatar" style="width:30px;height:30px;font-size:.72rem;flex-shrink:0;opacity:.8">
+        {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
+      </span>
+      <span class="fw-semibold" style="color:#475569;font-size:.85rem">{{ item.student.full_name }}</span>
+      {% if sp and sp.grade_group %}
+      <span class="text-muted" style="font-size:.75rem">· {{ sp.grade_group.name }}</span>
+      {% endif %}
+    </div>
+    {# Past events for this child #}
+    {% for pb in item.past_events_bookings %}
+    <div class="past-event-item open">
+      <div class="past-event-header" onclick="togglePastEvent(this)"
+           style="{% if loop.first %}border-radius:0{% endif %}">
+        <span class="fw-semibold" style="color:#64748b;font-size:.85rem">{{ pb.event.name }}</span>
+        <i class="bi bi-chevron-down past-event-chevron text-muted" style="font-size:.75rem"></i>
+      </div>
+      <div class="past-event-body">
+        {% for b in pb.bookings %}
+        {% set t = b.slot.teacher %}
+        {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
+        <div class="booking-row">
+          <div style="width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0"></div>
+          <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0;opacity:.75">{{ initials }}</span>
+          <div style="flex:1;min-width:0">
+            <div class="fw-semibold small text-truncate" style="color:#475569">{{ t.full_name if t else '—' }}</div>
+            {% if sp and t and t.teacher_profile %}
+            <div class="text-muted" style="font-size:.75rem">
+              {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+                {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          <div class="text-end flex-shrink-0">
+            <div class="fw-semibold small" style="color:#475569">{{ b.slot.start_datetime.strftime('%d/%m/%Y') }}</div>
+            <div class="text-muted" style="font-size:.73rem">
+              {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}{# past events #}
+  </div>
+  {% endif %}
+  {% endfor %}{# children #}
+</div>
+{% endif %}
+
+{# ── PDF child picker modal ── #}
 {% if children_data | length > 1 %}
 <div class="modal fade" id="printChildModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
