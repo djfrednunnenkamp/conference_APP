@@ -11,7 +11,7 @@ with app.app_context():
     else:
         admin = User(
             email="admin@school.com",
-            password_hash=bcrypt.generate_password_hash("").decode("utf-8"),
+            password_hash=bcrypt.generate_password_hash("admin123").decode("utf-8"),
             role="admin",
             first_name="Admin",
             last_name="User",

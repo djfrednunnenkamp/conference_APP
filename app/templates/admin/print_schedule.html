@@ -180,9 +180,12 @@
 
       {# ── Header ── #}
       <div class="page-header">
-        <div>
-          <div class="event-name">{{ event.name }}</div>
-          <div class="teacher-name">{{ page.teacher.full_name }}</div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" style="height:48px;width:auto;">
+          <div>
+            <div class="event-name">{{ event.name }}</div>
+            <div class="teacher-name">{{ page.teacher.full_name }}</div>
+          </div>
         </div>
         <div class="days-info">
           {% set unique_dates = page.slots | map(attribute='day.date') | unique | list | sort %}
@@ -247,9 +250,12 @@
   {% else %}
     <div class="page">
       <div class="page-header">
-        <div>
-          <div class="event-name">{{ event.name }}</div>
-          <div class="teacher-name">Nenhum agendamento encontrado</div>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" style="height:48px;width:auto;">
+          <div>
+            <div class="event-name">{{ event.name }}</div>
+            <div class="teacher-name">Nenhum agendamento encontrado</div>
+          </div>
         </div>
       </div>
       <p style="color:#94a3b8;font-style:italic;margin-top:24px;text-align:center">

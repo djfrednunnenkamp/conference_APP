@@ -1,9 +1,9 @@
 from functools import wraps
 from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, abort
+from flask import Blueprint, render_template, redirect, url_for, abort, jsonify
 from flask_login import login_required, current_user
 from app.models import Booking, Slot, ConferenceDay, ConferenceEvent
-from app.utils import get_active_events
+from app.utils import get_active_events, send_conference_info_email
 
 student_bp = Blueprint("student", __name__, url_prefix="/student")
 
@@ -52,6 +52,15 @@ def print_schedule():
     return render_template("print_my_schedule.html",
                            student=current_user, events_data=events_data,
                            now=datetime.utcnow())
+
+
+@student_bp.route("/send-schedule-email/<int:event_id>", methods=["POST"])
+@login_required
+@student_required
+def send_schedule_email(event_id):
+    event = ConferenceEvent.query.get_or_404(event_id)
+    send_conference_info_email(current_user, event)
+    return jsonify({"ok": True}), 200
 
 
 @student_bp.route("/bookings")

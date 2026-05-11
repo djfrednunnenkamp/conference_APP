@@ -2700,7 +2700,50 @@ def admin_student_schedule(student_id, event_id):
     if event.status != 'published':
         flash(_("Este evento não está publicado."), "warning")
         return redirect(url_for("admin.students"))
-    return render_template("admin/student_schedule.html", event=event, student=student)
+    guardians = [gs.guardian for gs in
+                 GuardianStudent.query.filter_by(student_id=student_id).all()
+                 if gs.guardian and gs.guardian.is_active]
+    return render_template("admin/student_schedule.html",
+                           event=event, student=student, guardians=guardians)
+
+
+@admin_bp.route("/students/<int:student_id>/print")
+@login_required
+@secretary_or_admin_required
+def admin_print_student_schedule(student_id):
+    from app.utils import get_active_events
+    student = User.query.get_or_404(student_id)
+    events_data = []
+    for event in get_active_events():
+        bkgs = (Booking.query.join(Slot).join(ConferenceDay)
+                .filter(ConferenceDay.event_id == event.id,
+                        Booking.student_id == student.id,
+                        Booking.cancelled_at == None)
+                .order_by(Slot.start_datetime).all())
+        if bkgs:
+            events_data.append({"event": event, "bookings": bkgs})
+    return render_template("print_my_schedule.html",
+                           student=student, events_data=events_data,
+                           now=datetime.utcnow())
+
+
+@admin_bp.route("/students/<int:student_id>/send-schedule-email/<int:event_id>",
+                methods=["POST"])
+@login_required
+@secretary_or_admin_required
+def admin_send_schedule_email(student_id, event_id):
+    data = request.get_json() or {}
+    recipient_ids = data.get("recipient_ids", [])
+    if not recipient_ids:
+        return jsonify({"error": "Nenhum destinatário selecionado."}), 400
+    event = ConferenceEvent.query.get_or_404(event_id)
+    sent = 0
+    for uid in recipient_ids:
+        user = User.query.get(uid)
+        if user and user.is_active:
+            send_conference_info_email(user, event)
+            sent += 1
+    return jsonify({"sent": sent}), 200
 
 
 def _link_or_create_guardian_by_fields(student_id, email, first_name, last_name):

@@ -80,11 +80,14 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
     <h4 class="fw-bold mb-0">{{ _('Agendar Reuniões') }}</h4>
     <small class="text-muted">{{ event.name }}</small>
   </div>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
     <a href="{{ url_for('student.print_schedule') }}" target="_blank"
        class="btn btn-outline-primary btn-sm">
       <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
     </a>
+    <button type="button" class="btn btn-outline-success btn-sm" id="emailMeBtn">
+      <i class="bi bi-envelope me-1"></i>{{ _('Enviar por e-mail') }}
+    </button>
     <a href="{{ url_for('student.bookings') }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-list-check me-1"></i>{{ _('Minhas Reuniões') }}
     </a>
@@ -418,7 +421,7 @@ function renderGrid() {
   });
 
   /* ---------- booked ranges ---------- */
-  const bookedRanges = allSlots
+  const bookedRanges = daySlots
     .filter(s => s.status === 'booked_by_me')
     .map(s => ({ start: isoToMin(s.start), end: isoToMin(s.end) }));
   const isTimeConflict = (sMin, eMin) => bookedRanges.some(b => b.start < eMin && b.end > sMin);
@@ -762,5 +765,35 @@ async function cancelSlot(bookingId, cell) {
 
 fetchSlots();
 setInterval(fetchSlots, 30000);
+
+/* ── Email me ── */
+const EMAIL_URL = "{{ url_for('student.send_schedule_email', event_id=event.id) }}";
+document.getElementById('emailMeBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('emailMeBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _("Enviando...") }}';
+  try {
+    const res = await fetch(EMAIL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }
+    });
+    if (res.ok) {
+      btn.classList.replace('btn-outline-success', 'btn-success');
+      btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>{{ _("E-mail enviado!") }}';
+      setTimeout(() => {
+        btn.classList.replace('btn-success', 'btn-outline-success');
+        btn.innerHTML = '<i class="bi bi-envelope me-1"></i>{{ _("Enviar por e-mail") }}';
+        btn.disabled = false;
+      }, 3000);
+    } else {
+      alert('{{ _("Erro ao enviar e-mail.") }}');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-envelope me-1"></i>{{ _("Enviar por e-mail") }}';
+    }
+  } catch {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-envelope me-1"></i>{{ _("Enviar por e-mail") }}';
+  }
+});
 </script>
 {% endblock %}

@@ -122,11 +122,14 @@
 
     {# ── Header ── #}
     <div class="page-header">
-      <div>
-        <div class="school-label">Pan American · Agenda de Reuniões</div>
-        <div class="student-name">{{ student.full_name }}</div>
-        <div class="student-meta">
-          <i>{{ student.student_profile.grade_group.name if student.student_profile else '' }}</i>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" style="height:48px;width:auto;">
+        <div>
+          <div class="school-label">Pan American · Agenda de Reuniões</div>
+          <div class="student-name">{{ student.full_name }}</div>
+          <div class="student-meta">
+            <i>{{ student.student_profile.grade_group.name if student.student_profile else '' }}</i>
+          </div>
         </div>
       </div>
       <div class="print-date">

@@ -48,7 +48,15 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
       — {{ event.name }}
     </small>
   </div>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{{ url_for('admin.admin_print_student_schedule', student_id=student.id) }}"
+       target="_blank" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-printer me-1"></i>{{ _('Imprimir') }}
+    </a>
+    <button type="button" class="btn btn-outline-success btn-sm"
+            data-bs-toggle="modal" data-bs-target="#emailModal">
+      <i class="bi bi-envelope me-1"></i>{{ _('Enviar e-mail') }}
+    </button>
     <a href="{{ url_for('admin.students') }}" class="btn btn-outline-secondary btn-sm">
       <i class="bi bi-arrow-left me-1"></i>{{ _('Voltar') }}
     </a>
@@ -176,6 +184,61 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
   </div>
 </div>
 
+{# ── Email modal ──────────────────────────────────────────── #}
+<div class="modal fade" id="emailModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:38px;height:38px;border-radius:50%;background:#d1fae5;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-envelope-fill" style="color:#059669;font-size:1rem"></i>
+          </span>
+          <h6 class="modal-title fw-semibold mb-0">{{ _('Enviar e-mail de conferências') }}</h6>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body pt-3 pb-2">
+        <p class="text-muted mb-3" style="font-size:.83rem">
+          {{ _('Selecione quem deve receber o e-mail com as informações do evento') }} <strong>{{ event.name }}</strong>:
+        </p>
+        <div class="list-group list-group-flush" id="emailRecipientList">
+          <label class="list-group-item list-group-item-action d-flex align-items-center gap-3 px-2 py-2 rounded-2">
+            <input class="form-check-input mt-0 flex-shrink-0" type="checkbox"
+                   value="{{ student.id }}" checked>
+            <div>
+              <div class="fw-semibold small">{{ student.full_name }}</div>
+              <div class="text-muted" style="font-size:.75rem">
+                <i class="bi bi-person me-1"></i>{{ _('Aluno') }} · {{ student.email }}
+              </div>
+            </div>
+          </label>
+          {% for g in guardians %}
+          <label class="list-group-item list-group-item-action d-flex align-items-center gap-3 px-2 py-2 rounded-2">
+            <input class="form-check-input mt-0 flex-shrink-0" type="checkbox"
+                   value="{{ g.id }}" checked>
+            <div>
+              <div class="fw-semibold small">{{ g.full_name }}</div>
+              <div class="text-muted" style="font-size:.75rem">
+                <i class="bi bi-person-heart me-1"></i>{{ _('Responsável') }} · {{ g.email }}
+              </div>
+            </div>
+          </label>
+          {% endfor %}
+          {% if not guardians %}
+          <p class="text-muted small mb-0 ps-1">{{ _('Nenhum responsável vinculado a este aluno.') }}</p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="modal-footer border-0 pt-1 gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">{{ _('Cancelar') }}</button>
+        <button type="button" class="btn btn-success btn-sm px-3" id="emailSendBtn">
+          <i class="bi bi-send me-1"></i>{{ _('Enviar') }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal fade" id="filterModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
     <div class="modal-content">
@@ -218,6 +281,7 @@ const EVENT_ID   = {{ event.id }};
 const STUDENT_ID = {{ student.id }};
 const BOOK_URL   = "{{ url_for('scheduling.book') }}";
 const CANCEL_URL = "{{ url_for('scheduling.cancel', booking_id=0) }}".replace('/0', '/');
+const EMAIL_URL  = "{{ url_for('admin.admin_send_schedule_email', student_id=student.id, event_id=event.id) }}";
 const CSRF       = "{{ csrf_token() }}";
 
 const MSG_UPDATED     = "{{ _('Atualizado às') }}";
@@ -320,7 +384,7 @@ function renderGrid() {
   const slotMap = {};
   daySlots.forEach(s => { slotMap[`${s.teacher_id}_${isoToMin(s.start) - tStartMin}`] = s; });
 
-  const bookedRanges = allSlots
+  const bookedRanges = daySlots
     .filter(s => s.status === 'booked_by_me')
     .map(s => ({ start: isoToMin(s.start), end: isoToMin(s.end) }));
   const isTimeConflict = (sMin, eMin) => bookedRanges.some(b => b.start < eMin && b.end > sMin);
@@ -598,5 +662,40 @@ async function cancelSlot(bookingId, cell) {
 
 fetchSlots();
 setInterval(fetchSlots, 30000);
+
+/* ── Email send ── */
+document.getElementById('emailSendBtn').addEventListener('click', async () => {
+  const ids = [...document.querySelectorAll('#emailRecipientList input[type=checkbox]:checked')]
+    .map(cb => parseInt(cb.value));
+  if (!ids.length) {
+    alert('{{ _("Selecione pelo menos um destinatário.") }}');
+    return;
+  }
+  const btn = document.getElementById('emailSendBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>{{ _("Enviando...") }}';
+  try {
+    const res = await fetch(EMAIL_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ recipient_ids: ids })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('emailModal')).hide();
+      const toast = document.createElement('div');
+      toast.className = 'alert alert-success alert-dismissible position-fixed bottom-0 end-0 m-3 shadow';
+      toast.style.zIndex = 9999;
+      toast.innerHTML = `<i class="bi bi-check-circle me-1"></i>{{ _("E-mail enviado para") }} ${data.sent} {{ _("destinatário(s).") }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    } else {
+      alert(data.error || '{{ _("Erro ao enviar e-mail.") }}');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send me-1"></i>{{ _("Enviar") }}';
+  }
+});
 </script>
 {% endblock %}

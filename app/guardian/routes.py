@@ -1,10 +1,10 @@
 from functools import wraps
 from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, flash, abort, request
+from flask import Blueprint, render_template, redirect, url_for, flash, abort, request, jsonify
 from flask_login import login_required, current_user
 from flask_babel import _
 from app.models import GuardianStudent, User, StudentProfile, Booking, Slot, ConferenceDay, ConferenceEvent
-from app.utils import get_active_events
+from app.utils import get_active_events, send_conference_info_email
 
 guardian_bp = Blueprint("guardian", __name__, url_prefix="/guardian")
 
@@ -83,6 +83,16 @@ def print_schedule():
     return render_template("print_my_schedule.html",
                            student=student, events_data=events_data,
                            now=datetime.utcnow())
+
+
+@guardian_bp.route("/send-schedule-email/<int:student_id>/<int:event_id>", methods=["POST"])
+@login_required
+@guardian_required
+def send_schedule_email(student_id, event_id):
+    _assert_guardian_owns_student(student_id)
+    event = ConferenceEvent.query.get_or_404(event_id)
+    send_conference_info_email(current_user, event)
+    return jsonify({"ok": True}), 200
 
 
 @guardian_bp.route("/bookings")
