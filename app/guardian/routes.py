@@ -128,6 +128,7 @@ def send_bookings_email():
 @guardian_required
 def bookings():
     events = get_active_events()
+    past_events = ConferenceEvent.query.filter_by(status="closed").order_by(ConferenceEvent.name).all()
     links = (GuardianStudent.query.filter_by(guardian_id=current_user.id)
              .join(User, GuardianStudent.student_id == User.id)
              .order_by(User.last_name, User.first_name).all())
@@ -142,5 +143,18 @@ def bookings():
                             Booking.cancelled_at == None)
                     .order_by(Slot.start_datetime).all())
             events_bookings.append({"event": event, "bookings": bkgs})
-        children_data.append({"student": student, "events_bookings": events_bookings})
+        past_events_bookings = []
+        for event in past_events:
+            bkgs = (Booking.query.join(Slot).join(ConferenceDay)
+                    .filter(ConferenceDay.event_id == event.id,
+                            Booking.student_id == student.id,
+                            Booking.cancelled_at == None)
+                    .order_by(Slot.start_datetime).all())
+            if bkgs:
+                past_events_bookings.append({"event": event, "bookings": bkgs})
+        children_data.append({
+            "student": student,
+            "events_bookings": events_bookings,
+            "past_events_bookings": past_events_bookings,
+        })
     return render_template("guardian/bookings.html", children_data=children_data)

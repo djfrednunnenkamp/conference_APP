@@ -20,14 +20,50 @@
   background: var(--pan-blue-light);
   border-bottom: 1px solid #dde2f0;
 }
-.child-header {
+
+/* ── Collapsible child sections ── */
+.child-section .child-body     { display: block; }
+.child-section.collapsed .child-body { display: none; }
+.child-section-header {
   display: flex;
   align-items: center;
   gap: .75rem;
-  margin-bottom: .75rem;
-  padding-bottom: .5rem;
-  border-bottom: 2px solid var(--pan-blue-light);
+  margin-bottom: 0;
+  padding: .65rem 1rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .1s;
 }
+.child-section-header:hover { background: #f8fafc; }
+.child-section.collapsed .child-section-header { border-radius: 14px; }
+.child-section:not(.collapsed) .child-section-header {
+  border-radius: 14px 14px 0 0;
+  border-bottom-color: #dde2f0;
+}
+.child-chevron { transition: transform .2s; margin-left: auto; flex-shrink: 0; }
+.child-section.collapsed .child-chevron { transform: rotate(-90deg); }
+.child-body { border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 14px 14px; overflow: hidden; }
+
+/* ── Past events inside child ── */
+.past-event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .5rem 1.25rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  cursor: pointer;
+  user-select: none;
+}
+.past-event-header:hover { background: #f1f5f9; }
+.past-event-chevron { transition: transform .2s; }
+.past-event-item.open .past-event-chevron { transform: rotate(180deg); }
+.past-event-body { display: none; }
+.past-event-item.open .past-event-body { display: block; }
+
 .pan-empty-state {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -73,6 +109,22 @@ async function sendAllBookingsEmail(btn) {
     }
   } catch { btn.innerHTML = orig; btn.disabled = false; }
 }
+
+function toggleChildSection(header) {
+  header.closest('.child-section').classList.toggle('collapsed');
+}
+
+function togglePastSection(btn, sectionId) {
+  const section = document.getElementById(sectionId);
+  const showing = section.style.display !== 'none';
+  section.style.display = showing ? 'none' : 'block';
+  btn.querySelector('.past-btn-icon').className = 'bi past-btn-icon me-1 ' + (showing ? 'bi-clock-history' : 'bi-x-lg');
+  btn.querySelector('.past-btn-label').textContent = showing ? '{{ _("Ver anteriores") }}' : '{{ _("Ocultar anteriores") }}';
+}
+
+function togglePastEvent(header) {
+  header.closest('.past-event-item').classList.toggle('open');
+}
 </script>
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -100,73 +152,135 @@ async function sendAllBookingsEmail(btn) {
 </div>
 
 {% for item in children_data %}
+{% set loop_idx = loop.index %}
 
-{# ── Child section header ── #}
-<div class="child-header mb-3">
-  <span class="pan-avatar" style="width:40px;height:40px;font-size:.82rem;flex-shrink:0">
-    {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
-  </span>
-  <div>
-    <div class="fw-bold" style="color:var(--pan-blue)">{{ item.student.full_name }}</div>
-    <div class="text-muted" style="font-size:.8rem">
-      {{ item.student.student_profile.grade_group.name if item.student.student_profile else '' }}
-    </div>
-  </div>
-</div>
+{# ── Child collapsible section ── #}
+<div class="child-section mb-3">
 
-{% set sp = item.student.student_profile %}
-{% for eb in item.events_bookings %}
-
-<div class="card shadow-sm mb-3">
-  {# Event header #}
-  <div class="event-header" style="border-radius:12px 12px 0 0">
-    <span class="fw-semibold" style="color:var(--pan-blue);font-size:.9rem">{{ eb.event.name }}</span>
-    <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
-       class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
-      <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
-    </a>
-  </div>
-
-  {% if eb.bookings %}
-    {% for b in eb.bookings %}
-    {% set t = b.slot.teacher %}
-    {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
-    <div class="booking-row">
-      <div style="width:8px;height:8px;border-radius:50%;background:var(--pan-green);flex-shrink:0"></div>
-      <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0">{{ initials }}</span>
-      <div style="flex:1;min-width:0">
-        <div class="fw-semibold small text-truncate">{{ t.full_name if t else '—' }}</div>
-        {% if sp and t and t.teacher_profile %}
-        <div class="text-muted" style="font-size:.75rem">
-          {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
-            {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      <div class="text-end flex-shrink-0">
-        <div class="fw-semibold small">{{ b.slot.start_datetime.strftime('%d/%m') }}</div>
-        <div class="text-muted" style="font-size:.73rem">
-          {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
-        </div>
+  {# Header (clickable) #}
+  <div class="child-section-header" onclick="toggleChildSection(this)">
+    <span class="pan-avatar" style="width:40px;height:40px;font-size:.82rem;flex-shrink:0">
+      {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
+    </span>
+    <div style="flex:1;min-width:0">
+      <div class="fw-bold text-truncate" style="color:var(--pan-blue)">{{ item.student.full_name }}</div>
+      <div class="text-muted" style="font-size:.78rem">
+        {{ item.student.student_profile.grade_group.name if item.student.student_profile else '' }}
       </div>
     </div>
-    {% endfor %}
-  {% else %}
-    <div class="d-flex align-items-center gap-3 p-3 m-3 rounded-3 bg-light text-muted" style="font-size:.875rem">
-      <i class="bi bi-calendar2-x" style="font-size:1.2rem;color:#cbd5e1;flex-shrink:0"></i>
-      <div>
-        {{ _('Nenhuma reunião agendada ainda.') }}
+    <i class="bi bi-chevron-down child-chevron text-muted" style="font-size:.85rem"></i>
+  </div>
+
+  {# Body #}
+  <div class="child-body">
+    {% set sp = item.student.student_profile %}
+
+    {% for eb in item.events_bookings %}
+    <div class="{% if not loop.first %}border-top{% endif %}" style="border-color:#f1f5f9 !important">
+      {# Event sub-header #}
+      <div class="event-header" style="border-radius:0">
+        <span class="fw-semibold" style="color:var(--pan-blue);font-size:.9rem">{{ eb.event.name }}</span>
         <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
-           class="ms-2" style="font-size:.82rem">
-          <i class="bi bi-grid me-1"></i>{{ _('Agendar agora') }}
+           class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
+          <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
         </a>
       </div>
-    </div>
-  {% endif %}
-</div>
 
-{% endfor %}{# events #}
+      {% if eb.bookings %}
+        {% for b in eb.bookings %}
+        {% set t = b.slot.teacher %}
+        {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
+        <div class="booking-row">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--pan-green);flex-shrink:0"></div>
+          <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0">{{ initials }}</span>
+          <div style="flex:1;min-width:0">
+            <div class="fw-semibold small text-truncate">{{ t.full_name if t else '—' }}</div>
+            {% if sp and t and t.teacher_profile %}
+            <div class="text-muted" style="font-size:.75rem">
+              {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+                {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+              {% endfor %}
+            </div>
+            {% endif %}
+          </div>
+          <div class="text-end flex-shrink-0">
+            <div class="fw-semibold small">{{ b.slot.start_datetime.strftime('%d/%m') }}</div>
+            <div class="text-muted" style="font-size:.73rem">
+              {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="d-flex align-items-center gap-3 p-3 m-3 rounded-3 bg-light text-muted" style="font-size:.875rem">
+          <i class="bi bi-calendar2-x" style="font-size:1.2rem;color:#cbd5e1;flex-shrink:0"></i>
+          <div>
+            {{ _('Nenhuma reunião agendada ainda.') }}
+            <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
+               class="ms-2" style="font-size:.82rem">
+              <i class="bi bi-grid me-1"></i>{{ _('Agendar agora') }}
+            </a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    {% endfor %}{# events #}
+
+    {# ── Past events toggle for this child ── #}
+    {% if item.past_events_bookings %}
+    <div class="px-3 py-2 border-top" style="background:#f8fafc;border-color:#f1f5f9 !important">
+      <button class="btn btn-link btn-sm text-secondary text-decoration-none p-0"
+              onclick="togglePastSection(this, 'past-{{ loop_idx }}')">
+        <i class="bi bi-clock-history past-btn-icon me-1"></i>
+        <span class="past-btn-label">{{ _('Ver anteriores') }}</span>
+      </button>
+    </div>
+    <div id="past-{{ loop_idx }}" style="display:none">
+      <div class="d-flex align-items-center gap-2 px-3 py-2" style="background:#f1f5f9">
+        <span class="text-muted fw-semibold" style="font-size:.72rem;letter-spacing:.05em">
+          {{ _('CONFERÊNCIAS ANTERIORES') }}
+        </span>
+      </div>
+      {% for pb in item.past_events_bookings %}
+      <div class="past-event-item open">
+        <div class="past-event-header" onclick="togglePastEvent(this)">
+          <span class="fw-semibold" style="color:#64748b;font-size:.85rem">{{ pb.event.name }}</span>
+          <i class="bi bi-chevron-down past-event-chevron text-muted" style="font-size:.75rem"></i>
+        </div>
+        <div class="past-event-body">
+          {% for b in pb.bookings %}
+          {% set t = b.slot.teacher %}
+          {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
+          <div class="booking-row">
+            <div style="width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0"></div>
+            <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0;opacity:.75">{{ initials }}</span>
+            <div style="flex:1;min-width:0">
+              <div class="fw-semibold small text-truncate" style="color:#475569">{{ t.full_name if t else '—' }}</div>
+              {% if sp and t and t.teacher_profile %}
+              <div class="text-muted" style="font-size:.75rem">
+                {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+                  {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+            <div class="text-end flex-shrink-0">
+              <div class="fw-semibold small" style="color:#475569">{{ b.slot.start_datetime.strftime('%d/%m/%Y') }}</div>
+              <div class="text-muted" style="font-size:.73rem">
+                {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}{# past events #}
+    </div>
+    {% endif %}{# past_events_bookings #}
+
+  </div>{# /child-body #}
+</div>{# /child-section #}
+
 {% else %}
 <div class="pan-empty-state mt-4">
   <div class="pan-empty-icon amber">

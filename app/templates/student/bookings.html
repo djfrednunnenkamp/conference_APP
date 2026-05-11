@@ -21,6 +21,22 @@
   border-bottom: 1px solid #dde2f0;
   border-radius: 12px 12px 0 0;
 }
+.past-event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .55rem 1.25rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 12px 12px 0 0;
+  cursor: pointer;
+  user-select: none;
+}
+.past-event-header:hover { background: #f1f5f9; }
+.past-event-chevron { transition: transform .2s; }
+.past-event-item.open .past-event-chevron { transform: rotate(180deg); }
+.past-event-body { display: none; }
+.past-event-item.open .past-event-body { display: block; }
 .pan-empty-state {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -39,6 +55,7 @@
 }
 .pan-empty-title { font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: .4rem; }
 .pan-empty-body  { color: #64748b; font-size: .85rem; line-height: 1.6; margin-bottom: 1.25rem; }
+#pastSection { display: none; }
 </style>
 {% endblock %}
 {% block content %}
@@ -57,22 +74,42 @@ async function sendEmailBookings(url, btn) {
     } else { btn.innerHTML = orig; btn.disabled = false; alert('{{ _("Erro ao enviar e-mail.") }}'); }
   } catch { btn.innerHTML = orig; btn.disabled = false; }
 }
+
+function togglePast(btn) {
+  const section = document.getElementById('pastSection');
+  const showing = section.style.display !== 'none';
+  section.style.display = showing ? 'none' : 'block';
+  btn.querySelector('.past-btn-icon').className = 'bi past-btn-icon ' + (showing ? 'bi-clock-history' : 'bi-x-lg');
+  btn.querySelector('.past-btn-label').textContent = showing ? '{{ _("Reuniões Anteriores") }}' : '{{ _("Ocultar anteriores") }}';
+}
+
+function togglePastEvent(header) {
+  header.closest('.past-event-item').classList.toggle('open');
+}
 </script>
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h4 class="fw-bold mb-0">{{ _('Minhas Reuniões') }}</h4>
-  <a href="{{ url_for('student.print_schedule') }}" target="_blank"
-     class="btn btn-outline-primary btn-sm">
-    <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
-  </a>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if past_events_bookings %}
+    <button class="btn btn-outline-secondary btn-sm" onclick="togglePast(this)">
+      <i class="bi bi-clock-history past-btn-icon me-1"></i>
+      <span class="past-btn-label">{{ _('Reuniões Anteriores') }}</span>
+    </button>
+    {% endif %}
+    <a href="{{ url_for('student.print_schedule') }}" target="_blank"
+       class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
+    </a>
+  </div>
 </div>
 
+{# ── Active events ── #}
 {% if events_bookings %}
   {% set sp = current_user.student_profile %}
   {% for item in events_bookings %}
 
   <div class="card shadow-sm mb-4">
-    {# Event header #}
     <div class="event-header">
       <div>
         <span class="fw-semibold" style="color:var(--pan-blue);font-size:.95rem">{{ item.event.name }}</span>
@@ -95,11 +132,8 @@ async function sendEmailBookings(url, btn) {
       {% set t = b.slot.teacher %}
       {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
       <div class="booking-row">
-        {# Confirmed dot #}
         <div style="width:8px;height:8px;border-radius:50%;background:var(--pan-green);flex-shrink:0"></div>
-        {# Teacher avatar #}
         <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0">{{ initials }}</span>
-        {# Teacher name + subject #}
         <div style="flex:1;min-width:0">
           <div class="fw-semibold small text-truncate">{{ t.full_name if t else '—' }}</div>
           {% if sp and t and t.teacher_profile %}
@@ -110,7 +144,6 @@ async function sendEmailBookings(url, btn) {
           </div>
           {% endif %}
         </div>
-        {# Date + time #}
         <div class="text-end flex-shrink-0">
           <div class="fw-semibold small">{{ b.slot.start_datetime.strftime('%d/%m') }}</div>
           <div class="text-muted" style="font-size:.73rem">
@@ -147,4 +180,54 @@ async function sendEmailBookings(url, btn) {
   </p>
 </div>
 {% endif %}
+
+{# ── Past events (hidden by default) ── #}
+{% if past_events_bookings %}
+<div id="pastSection">
+  <div class="d-flex align-items-center gap-2 mb-3 mt-2">
+    <div style="flex:1;height:1px;background:#e2e8f0"></div>
+    <span class="text-muted fw-semibold" style="font-size:.78rem;white-space:nowrap;letter-spacing:.04em">
+      {{ _('CONFERÊNCIAS ANTERIORES') }}
+    </span>
+    <div style="flex:1;height:1px;background:#e2e8f0"></div>
+  </div>
+
+  {% set sp = current_user.student_profile %}
+  {% for item in past_events_bookings %}
+  <div class="card shadow-sm mb-3 past-event-item open">
+    <div class="past-event-header" onclick="togglePastEvent(this)">
+      <span class="fw-semibold" style="color:#475569;font-size:.88rem">{{ item.event.name }}</span>
+      <i class="bi bi-chevron-down past-event-chevron text-muted" style="font-size:.8rem"></i>
+    </div>
+    <div class="past-event-body">
+      {% for b in item.bookings %}
+      {% set t = b.slot.teacher %}
+      {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
+      <div class="booking-row">
+        <div style="width:8px;height:8px;border-radius:50%;background:#94a3b8;flex-shrink:0"></div>
+        <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0;opacity:.75">{{ initials }}</span>
+        <div style="flex:1;min-width:0">
+          <div class="fw-semibold small text-truncate" style="color:#475569">{{ t.full_name if t else '—' }}</div>
+          {% if sp and t and t.teacher_profile %}
+          <div class="text-muted" style="font-size:.75rem">
+            {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+              {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        <div class="text-end flex-shrink-0">
+          <div class="fw-semibold small" style="color:#475569">{{ b.slot.start_datetime.strftime('%d/%m/%Y') }}</div>
+          <div class="text-muted" style="font-size:.73rem">
+            {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {% endblock %}
