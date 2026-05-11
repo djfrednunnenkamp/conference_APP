@@ -299,7 +299,7 @@ let filterModalBuilt = false;
 async function fetchSlots() {
   document.getElementById('loadingSpinner').classList.remove('d-none');
   try {
-    const res  = await fetch(`/scheduling/slots/${EVENT_ID}/${STUDENT_ID}`);
+    const res  = await fetch(`/scheduling/slots/${EVENT_ID}/${STUDENT_ID}`, { cache: 'no-store' });
     const data = await res.json();
     allSlots    = data.slots    || [];
     allTeachers = data.all_teachers || [];
