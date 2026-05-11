@@ -106,6 +106,12 @@ thead .teacher-sticky { z-index: 3; background: #f8f9fa; }
     {# Day selector tabs (only shown when event has multiple days) #}
     <div id="dayTabs" class="d-flex gap-2 mb-3 flex-wrap d-none"></div>
 
+    {# Deadline passed banner #}
+    <div id="deadlineBanner" class="alert alert-warning d-none py-2 mb-2" role="alert" style="font-size:.85rem">
+      <i class="bi bi-clock-history me-1"></i>
+      {{ _('O prazo para agendar reuniões encerrou. A conferência está se aproximando e não é mais possível fazer agendamentos.') }}
+    </div>
+
     {# Legend + last update #}
     <div class="d-flex flex-wrap gap-1 mb-2 align-items-center" style="row-gap:.3rem">
       <span class="badge bg-light text-dark border" style="font-size:.7rem">{{ _('Disponível') }}</span>
@@ -375,6 +381,14 @@ function renderGrid() {
   document.getElementById('slotGrid').classList.remove('d-none');
   buildFilterModal(allTeachersMap);
 
+  /* ---------- deadline banner ---------- */
+  const now = Date.now();
+  const hasBookable = daySlots.some(s =>
+    s.status === 'available' &&
+    now < new Date(s.start).getTime() - cancelDeadlineHours * 3600000
+  );
+  document.getElementById('deadlineBanner').classList.toggle('d-none', hasBookable);
+
   /* ---------- timeline parameters ---------- */
   // Parse "HH:MM" or "...THH:MM:SS" from ISO string → minutes from midnight
   const isoToMin = iso => parseInt(iso.slice(11,13)) * 60 + parseInt(iso.slice(14,16));
@@ -479,7 +493,7 @@ function renderGrid() {
         switch (slot.status) {
           case 'break':
             td.classList.add('slot-break');
-            td.innerHTML = `<i class="bi bi-cup-hot" style="font-size:.9rem"></i>`;
+            td.innerHTML = `<span style="font-size:.65rem;font-weight:600;letter-spacing:.03em">{{ _('Ocupado') }}</span>`;
             break;
           case 'available': {
             const bookDeadline = new Date(new Date(slot.start).getTime() - cancelDeadlineHours * 3600000);
@@ -509,7 +523,7 @@ function renderGrid() {
           }
           case 'booked_by_others':
             td.classList.add('slot-taken');
-            td.innerHTML = `<i class="bi bi-slash-circle" style="font-size:.9rem"></i>`;
+            td.innerHTML = `<span style="font-size:.65rem;font-weight:600;letter-spacing:.03em">{{ _('Ocupado') }}</span>`;
             break;
           case 'conflict':
             td.classList.add('slot-blocked');
