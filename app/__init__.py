@@ -2,6 +2,9 @@ import re
 from flask import Flask, session, request
 from config import Config
 from app.extensions import db, migrate, login_manager, mail, bcrypt, babel, csrf
+from flask_apscheduler import APScheduler
+
+scheduler = APScheduler()
 
 
 def _natsort_key(value):
@@ -38,6 +41,16 @@ def create_app(config_class=Config):
     bcrypt.init_app(app)
     babel.init_app(app, locale_selector=get_locale)
     csrf.init_app(app)
+
+    scheduler.init_app(app)
+    scheduler.start()
+    scheduler.add_job(
+        id="deadline_emails",
+        func="app.tasks:check_and_send_deadline_emails",
+        trigger="interval",
+        minutes=5,
+        misfire_grace_time=60,
+    )
 
     from app.auth.routes import auth_bp
     from app.admin.routes import admin_bp

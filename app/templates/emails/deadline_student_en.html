@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Your conference schedule</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f0f2f5;padding:48px 16px">
+    <tr>
+      <td align="center">
+
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+               style="max-width:580px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,.10)">
+
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a3461 0%,#1e3f6f 60%,#174a30 100%);padding:36px 40px;text-align:center">
+              <img src="{{ logo_url }}" alt="Logo" width="72" height="72"
+                   style="border-radius:12px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto">
+              <div style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-.3px">Conferensia</div>
+              <div style="color:rgba(255,255,255,.65);font-size:13px;margin-top:4px">School Conference System</div>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:36px 40px 28px">
+
+              <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#111827">📅 Your Conference Schedule</p>
+              <p style="margin:0 0 8px;font-size:15px;color:#6b7280;line-height:1.6">
+                Hi, <strong style="color:#111827">{{ user.first_name }}</strong>!
+              </p>
+
+              {% if bookings %}
+              <p style="margin:0 0 28px;font-size:15px;color:#6b7280;line-height:1.6">
+                The booking deadline for <strong style="color:#111827">{{ event.name }}</strong> has passed.
+                Here are your confirmed meetings.
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                     style="margin-bottom:28px;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb">
+
+                <tr>
+                  <td style="background:#eef0f8;padding:10px 20px 8px;border-bottom:1px solid #dde2f0">
+                    <span style="font-size:12px;font-weight:600;color:#293266;text-transform:uppercase;letter-spacing:.5px">{{ event.name }}</span>
+                  </td>
+                </tr>
+
+                {% set sp = user.student_profile %}
+                {% for b in bookings %}
+                {% set t = b.slot.teacher %}
+                <tr>
+                  <td style="padding:14px 20px{% if not loop.last %};border-bottom:1px solid #f1f5f9{% endif %}">
+                    <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                      <tr>
+                        <td style="width:10px;vertical-align:middle">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#2eb26b"></div>
+                        </td>
+                        <td style="width:36px;padding-left:10px;vertical-align:middle">
+                          <div style="width:32px;height:32px;background:#293266;border-radius:50%;text-align:center;line-height:32px;font-size:11px;font-weight:700;color:#fff">
+                            {{ (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' }}
+                          </div>
+                        </td>
+                        <td style="padding-left:12px;vertical-align:middle">
+                          <div style="font-size:14px;font-weight:600;color:#111827">{{ t.full_name if t else '—' }}</div>
+                          {% if sp and t and t.teacher_profile %}
+                          <div style="font-size:12px;color:#6b7280">
+                            {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+                              {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                          </div>
+                          {% endif %}
+                        </td>
+                        <td align="right" style="vertical-align:middle;white-space:nowrap">
+                          <div style="font-size:13px;font-weight:600;color:#111827">{{ b.slot.start_datetime.strftime('%m/%d/%Y') }}</div>
+                          <div style="font-size:12px;color:#6b7280">{{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                {% endfor %}
+
+              </table>
+
+              {% else %}
+              <p style="margin:0 0 12px;font-size:15px;color:#6b7280;line-height:1.6">
+                The booking deadline for <strong style="color:#111827">{{ event.name }}</strong> has passed and
+                you have <strong style="color:#dc2626">not scheduled any meetings</strong>.
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
+                     style="margin-bottom:28px;border-radius:12px;overflow:hidden;border:1px solid #fde68a;background:#fffbeb">
+                <tr>
+                  <td style="padding:20px 24px">
+                    <p style="margin:0 0 6px;font-size:14px;font-weight:600;color:#92400e">⚠️ No meetings scheduled</p>
+                    <p style="margin:0;font-size:13px;color:#78350f;line-height:1.6">
+                      Please contact the school office to verify your situation
+                      and ensure your meetings are scheduled.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              {% endif %}
+
+              <table cellpadding="0" cellspacing="0" role="presentation" style="margin:0 auto 28px">
+                <tr>
+                  <td style="background:#293266;border-radius:10px">
+                    <a href="{{ link }}"
+                       style="display:block;padding:13px 32px;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px">
+                      Access the system &rarr;
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:20px">
+                <tr><td style="border-top:1px solid #e5e7eb"></td></tr>
+              </table>
+              <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6">
+                Or visit: <span style="color:#6b7280;word-break:break-all">{{ link }}</span>
+              </p>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td style="background:#f9fafb;padding:20px 40px;border-top:1px solid #e5e7eb;text-align:center">
+              <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6">
+                If you did not expect this email, please contact the school.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <p style="margin:20px 0 0;font-size:12px;color:#9ca3af;text-align:center">
+          &copy; Conferensia &mdash; School Conference System
+        </p>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
