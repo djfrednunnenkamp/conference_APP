@@ -964,7 +964,7 @@ function openQuickEdit(id, name, studentBooking, dupTeacher, deadlineHours, edit
   document.getElementById('qeDupTeacher').checked = dupTeacher;
   document.getElementById('qeDeadline').value = deadlineHours;
   document.getElementById('qeFullEditLink').href = editUrl;
-  bootstrap.Modal.getOrCreate(document.getElementById('quickEditModal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('quickEditModal')).show();
 }
 
 document.getElementById('qeSaveBtn').addEventListener('click', async () => {
