@@ -236,9 +236,10 @@ def cancel(booking_id):
     slot = booking.slot
     day = ConferenceDay.query.get(slot.day_id)
     event = ConferenceEvent.query.get(day.event_id)
-    deadline = slot.start_datetime - timedelta(hours=event.cancel_deadline_hours)
-    if datetime.utcnow() > deadline:
-        return jsonify({"error": "Cancellation deadline passed"}), 403
+    if current_user.role not in ("admin", "secretary"):
+        deadline = slot.start_datetime - timedelta(hours=event.cancel_deadline_hours)
+        if datetime.utcnow() > deadline:
+            return jsonify({"error": "Cancellation deadline passed"}), 403
 
     booking.cancelled_at = datetime.utcnow()
     slot.is_booked = False
