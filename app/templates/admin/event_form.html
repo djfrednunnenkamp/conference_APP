@@ -499,14 +499,19 @@
 <div class="modal fade" id="breakPopupModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
     <div class="modal-content">
-      <div class="modal-header py-2">
-        <h6 class="modal-title fw-semibold">
-          <i class="bi bi-cup-hot me-2 text-warning"></i>
-          {{ _('Intervalos') }} — <span id="breakModalTeacherName"></span>
-        </h6>
+      <div class="modal-header border-0 pb-0">
+        <div class="d-flex align-items-center gap-2">
+          <span style="width:38px;height:38px;border-radius:50%;background:#fef9c3;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <i class="bi bi-cup-hot" style="color:#d97706;font-size:1rem"></i>
+          </span>
+          <div>
+            <h6 class="modal-title fw-semibold mb-0" style="color:var(--pan-blue)">{{ _('Intervalos') }}</h6>
+            <div class="text-muted" style="font-size:.75rem" id="breakModalTeacherName"></div>
+          </div>
+        </div>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body pt-3 pb-2">
         <div id="breakDayTabs" class="d-flex gap-2 flex-wrap mb-3"></div>
         <div id="breakSlotGrid" class="d-flex flex-wrap gap-2"></div>
         <div id="breakLoadingSpinner" class="text-center py-3 d-none">
@@ -516,8 +521,8 @@
           {{ _('Nenhum horário encontrado para este dia.') }}
         </div>
       </div>
-      <div class="modal-footer py-2">
-        <button type="button" class="btn btn-secondary btn-sm"
+      <div class="modal-footer border-0 pt-1">
+        <button type="button" class="btn btn-outline-secondary btn-sm"
                 data-bs-dismiss="modal">{{ _('Fechar') }}</button>
       </div>
     </div>
