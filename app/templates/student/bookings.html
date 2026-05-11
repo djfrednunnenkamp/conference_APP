@@ -2,6 +2,25 @@
 {% block title %}{{ _('Minhas Reuniões') }} – Conferensia{% endblock %}
 {% block head %}
 <style>
+.booking-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .875rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background .1s;
+}
+.booking-row:last-child { border-bottom: none; }
+.booking-row:hover { background: #f8fafc; }
+.event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .6rem 1.25rem;
+  background: var(--pan-blue-light);
+  border-bottom: 1px solid #dde2f0;
+  border-radius: 12px 12px 0 0;
+}
 .pan-empty-state {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -18,20 +37,8 @@
   font-size: 1.8rem; color: #93c5fd;
   margin-bottom: 1rem;
 }
-.pan-empty-title { font-weight:700; font-size:1rem; color:#1e293b; margin-bottom:.4rem; }
-.pan-empty-body  { color:#64748b; font-size:.85rem; line-height:1.6; margin-bottom:1.25rem; }
-.event-no-bookings {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  padding: 1.1rem 1.25rem;
-  background: #f8fafc;
-  border-radius: 10px;
-  margin-bottom: 1.5rem;
-  color: #64748b;
-  font-size: .875rem;
-}
-.event-no-bookings i { font-size: 1.2rem; color: #cbd5e1; flex-shrink:0; }
+.pan-empty-title { font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: .4rem; }
+.pan-empty-body  { color: #64748b; font-size: .85rem; line-height: 1.6; margin-bottom: 1.25rem; }
 </style>
 {% endblock %}
 {% block content %}
@@ -45,45 +52,65 @@
 </div>
 
 {% if events_bookings %}
+  {% set sp = current_user.student_profile %}
   {% for item in events_bookings %}
-  <h5 class="fw-semibold mb-2">{{ item.event.name }}</h5>
-  {% if item.bookings %}
+
   <div class="card shadow-sm mb-4">
-    <div class="card-body p-0">
-      <table class="table table-hover mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>{{ _('Data / Hora') }}</th>
-            <th>{{ _('Professor') }}</th>
-            <th>{{ _('Agendado por') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for b in item.bookings %}
-          <tr>
-            <td>{{ b.slot.start_datetime.strftime('%d/%m/%Y %H:%M') }} – {{ b.slot.end_datetime.strftime('%H:%M') }}</td>
-            <td>{{ b.slot.teacher.full_name }}</td>
-            <td>{{ b.booked_by.full_name }} <span class="badge bg-light text-dark">{{ b.booked_by.role }}</span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% else %}
-  <div class="event-no-bookings">
-    <i class="bi bi-calendar2-x"></i>
-    <div>
-      <span>{{ _('Nenhuma reunião agendada ainda.') }}</span>
-      {% if item.event.student_booking_allowed %}
+    {# Event header #}
+    <div class="event-header">
+      <div>
+        <span class="fw-semibold" style="color:var(--pan-blue);font-size:.95rem">{{ item.event.name }}</span>
+      </div>
       <a href="{{ url_for('student.schedule', event_id=item.event.id) }}"
-         class="d-inline ms-2" style="font-size:.82rem">
-        <i class="bi bi-grid me-1"></i>{{ _('Agendar agora') }}
+         class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
+        <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
       </a>
-      {% endif %}
     </div>
+
+    {% if item.bookings %}
+      {% for b in item.bookings %}
+      {% set t = b.slot.teacher %}
+      {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
+      <div class="booking-row">
+        {# Confirmed dot #}
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--pan-green);flex-shrink:0"></div>
+        {# Teacher avatar #}
+        <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0">{{ initials }}</span>
+        {# Teacher name + subject #}
+        <div style="flex:1;min-width:0">
+          <div class="fw-semibold small text-truncate">{{ t.full_name if t else '—' }}</div>
+          {% if sp and t and t.teacher_profile %}
+          <div class="text-muted" style="font-size:.75rem">
+            {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+              {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {# Date + time #}
+        <div class="text-end flex-shrink-0">
+          <div class="fw-semibold small">{{ b.slot.start_datetime.strftime('%d/%m') }}</div>
+          <div class="text-muted" style="font-size:.73rem">
+            {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="d-flex align-items-center gap-3 p-3 m-3 rounded-3 bg-light text-muted" style="font-size:.875rem">
+        <i class="bi bi-calendar2-x" style="font-size:1.2rem;color:#cbd5e1;flex-shrink:0"></i>
+        <div>
+          {{ _('Nenhuma reunião agendada ainda.') }}
+          {% if item.event.student_booking_allowed %}
+          <a href="{{ url_for('student.schedule', event_id=item.event.id) }}" class="ms-2" style="font-size:.82rem">
+            <i class="bi bi-grid me-1"></i>{{ _('Agendar agora') }}
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
   </div>
-  {% endif %}
+
   {% endfor %}
 {% else %}
 <div class="pan-empty-state mt-2">

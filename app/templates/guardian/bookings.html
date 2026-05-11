@@ -2,6 +2,32 @@
 {% block title %}{{ _('Minhas Reuniões') }} – Conferensia{% endblock %}
 {% block head %}
 <style>
+.booking-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: .875rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background .1s;
+}
+.booking-row:last-child { border-bottom: none; }
+.booking-row:hover { background: #f8fafc; }
+.event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .6rem 1.25rem;
+  background: var(--pan-blue-light);
+  border-bottom: 1px solid #dde2f0;
+}
+.child-header {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .75rem;
+  padding-bottom: .5rem;
+  border-bottom: 2px solid var(--pan-blue-light);
+}
 .pan-empty-state {
   background: #fff;
   border: 1px solid #e2e8f0;
@@ -13,27 +39,13 @@
 }
 .pan-empty-icon {
   width: 64px; height: 64px; border-radius: 50%;
-  background: #eff6ff;
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 1.8rem; color: #93c5fd;
+  font-size: 1.8rem;
   margin-bottom: 1rem;
 }
-.pan-empty-icon.amber { background:#fffbeb; color:#fcd34d; }
-.pan-empty-title { font-weight:700; font-size:1rem; color:#1e293b; margin-bottom:.4rem; }
-.pan-empty-body  { color:#64748b; font-size:.85rem; line-height:1.6; margin-bottom:1.25rem; }
-/* inline per-event empty */
-.event-no-bookings {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  padding: 1.1rem 1.25rem;
-  background: #f8fafc;
-  border-radius: 10px;
-  margin-bottom: 1.5rem;
-  color: #64748b;
-  font-size: .875rem;
-}
-.event-no-bookings i { font-size: 1.2rem; color: #cbd5e1; flex-shrink:0; }
+.pan-empty-icon.amber { background: #fffbeb; color: #fcd34d; }
+.pan-empty-title { font-weight: 700; font-size: 1rem; color: #1e293b; margin-bottom: .4rem; }
+.pan-empty-body  { color: #64748b; font-size: .85rem; line-height: 1.6; margin-bottom: 1.25rem; }
 </style>
 {% endblock %}
 {% block content %}
@@ -43,13 +55,11 @@
 
   {% if children_data %}
     {% if children_data | length == 1 %}
-      {# Single child – direct download #}
       <a href="{{ url_for('guardian.print_schedule', student_id=children_data[0].student.id) }}"
          target="_blank" class="btn btn-outline-primary btn-sm">
         <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
       </a>
     {% else %}
-      {# Multiple children – show picker modal #}
       <button class="btn btn-outline-primary btn-sm"
               data-bs-toggle="modal" data-bs-target="#printChildModal">
         <i class="bi bi-download me-1"></i>{{ _('Baixar PDF') }}
@@ -59,62 +69,77 @@
 </div>
 
 {% for item in children_data %}
-<h5 class="fw-semibold mb-2">
-  {{ item.student.full_name }}
-  <small class="text-muted fw-normal">{{ item.student.student_profile.grade_group.name if item.student.student_profile else '' }}</small>
-</h5>
-{% for eb in item.events_bookings %}
-<h6 class="text-muted mb-2">{{ eb.event.name }}</h6>
-{% if eb.bookings %}
-<div class="card shadow-sm mb-3">
-  <div class="card-body p-0">
-    <table class="table table-hover mb-0">
-      <thead class="table-light">
-        <tr>
-          <th>{{ _('Data / Hora') }}</th>
-          <th>{{ _('Professor') }}</th>
-          <th>{{ _('Matéria') }}</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for b in eb.bookings %}
-        <tr>
-          <td>{{ b.slot.start_datetime.strftime('%d/%m/%Y %H:%M') }} – {{ b.slot.end_datetime.strftime('%H:%M') }}</td>
-          <td>{{ b.slot.teacher.full_name }}</td>
-          <td>
-            {% set sp = item.student.student_profile %}
-            {% if sp %}
-              {% for tsg in b.slot.teacher.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
-                {{ tsg.subject.name }}
-              {% endfor %}
-            {% endif %}
-          </td>
-          <td class="text-end">
-            <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
-               class="btn btn-outline-secondary btn-sm">
-              <i class="bi bi-grid"></i>
-            </a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+{# ── Child section header ── #}
+<div class="child-header mb-3">
+  <span class="pan-avatar" style="width:40px;height:40px;font-size:.82rem;flex-shrink:0">
+    {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
+  </span>
+  <div>
+    <div class="fw-bold" style="color:var(--pan-blue)">{{ item.student.full_name }}</div>
+    <div class="text-muted" style="font-size:.8rem">
+      {{ item.student.student_profile.grade_group.name if item.student.student_profile else '' }}
+    </div>
   </div>
 </div>
-{% else %}
-<div class="event-no-bookings">
-  <i class="bi bi-calendar2-x"></i>
-  <div>
-    <span>{{ _('Nenhuma reunião agendada ainda.') }}</span>
+
+{% set sp = item.student.student_profile %}
+{% for eb in item.events_bookings %}
+
+<div class="card shadow-sm mb-3">
+  {# Event header #}
+  <div class="event-header" style="border-radius: 12px 12px 0 0">
+    <span class="fw-semibold" style="color:var(--pan-blue);font-size:.9rem">{{ eb.event.name }}</span>
     <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
-       class="d-inline ms-2" style="font-size:.82rem">
-      <i class="bi bi-grid me-1"></i>{{ _('Agendar agora') }}
+       class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
+      <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
     </a>
   </div>
+
+  {% if eb.bookings %}
+    {% for b in eb.bookings %}
+    {% set t = b.slot.teacher %}
+    {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
+    <div class="booking-row">
+      {# Confirmed dot #}
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--pan-green);flex-shrink:0"></div>
+      {# Teacher avatar #}
+      <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0">{{ initials }}</span>
+      {# Teacher name + subject #}
+      <div style="flex:1;min-width:0">
+        <div class="fw-semibold small text-truncate">{{ t.full_name if t else '—' }}</div>
+        {% if sp and t and t.teacher_profile %}
+        <div class="text-muted" style="font-size:.75rem">
+          {% for tsg in t.teacher_profile.subject_grades if tsg.grade_group_id == sp.grade_group_id %}
+            {{ tsg.subject.name }}{% if not loop.last %}, {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {# Date + time #}
+      <div class="text-end flex-shrink-0">
+        <div class="fw-semibold small">{{ b.slot.start_datetime.strftime('%d/%m') }}</div>
+        <div class="text-muted" style="font-size:.73rem">
+          {{ b.slot.start_datetime.strftime('%H:%M') }}–{{ b.slot.end_datetime.strftime('%H:%M') }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="d-flex align-items-center gap-3 p-3 m-3 rounded-3 bg-light text-muted" style="font-size:.875rem">
+      <i class="bi bi-calendar2-x" style="font-size:1.2rem;color:#cbd5e1;flex-shrink:0"></i>
+      <div>
+        {{ _('Nenhuma reunião agendada ainda.') }}
+        <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
+           class="ms-2" style="font-size:.82rem">
+          <i class="bi bi-grid me-1"></i>{{ _('Agendar agora') }}
+        </a>
+      </div>
+    </div>
+  {% endif %}
 </div>
-{% endif %}
-{% endfor %}
+
+{% endfor %}{# events #}
 {% else %}
 <div class="pan-empty-state mt-4">
   <div class="pan-empty-icon amber">
@@ -126,21 +151,19 @@
     {{ _('Entre em contato com a secretaria para fazer a vinculação.') }}
   </p>
 </div>
-{% endfor %}
+{% endfor %}{# children #}
 
-{# ── Child picker modal (only rendered when there are multiple children) ── #}
+{# ── Child picker modal ── #}
 {% if children_data | length > 1 %}
-<div class="modal fade" id="printChildModal" tabindex="-1" aria-labelledby="printChildModalLabel" aria-hidden="true">
+<div class="modal fade" id="printChildModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
     <div class="modal-content">
-
       <div class="modal-header border-0 pb-0">
-        <h5 class="modal-title fw-bold" id="printChildModalLabel">
-          <i class="bi bi-download me-2 text-primary"></i>{{ _('Baixar PDF') }}
+        <h5 class="modal-title fw-bold" style="color:var(--pan-blue)">
+          <i class="bi bi-download me-2"></i>{{ _('Baixar PDF') }}
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-
       <div class="modal-body pt-2 pb-3">
         <p class="text-muted mb-3" style="font-size:.875rem">
           {{ _('Selecione o filho cujas reuniões deseja exportar:') }}
@@ -150,14 +173,13 @@
           <a href="{{ url_for('guardian.print_schedule', student_id=item.student.id) }}"
              target="_blank"
              class="d-flex align-items-center gap-3 p-3 rounded-3 border text-decoration-none text-dark"
-             style="transition:background .1s" onmouseover="this.style.background='#f1f5f9'"
+             style="transition:background .1s"
+             onmouseover="this.style.background='#f1f5f9'"
              onmouseout="this.style.background=''"
              data-bs-dismiss="modal">
-            <div style="width:40px;height:40px;border-radius:50%;background:#e8f0fe;
-                        display:flex;align-items:center;justify-content:center;
-                        font-weight:700;font-size:.85rem;color:#1a3461;flex-shrink:0">
-              {{ item.student.first_name[0] }}{{ item.student.last_name[0] }}
-            </div>
+            <span class="pan-avatar" style="width:40px;height:40px;font-size:.85rem;flex-shrink:0">
+              {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
+            </span>
             <div>
               <div class="fw-semibold">{{ item.student.full_name }}</div>
               <div class="text-muted" style="font-size:.8rem">
@@ -169,7 +191,6 @@
           {% endfor %}
         </div>
       </div>
-
     </div>
   </div>
 </div>
