@@ -167,10 +167,11 @@ def book():
     if event.status != "published":
         return jsonify({"error": "Event not active"}), 409
 
-    # Block booking when within the cancellation deadline window
-    deadline = slot.start_datetime - timedelta(hours=event.cancel_deadline_hours)
-    if datetime.utcnow() > deadline:
-        return jsonify({"error": "Booking deadline passed"}), 409
+    # Block booking when within the cancellation deadline window (admins/secretaries bypass this)
+    if current_user.role not in ("admin", "secretary"):
+        deadline = slot.start_datetime - timedelta(hours=event.cancel_deadline_hours)
+        if datetime.utcnow() > deadline:
+            return jsonify({"error": "Booking deadline passed"}), 409
 
     existing = (Booking.query.join(Slot)
                 .filter(Booking.student_id == student_id,
