@@ -2275,8 +2275,10 @@ def teacher_break_data(event_id, teacher_id):
         guard = 500
         while current + slot_dur <= end_dt and guard > 0:
             t_str = current.strftime('%H:%M')
+            end_str = (current + slot_dur).strftime('%H:%M')
             slots_out.append({
                 "start_time": t_str,
+                "end_time": end_str,
                 "is_break": t_str in day_break_set,
             })
             current += step

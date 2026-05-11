@@ -513,7 +513,7 @@
       </div>
       <div class="modal-body pt-3 pb-2">
         <div id="breakDayTabs" class="d-flex gap-2 flex-wrap mb-3"></div>
-        <div id="breakSlotGrid" class="d-flex flex-wrap gap-2"></div>
+        <div id="breakSlotGrid"></div>
         <div id="breakLoadingSpinner" class="text-center py-3 d-none">
           <span class="spinner-border spinner-border-sm text-secondary"></span>
         </div>
@@ -1290,26 +1290,54 @@ function renderBreakGrid(dayData) {
     return;
   }
   emptyMsg.classList.add('d-none');
+
+  // Legend
+  const legend = document.createElement('div');
+  legend.className = 'd-flex gap-3 mb-3 small text-muted';
+  legend.innerHTML =
+    '<span><span class="d-inline-block rounded me-1" style="width:12px;height:12px;background:#fff;border:1px solid #dee2e6;vertical-align:middle"></span>{{ _('Disponível') }}</span>' +
+    '<span><span class="d-inline-block rounded me-1" style="width:12px;height:12px;background:#fef9c3;vertical-align:middle"></span>{{ _('Intervalo') }}</span>';
+  grid.appendChild(legend);
+
+  // Scrollable slot list
+  const listDiv = document.createElement('div');
+  listDiv.style.maxHeight = '320px';
+  listDiv.style.overflowY = 'auto';
+
   dayData.slots.forEach(slot => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = slot.start_time;
-    btn.dataset.startTime = slot.start_time;
-    btn.dataset.dayId = dayData.day_id;
+    const timeRange = slot.end_time ? `${slot.start_time} – ${slot.end_time}` : slot.start_time;
+    const row = document.createElement('div');
+    row.className = 'd-flex align-items-center justify-content-between py-2 px-2 border-bottom';
+    row.style.cursor = 'pointer';
+    row.dataset.startTime = slot.start_time;
+    row.dataset.dayId = dayData.day_id;
     if (slot.is_break) {
-      btn.className = 'btn btn-sm btn-warning';
-      btn.title = '{{ _('Intervalo — clique para remover') }}';
+      row.innerHTML =
+        `<div class="d-flex align-items-center gap-2">
+           <i class="bi bi-cup-hot text-warning" style="font-size:.85rem;width:16px;text-align:center;flex-shrink:0"></i>
+           <span class="small fw-semibold">${timeRange}</span>
+         </div>
+         <span class="text-secondary small">{{ _('Intervalo') }}</span>`;
     } else {
-      btn.className = 'btn btn-sm btn-outline-secondary';
-      btn.title = '{{ _('Disponível — clique para marcar como intervalo') }}';
+      row.innerHTML =
+        `<div class="d-flex align-items-center gap-2">
+           <i class="bi bi-circle text-muted" style="font-size:.85rem;width:16px;text-align:center;flex-shrink:0"></i>
+           <span class="small fw-semibold">${timeRange}</span>
+         </div>
+         <span class="text-muted small">{{ _('Disponível') }}</span>`;
     }
-    btn.addEventListener('click', () => toggleBreak(dayData.day_id, slot.start_time, btn));
-    grid.appendChild(btn);
+    row.addEventListener('click', () => toggleBreak(dayData.day_id, slot.start_time));
+    listDiv.appendChild(row);
   });
+
+  grid.appendChild(listDiv);
 }
 
-async function toggleBreak(dayId, startTime, btn) {
-  btn.disabled = true;
+async function toggleBreak(dayId, startTime) {
+  // Disable all rows while request is in flight
+  const grid = document.getElementById('breakSlotGrid');
+  grid.style.opacity = '0.5';
+  grid.style.pointerEvents = 'none';
   try {
     const res = await fetch(`/admin/events/${EVENT_ID_FORM}/teacher-breaks/toggle`, {
       method: 'POST',
@@ -1322,34 +1350,25 @@ async function toggleBreak(dayId, startTime, btn) {
     });
     const data = await res.json();
     if (res.ok) {
-      // Update local data
+      // Update local data and re-render
       const day = breakPopupData.days.find(d => d.day_id === dayId);
       if (day) {
         const slot = day.slots.find(s => s.start_time === startTime);
         if (slot) slot.is_break = data.is_break;
       }
-      if (data.is_break) {
-        btn.className = 'btn btn-sm btn-warning';
-        btn.title = '{{ _('Intervalo — clique para remover') }}';
-      } else {
-        btn.className = 'btn btn-sm btn-outline-secondary';
-        btn.title = '{{ _('Disponível — clique para marcar como intervalo') }}';
-      }
-      // Check if teacher now has any breaks across all days
+      renderBreakGrid(day);
+      // Update coffee button colour in teacher list
       const hasAny = breakPopupData.days.some(d => d.slots.some(s => s.is_break));
       if (hasAny) TEACHERS_WITH_BREAKS.add(breakPopupTeacherId);
       else         TEACHERS_WITH_BREAKS.delete(breakPopupTeacherId);
-      // Update the coffee button colour in the teacher list
       document.querySelectorAll(`.ev-break-btn[data-teacher-id="${breakPopupTeacherId}"]`).forEach(b => {
-        b.className = b.className
-          .replace('btn-warning', 'btn-outline-secondary')
-          .replace('btn-outline-secondary', hasAny ? 'btn-warning' : 'btn-outline-secondary');
         b.classList.remove('btn-warning', 'btn-outline-secondary');
         b.classList.add(hasAny ? 'btn-warning' : 'btn-outline-secondary');
       });
     }
   } finally {
-    btn.disabled = false;
+    grid.style.opacity = '';
+    grid.style.pointerEvents = '';
   }
 }
 {% endif %}
