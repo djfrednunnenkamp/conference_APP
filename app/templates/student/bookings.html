@@ -42,6 +42,22 @@
 </style>
 {% endblock %}
 {% block content %}
+<script>
+const CSRF_BOOKINGS = "{{ csrf_token() }}";
+async function sendEmailBookings(url, btn) {
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF_BOOKINGS } });
+    if (res.ok) {
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      btn.classList.replace('btn-outline-success', 'btn-success');
+      setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success','btn-outline-success'); btn.disabled = false; }, 2500);
+    } else { btn.innerHTML = orig; btn.disabled = false; alert('{{ _("Erro ao enviar e-mail.") }}'); }
+  } catch { btn.innerHTML = orig; btn.disabled = false; }
+}
+</script>
 
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h4 class="fw-bold mb-0">{{ _('Minhas Reuniões') }}</h4>
@@ -61,10 +77,17 @@
       <div>
         <span class="fw-semibold" style="color:var(--pan-blue);font-size:.95rem">{{ item.event.name }}</span>
       </div>
-      <a href="{{ url_for('student.schedule', event_id=item.event.id) }}"
-         class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
-        <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
-      </a>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-success"
+                onclick="sendEmailBookings('{{ url_for('student.send_schedule_email', event_id=item.event.id) }}', this)"
+                style="font-size:.78rem">
+          <i class="bi bi-envelope me-1"></i>{{ _('E-mail') }}
+        </button>
+        <a href="{{ url_for('student.schedule', event_id=item.event.id) }}"
+           class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
+          <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
+        </a>
+      </div>
     </div>
 
     {% if item.bookings %}

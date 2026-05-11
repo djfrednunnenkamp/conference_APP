@@ -50,6 +50,30 @@
 {% endblock %}
 {% block content %}
 
+<script>
+const CSRF_BOOKINGS = "{{ csrf_token() }}";
+
+async function sendEmailBookings(url, btn) {
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': CSRF_BOOKINGS }
+    });
+    if (res.ok) {
+      btn.innerHTML = '<i class="bi bi-check-lg"></i>';
+      btn.classList.replace('btn-outline-success', 'btn-success');
+      setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success','btn-outline-success'); btn.disabled = false; }, 2500);
+    } else {
+      btn.innerHTML = orig; btn.disabled = false;
+      alert('{{ _("Erro ao enviar e-mail.") }}');
+    }
+  } catch { btn.innerHTML = orig; btn.disabled = false; }
+}
+</script>
+
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h4 class="fw-bold mb-0">{{ _('Minhas Reuniões') }}</h4>
 
@@ -88,12 +112,19 @@
 
 <div class="card shadow-sm mb-3">
   {# Event header #}
-  <div class="event-header" style="border-radius: 12px 12px 0 0">
+  <div class="event-header" style="border-radius:12px 12px 0 0">
     <span class="fw-semibold" style="color:var(--pan-blue);font-size:.9rem">{{ eb.event.name }}</span>
-    <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
-       class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
-      <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
-    </a>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-success"
+              onclick="sendEmailBookings('{{ url_for('guardian.send_schedule_email', student_id=item.student.id, event_id=eb.event.id) }}', this)"
+              style="font-size:.78rem">
+        <i class="bi bi-envelope me-1"></i>{{ _('E-mail') }}
+      </button>
+      <a href="{{ url_for('guardian.schedule', student_id=item.student.id, event_id=eb.event.id) }}"
+         class="btn btn-sm" style="background:var(--pan-blue);color:#fff;font-size:.78rem">
+        <i class="bi bi-grid me-1"></i>{{ _('Ver grade') }}
+      </a>
+    </div>
   </div>
 
   {% if eb.bookings %}
@@ -101,11 +132,8 @@
     {% set t = b.slot.teacher %}
     {% set initials = (t.first_name[0]|upper + t.last_name[0]|upper) if t else '?' %}
     <div class="booking-row">
-      {# Confirmed dot #}
       <div style="width:8px;height:8px;border-radius:50%;background:var(--pan-green);flex-shrink:0"></div>
-      {# Teacher avatar #}
       <span class="pan-avatar" style="width:38px;height:38px;font-size:.78rem;flex-shrink:0">{{ initials }}</span>
-      {# Teacher name + subject #}
       <div style="flex:1;min-width:0">
         <div class="fw-semibold small text-truncate">{{ t.full_name if t else '—' }}</div>
         {% if sp and t and t.teacher_profile %}
@@ -116,7 +144,6 @@
         </div>
         {% endif %}
       </div>
-      {# Date + time #}
       <div class="text-end flex-shrink-0">
         <div class="fw-semibold small">{{ b.slot.start_datetime.strftime('%d/%m') }}</div>
         <div class="text-muted" style="font-size:.73rem">
@@ -153,7 +180,7 @@
 </div>
 {% endfor %}{# children #}
 
-{# ── Child picker modal ── #}
+{# ── Child picker modal for PDF (multiple children) ── #}
 {% if children_data | length > 1 %}
 <div class="modal fade" id="printChildModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
@@ -175,8 +202,7 @@
              class="d-flex align-items-center gap-3 p-3 rounded-3 border text-decoration-none text-dark"
              style="transition:background .1s"
              onmouseover="this.style.background='#f1f5f9'"
-             onmouseout="this.style.background=''"
-             data-bs-dismiss="modal">
+             onmouseout="this.style.background=''">
             <span class="pan-avatar" style="width:40px;height:40px;font-size:.85rem;flex-shrink:0">
               {{ item.student.first_name[0]|upper }}{{ item.student.last_name[0]|upper }}
             </span>
