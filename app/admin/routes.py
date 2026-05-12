@@ -76,6 +76,17 @@ def dashboard():
                            recent_emails=recent_emails)
 
 
+@admin_bp.route("/emails/<int:notification_id>/preview")
+@login_required
+@secretary_or_admin_required
+def email_preview(notification_id):
+    from flask import abort, Response
+    n = EmailNotification.query.get_or_404(notification_id)
+    if not n.body_html:
+        abort(404)
+    return Response(n.body_html, mimetype="text/html")
+
+
 # ── Divisions ──────────────────────────────────────────────────────────────────
 
 @admin_bp.route("/divisions")

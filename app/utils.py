@@ -24,7 +24,17 @@ def _attach_logo(msg):
     )
 
 
-def _log_email(recipient_id, email_type, event_id=None):
+def _logo_data_uri():
+    """Return a data: URI for the logo so email previews don't need CID."""
+    import base64
+    global _LOGO_RAW
+    if _LOGO_RAW is None:
+        with open(_LOGO_PATH, "rb") as f:
+            _LOGO_RAW = f.read()
+    return "data:image/png;base64," + base64.b64encode(_LOGO_RAW).decode()
+
+
+def _log_email(recipient_id, email_type, event_id=None, body_html=None):
     """Record a sent email in EmailNotification. Never raises — logging must not break mail flow."""
     try:
         from app.models import EmailNotification
@@ -32,6 +42,7 @@ def _log_email(recipient_id, email_type, event_id=None):
             recipient_id=recipient_id,
             type=email_type,
             event_id=event_id,
+            body_html=body_html,
         ))
         db.session.commit()
     except Exception:
@@ -65,10 +76,11 @@ def send_invite_email(user, token):
         subject = "Bem-vindo ao Conferensia – Crie sua senha"
         template = "emails/invite_pt.html"
     body = render_template(template, user=user, link=link, logo_url="cid:logo")
+    preview = render_template(template, user=user, link=link, logo_url=_logo_data_uri())
     msg = Message(subject=subject, recipients=[user.email], html=body)
     _attach_logo(msg)
     mail.send(msg)
-    _log_email(user.id, "invite")
+    _log_email(user.id, "invite", body_html=preview)
 
 
 def send_conference_info_email(user, event, token=None):
@@ -86,10 +98,11 @@ def send_conference_info_email(user, event, token=None):
         template = "emails/conference_info_pt.html"
 
     body = render_template(template, user=user, event=event, link=link, logo_url="cid:logo")
+    preview = render_template(template, user=user, event=event, link=link, logo_url=_logo_data_uri())
     msg = Message(subject=subject, recipients=[user.email], html=body)
     _attach_logo(msg)
     mail.send(msg)
-    _log_email(user.id, "conference_info", event_id=event.id)
+    _log_email(user.id, "conference_info", event_id=event.id, body_html=preview)
 
 
 def send_guardian_bookings_email(guardian, children_data):
@@ -111,10 +124,12 @@ def send_guardian_bookings_email(guardian, children_data):
     link = url_for("auth.login", _external=True)
     body = render_template(template, user=guardian, children_data=children_data,
                            link=link, logo_url="cid:logo")
+    preview = render_template(template, user=guardian, children_data=children_data,
+                              link=link, logo_url=_logo_data_uri())
     msg = Message(subject=subject, recipients=[guardian.email], html=body)
     _attach_logo(msg)
     mail.send(msg)
-    _log_email(guardian.id, "guardian_bookings_summary")
+    _log_email(guardian.id, "guardian_bookings_summary", body_html=preview)
 
 
 def send_reset_email(user, token):
@@ -128,10 +143,11 @@ def send_reset_email(user, token):
         template = "emails/reset_pt.html"
 
     body = render_template(template, user=user, link=link, logo_url="cid:logo")
+    preview = render_template(template, user=user, link=link, logo_url=_logo_data_uri())
     msg = Message(subject=subject, recipients=[user.email], html=body)
     _attach_logo(msg)
     mail.send(msg)
-    _log_email(user.id, "reset_password")
+    _log_email(user.id, "reset_password", body_html=preview)
 
 
 def generate_slots_for_day(day, teachers):
@@ -209,10 +225,13 @@ def send_slot_cancelled_email(guardian, student, teacher, slot, event):
     body = render_template(template, guardian=guardian, student=student,
                            teacher=teacher, slot=slot, event=event,
                            link=link, logo_url="cid:logo")
+    preview = render_template(template, guardian=guardian, student=student,
+                              teacher=teacher, slot=slot, event=event,
+                              link=link, logo_url=_logo_data_uri())
     msg = Message(subject=subject, recipients=[guardian.email], html=body)
     _attach_logo(msg)
     mail.send(msg)
-    _log_email(guardian.id, "slot_cancelled", event_id=event.id)
+    _log_email(guardian.id, "slot_cancelled", event_id=event.id, body_html=preview)
 
 
 def send_teacher_absent_email(guardian, teacher, day, bookings, event):
@@ -229,7 +248,7 @@ def send_teacher_absent_email(guardian, teacher, day, bookings, event):
                            day=day, bookings=bookings, event=event, link=link)
     msg = Message(subject=subject, recipients=[guardian.email], html=body)
     mail.send(msg)
-    _log_email(guardian.id, "teacher_absent", event_id=event.id)
+    _log_email(guardian.id, "teacher_absent", event_id=event.id, body_html=body)
 
 
 def send_booking_reminder_email(guardian, event, day, bookings):
@@ -246,7 +265,7 @@ def send_booking_reminder_email(guardian, event, day, bookings):
                            day=day, bookings=bookings, link=link)
     msg = Message(subject=subject, recipients=[guardian.email], html=body)
     mail.send(msg)
-    _log_email(guardian.id, "reminder", event_id=event.id)
+    _log_email(guardian.id, "reminder", event_id=event.id, body_html=body)
 
 
 def get_active_event():

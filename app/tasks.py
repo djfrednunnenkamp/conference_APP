@@ -15,11 +15,20 @@ def _attach_logo(msg):
                headers={"Content-ID": "<logo>", "X-Attachment-Id": "logo"})
 
 
-def _log(user_id, email_type, event_id=None):
+def _logo_data_uri():
+    import os, base64
+    logo_path = os.path.join(os.path.dirname(__file__), "static", "img", "logo_email.png")
+    with open(logo_path, "rb") as f:
+        data = f.read()
+    return "data:image/png;base64," + base64.b64encode(data).decode()
+
+
+def _log(user_id, email_type, event_id=None, body_html=None):
     try:
         from app.models import EmailNotification
         db.session.add(EmailNotification(
-            recipient_id=user_id, email_type=email_type, event_id=event_id))
+            recipient_id=user_id, type=email_type, event_id=event_id,
+            body_html=body_html))
         db.session.commit()
     except Exception:
         pass
@@ -36,10 +45,12 @@ def _send_student_deadline_email(student, event, bookings):
         tmpl = "emails/deadline_student_pt.html"
     body = render_template(tmpl, user=student, event=event,
                            bookings=bookings, link=link, logo_url="cid:logo")
+    preview = render_template(tmpl, user=student, event=event,
+                              bookings=bookings, link=link, logo_url=_logo_data_uri())
     msg = Message(subject=subject, recipients=[student.email], html=body)
     _attach_logo(msg)
     mail.send(msg)
-    _log(student.id, "deadline_summary", event_id=event.id)
+    _log(student.id, "deadline_summary", event_id=event.id, body_html=preview)
 
 
 def _send_guardian_deadline_email(guardian, event, children):
@@ -54,10 +65,12 @@ def _send_guardian_deadline_email(guardian, event, children):
         tmpl = "emails/deadline_guardian_pt.html"
     body = render_template(tmpl, user=guardian, event=event,
                            children=children, link=link, logo_url="cid:logo")
+    preview = render_template(tmpl, user=guardian, event=event,
+                              children=children, link=link, logo_url=_logo_data_uri())
     msg = Message(subject=subject, recipients=[guardian.email], html=body)
     _attach_logo(msg)
     mail.send(msg)
-    _log(guardian.id, "deadline_summary", event_id=event.id)
+    _log(guardian.id, "deadline_summary", event_id=event.id, body_html=preview)
 
 
 def send_deadline_emails_for_event(event):

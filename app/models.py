@@ -278,6 +278,7 @@ class EmailNotification(db.Model):
     recipient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     sent_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     type = db.Column(db.String(32), nullable=False)   # invite | conference_info | reminder | reset_password | teacher_absent
+    body_html = db.Column(db.Text, nullable=True)
 
     event = db.relationship("ConferenceEvent", back_populates="email_notifications")
     recipient = db.relationship("User", back_populates="email_notifications")
